@@ -48,7 +48,7 @@
         <button class="ws-item" onclick="newWorkspace();closeWsMenu()">New…</button>
         <button class="ws-item" onclick="renameWorkspace();closeWsMenu()">Rename…</button>
         <button class="ws-item" onclick="duplicateWorkspace();closeWsMenu()">Duplicate</button>
-        <button class="ws-item" onclick="deleteWorkspace();closeWsMenu()">Delete</button>
+        <button class="ws-item" id="wsDeleteBtn" onclick="deleteWorkspace();closeWsMenu()">Delete</button>
         <div style="height:1px;background:var(--border);margin:4px 2px"></div>
         <button class="ws-item" onclick="exportWorkspace();closeWsMenu()">Export…</button>
         <button class="ws-item" onclick="document.getElementById('wsImportFile').click();closeWsMenu()">Import…</button>
@@ -132,10 +132,13 @@
       </label>
     </div>
   </div>
-  <button class="btn primary" id="connectBtn" onclick="connectSerial()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-    Connect
-  </button>
+  <div style="position:relative">
+    <button class="btn primary" id="connectBtn" onclick="connectSerial()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      Connect
+    </button>
+    <div id="connectError" class="connect-error" hidden onclick="this.hidden=true"></div>
+  </div>
   <button class="btn" id="demoBtn" onclick="startDemo()" style="border-color:#a78bfa;color:#a78bfa">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
     Demo
@@ -519,7 +522,7 @@
   <div class="term-input-row">
     <span id="isotpInputLabel" style="color:var(--amber);font-weight:700;font-family:var(--mono);font-size:12px;padding:0 10px 0 14px;letter-spacing:0.05em">UDS</span>
     <input type="text" id="isotpInput"
-      placeholder="hex bytes — e.g.  22 F1 90  or  3E 00"
+      placeholder="hex bytes — e.g.  22 F1 84  or  3E 00"
       style="flex:1;border:none;background:transparent;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;padding:0;letter-spacing:0.04em"
       onkeydown="isotpKeydown(event)" onblur="isotpFmtHex(this)">
     <button class="btn" style="padding:4px 12px;font-size:11px;border-radius:0;border-top:none;border-bottom:none;border-right:none" onclick="isotpSend()">Send</button>
@@ -547,7 +550,7 @@
     <span id="j1939Badge" style="font-size:10px;color:var(--text3);padding:0 8px;font-family:var(--sans)"></span>
   </div>
   <div id="j1939-pgn"  style="flex:1;overflow-y:auto;padding:14px 20px"></div>
-  <div id="j1939-log"  style="flex:1;overflow-y:auto;padding:14px 20px;display:none"></div>
+  <div id="j1939-log"  style="flex:1;overflow-y:auto;padding:0 20px 14px;display:none"></div>
   <div id="j1939-dm"   style="flex:1;overflow-y:auto;padding:14px 20px;display:none"></div>
   <div id="j1939-addr" style="flex:1;overflow-y:auto;padding:14px 20px;display:none"></div>
 </div>
@@ -647,8 +650,8 @@
   <div class="co-config">
     <label>Node <input id="coNode" value="1" onchange="canopenCfgChange()" style="width:48px" title="Default node-ID for the SDO/NMT forms"></label>
     <label>SDO timeout <input id="coSdoTimeout" value="1000" onchange="canopenCfgChange()" style="width:60px" title="ms to wait for an SDO response">ms</label>
-    <label>SDO req <input id="coSdoReq" placeholder="auto" onchange="canopenCfgChange()" title="Override SDO request COB-ID (blank = 0x600+node)"></label>
-    <label>SDO rsp <input id="coSdoRsp" placeholder="auto" onchange="canopenCfgChange()" title="Override SDO response COB-ID (blank = 0x580+node)"></label>
+    <label>SDO req <input id="coSdoReq" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" title="Override SDO request COB-ID (blank = 0x600+node)"></label>
+    <label>SDO rsp <input id="coSdoRsp" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" title="Override SDO response COB-ID (blank = 0x580+node)"></label>
     <span id="coDemoFlag" class="co-demo-flag" style="display:none">Demo node active</span>
   </div>
   <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:0 12px;display:flex;align-items:center;flex-shrink:0">
@@ -710,8 +713,8 @@
       <option value="30000" selected>30s</option>
       <option value="60000">60s</option>
     </select>
-    <button class="btn" id="graphPauseBtn">Pause</button>
-    <button class="btn" id="graphLiveBtn" title="Resume live + reset zoom/pan">Live</button>
+    <button class="btn" id="graphPauseBtn" title="Pause freezes the view. Resume follows the live edge again while keeping your current zoom level.">Pause</button>
+    <button class="btn" id="graphLiveBtn" title="Jump to the live edge AND reset zoom/pan to the default window (unlike Resume, which keeps your zoom).">Live ⟲</button>
     <span class="graph-lbl" style="margin-left:auto">drag = pan · wheel = zoom</span>
   </div>
   <div class="graph-stage"><canvas id="graphCanvas"></canvas></div>
@@ -740,13 +743,13 @@
       </label>
     </div>
     <div class="fuzz-row" id="fuzzRangeOpts">
-      <label class="fuzz-inline">Start <input type="text" id="fuzzIdStart" class="fuzz-hex" value="000" oninput="fuzzCfgChange()"></label>
-      <label class="fuzz-inline">End <input type="text" id="fuzzIdEnd" class="fuzz-hex" value="7FF" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-inline">Start <input type="text" id="fuzzIdStart" class="fuzz-hex" value="000" maxlength="8" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-inline">End <input type="text" id="fuzzIdEnd" class="fuzz-hex" value="7FF" maxlength="8" oninput="fuzzCfgChange()"></label>
       <label class="fuzz-radio"><input type="radio" name="fuzzIdScan" value="seq" checked onchange="fuzzCfgChange()"> Sequential</label>
       <label class="fuzz-radio"><input type="radio" name="fuzzIdScan" value="rand" onchange="fuzzCfgChange()"> Random</label>
     </div>
     <div class="fuzz-row" id="fuzzSingleOpts" style="display:none">
-      <label class="fuzz-inline">ID <input type="text" id="fuzzSingleId" class="fuzz-hex" value="7DF" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-inline">ID <input type="text" id="fuzzSingleId" class="fuzz-hex" value="7DF" maxlength="8" oninput="fuzzCfgChange()"></label>
     </div>
     <div class="fuzz-row" id="fuzzObservedOpts" style="display:none">
       <span class="fuzz-note" id="fuzzObservedNote">Cycles through IDs currently in the ID List.</span>
@@ -866,7 +869,19 @@
       Add
     </button>
   </div>
-  <div id="txBody" style="display:block;padding:4px 0;max-height:200px;overflow-y:auto"></div>
+  <div id="txContent">
+    <!-- Automatic (module-driven) messages — collapsible, shown above the custom rows. -->
+    <div id="txModuleSection" style="display:none">
+      <div id="txModuleHeader" onclick="toggleTxModule()" title="Frames transmitted by other modules (Quick Watch, Fuzzer) — read-only">
+        <svg id="txModuleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;color:var(--text3);transform:rotate(180deg);transition:transform 0.2s"><path d="M18 15l-6-6-6 6"/></svg>
+        <span>Automatic messages</span>
+        <span id="txModuleCount" class="tx-module-count">0</span>
+        <span class="tx-module-subnote">sent by modules · read-only</span>
+      </div>
+      <div id="txModuleBody" style="padding:0 0 4px;max-height:160px;overflow-y:auto"></div>
+    </div>
+    <div id="txBody" style="display:block;padding:4px 0;max-height:200px;overflow-y:auto"></div>
+  </div>
 </div>
 
 <div class="log-panel" id="logPanel" style="height:28px">

@@ -95,7 +95,7 @@
 .co-tbl th {
   text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
   color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
-  font-weight:500; font-family:var(--sans); white-space:nowrap; background:var(--bg2); cursor:default;
+  font-weight:500; font-family:var(--sans); white-space:nowrap; background:var(--bg2); cursor:default; position:sticky; top:0; z-index:1;
 }
 .co-tbl td { padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text2); font-family:var(--mono); }
 .co-tbl tr:last-child td { border-bottom:none; }
@@ -518,11 +518,22 @@ function coStartDemo() {
 function coStopDemo() { if (coDemoTimer) { clearInterval(coDemoTimer); coDemoTimer = null; } coDemoSeg = null; }
 
 // ── Config strip ──────────────────────────────────────────────────────────────
+// Clamp a CANopen COB-ID field (11-bit, 3 hex) in place. Empty is left as-is ("auto").
+function coClampCob(el) {
+  if (!el) return;
+  let s = String(el.value || '').replace(/^0x/i, '').replace(/[^0-9A-Fa-f]/g, '').toUpperCase().slice(0, 3);
+  if (s !== '' && parseInt(s, 16) > 0x7FF) s = '7FF';
+  if (el.value !== s) el.value = s;
+  el.maxLength = 3;
+}
+
 function canopenCfgChange() {
   const node = parseInt(document.getElementById('coNode').value);
   coCfg.node = Number.isFinite(node) ? Math.max(0, Math.min(127, node)) : 1;
   const to = parseInt(document.getElementById('coSdoTimeout').value);
   coCfg.sdoTimeout = Number.isFinite(to) && to > 0 ? to : 1000;
+  coClampCob(document.getElementById('coSdoReq'));
+  coClampCob(document.getElementById('coSdoRsp'));
   coCfg.sdoReqId = coParseId(document.getElementById('coSdoReq').value);
   coCfg.sdoRspId = coParseId(document.getElementById('coSdoRsp').value);
   if (window.canopenScheduleSave) window.canopenScheduleSave();
@@ -591,9 +602,10 @@ function coRenderLog() {
   if (!el) return;
   if (!coLog.length) { el.innerHTML = '<div class="co-empty">No CANopen frames yet.<br>The COB-ID (11-bit) is split into a function code + node-ID to classify each frame.</div>'; return; }
   const typeCls = { emcy: 'emcy', sdo_rx: 'sdo', sdo_tx: 'sdo', hb: 'hb', nmt: 'nmt', pdo: 'pdo' };
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   el.innerHTML = `<table class="co-tbl">
     <thead><tr><th>Time</th><th>COB-ID</th><th>Node</th><th>Type</th><th>Bytes</th><th>Decoded</th></tr></thead><tbody>` +
-    [...coLog].reverse().map(e => {
+    coLog.map(e => {
       const cnt = e.count && e.count > 1 ? ` <span style="color:var(--text3)">×${e.count}</span>` : '';
       return `<tr class="${e.emcy ? 'emcy-row' : ''}">
         <td class="co-ts">${coRelTs(e.ts)}</td>
@@ -604,6 +616,7 @@ function coRenderLog() {
         <td class="co-dec">${e.summary || ''}${cnt}</td>
       </tr>`;
     }).join('') + '</tbody></table>';
+  if (nearBottom) el.scrollTop = el.scrollHeight;
 }
 
 function canopenOnShow() {

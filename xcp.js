@@ -49,7 +49,12 @@
 }
 .xcp-controls .xcp-config { background:transparent; border:none; padding:0; }
 .xcp-controls:not(.xcp-connected) .xcp-hide-until-connected { display:none; }
-.xcp-controls:not(.xcp-connected) #xcpConnectBtn { background:var(--bg2); color:var(--text2); border-color:var(--border); }
+/* Before connecting, make Connect the obvious primary action (solid green + glow). */
+.xcp-controls:not(.xcp-connected) #xcpConnectBtn {
+  background:var(--green); color:#000; border-color:var(--green); font-weight:700;
+  box-shadow:0 0 0 3px var(--green-dim);
+}
+.xcp-controls:not(.xcp-connected) #xcpConnectBtn:hover:not(:disabled) { background:#00cc6a; color:#000; }
 .xcp-log-bar {
   background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
   padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
@@ -66,7 +71,8 @@
 .xcp-btn:hover:not(:disabled) { background:var(--bg3); color:var(--text); }
 .xcp-btn:disabled { opacity:.4; cursor:not-allowed; }
 .xcp-btn.go     { background:var(--green-dim); color:var(--green); border-color:transparent; }
-.xcp-btn.danger { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
+.xcp-btn.danger { background:var(--red-dim);   color:var(--red);   border-color:var(--red); }
+.xcp-btn.danger:hover:not(:disabled) { background:var(--red); color:#000; }
 .xcp-form {
   display:flex; align-items:center; gap:8px; flex-wrap:wrap;
   font-family:var(--sans); font-size:11px; color:var(--text2);
@@ -115,7 +121,7 @@
   text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
   color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
   font-weight:500; font-family:var(--sans); white-space:nowrap;
-  background:var(--bg2); cursor:default;
+  background:var(--bg2); cursor:default; position:sticky; top:0; z-index:1;
 }
 .xcp-tbl td { padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text2); font-family:var(--mono); }
 .xcp-tbl tr:last-child td { border-bottom:none; }
@@ -487,9 +493,11 @@ function xcpStop() {
 
 // ── Config strip ──────────────────────────────────────────────────────────────
 function xcpCfgChange() {
-  xcpCfg.cro = xcpParseId(document.getElementById('xcpCro').value, 0x552);
-  xcpCfg.dto = xcpParseId(document.getElementById('xcpDto').value, 0x553);
   xcpCfg.isExt = document.getElementById('xcpCanType').value === 'ext';
+  const croEl = document.getElementById('xcpCro'), dtoEl = document.getElementById('xcpDto');
+  const cro = window.clampIdInput(croEl, xcpCfg.isExt), dto = window.clampIdInput(dtoEl, xcpCfg.isExt);
+  xcpCfg.cro = croEl.value === '' ? 0x552 : cro;
+  xcpCfg.dto = dtoEl.value === '' ? 0x553 : dto;
   xcpCfg.byteOrder = document.getElementById('xcpByteOrder').value;
   if (window.xcpScheduleSave) window.xcpScheduleSave();
   xcpDirty = true;
@@ -556,9 +564,10 @@ function xcpRenderLog() {
   const el = document.getElementById('xcp-log');
   if (!el) return;
   if (!xcpLog.length) { el.innerHTML = '<div class="xcp-empty">No XCP frames yet.<br>Commands ride the CRO ID, responses + DAQ ride the DTO ID.</div>'; return; }
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   el.innerHTML = `<table class="xcp-tbl">
     <thead><tr><th>Time</th><th>Dir</th><th>ID</th><th>Type</th><th>Bytes</th><th>Decoded</th></tr></thead><tbody>` +
-    [...xcpLog].reverse().map(e => {
+    xcpLog.map(e => {
       const dirLbl = e.dir === 'cro' ? '▲ CRO' : '▼ DTO';
       const cnt = e.daqCount && e.daqCount > 1 ? ` <span style="color:var(--text3)">×${e.daqCount}</span>` : '';
       return `<tr>
@@ -570,6 +579,7 @@ function xcpRenderLog() {
         <td class="xc-dec">${e.summary || ''}${cnt}</td>
       </tr>`;
     }).join('') + '</tbody></table>';
+  if (nearBottom) el.scrollTop = el.scrollHeight;
 }
 
 function xcpOnShow() {

@@ -95,10 +95,10 @@ function fuzzCfgChange() {
   const radio = n => (document.querySelector(`input[name="${n}"]:checked`) || {}).value;
   fuzzCfg.idMode  = radio('fuzzIdMode') || 'range';
   fuzzCfg.isExt   = document.getElementById('fuzzIsExt').value === '1';
-  fuzzCfg.idStart = parseInt(document.getElementById('fuzzIdStart').value, 16) || 0;
-  fuzzCfg.idEnd   = parseInt(document.getElementById('fuzzIdEnd').value, 16) || 0;
+  fuzzCfg.idStart = window.clampIdInput(document.getElementById('fuzzIdStart'), fuzzCfg.isExt);
+  fuzzCfg.idEnd   = window.clampIdInput(document.getElementById('fuzzIdEnd'), fuzzCfg.isExt);
   fuzzCfg.idScan  = radio('fuzzIdScan') || 'seq';
-  fuzzCfg.singleId = parseInt(document.getElementById('fuzzSingleId').value, 16) || 0;
+  fuzzCfg.singleId = window.clampIdInput(document.getElementById('fuzzSingleId'), fuzzCfg.isExt);
   fuzzCfg.obsScan = radio('fuzzObsScan') || 'seq';
   fuzzCfg.dlcMode = radio('fuzzDlcMode') || 'fixed';
   fuzzCfg.dlcFixed = parseInt(document.getElementById('fuzzDlcFixed').value, 10);
@@ -228,6 +228,7 @@ function fuzzToggleRun() {
   fzByteInc = [0,0,0,0,0,0,0,0];
   fuzzRunning = true;
   fuzzTimer = setInterval(fuzzTick, fuzzCfg.gap);
+  if (window.txAutoExpand) window.txAutoExpand();
   fuzzUpdateIndicator();
 }
 
@@ -249,7 +250,22 @@ function fuzzUpdateIndicator() {
   if (badge) badge.style.display = fuzzRunning ? 'inline-flex' : 'none';
   const bc = document.getElementById('fuzzActiveCount');
   if (bc) bc.textContent = fuzzCount;
+  if (window.renderTxModuleRows) window.renderTxModuleRows();   // mirror into the TX Scheduler
 }
+
+// Summary of the frames the fuzzer is currently transmitting, for the read-only
+// TX-Scheduler mirror row. Returns null when not running.
+window.fuzzModuleSummary = function () {
+  if (!fuzzRunning) return null;
+  const w = fuzzCfg.isExt ? 8 : 3;
+  const h = v => (v >>> 0).toString(16).toUpperCase().padStart(w, '0');
+  let idText;
+  if (fuzzCfg.idMode === 'single')        idText = h(fuzzCfg.singleId);
+  else if (fuzzCfg.idMode === 'observed') idText = 'observed IDs';
+  else                                    idText = `${h(fuzzCfg.idStart)}–${h(fuzzCfg.idEnd)}`;
+  return { idText, ext: fuzzCfg.isExt, dataText: 'randomized', periodText: `~${fuzzCfg.gap} ms`,
+           note: `Fuzzer · ${fuzzCfg.idMode}` };
+};
 
 // ── Tab show + persistence hooks ──
 window.fuzzOnShow = function () {

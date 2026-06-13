@@ -81,6 +81,7 @@
 let graphSignals  = [];
 let graphPaused   = false;   // freeze the view (set true automatically on pan/zoom)
 let graphFrozenEnd = 0;      // right-edge time captured when paused
+let graphLiveEnd  = 0;       // last wall-clock time the bus was live (freeze edge when bus drops)
 let graphWindowMs = 30000;   // visible span (10s / 30s / 60s)
 let graphPan      = 0;       // ms offset of the view (≤ 0 = into the past)
 let graphZoom     = 1;       // time-axis zoom factor (effective window = graphWindowMs / zoom)
@@ -334,9 +335,16 @@ function graphRender() {
   drawGraph();
 }
 
+// The live edge only advances while the bus is actually delivering frames.
+function graphBusLive() {
+  return !!(window.fuzzBusReady && window.fuzzBusReady() && !(window.fuzzBusPaused && window.fuzzBusPaused()));
+}
+
 (function loop() {
   const now = Date.now();
-  if (now - graphLastTick >= 250) { graphDirty = true; graphLastTick = now; } // keep the live edge scrolling
+  // Only keep scrolling the live edge while the bus is live and the view isn't paused;
+  // otherwise the window would slide and drag the (static) traces off-screen.
+  if (graphBusLive() && !graphPaused && now - graphLastTick >= 250) { graphDirty = true; graphLastTick = now; }
   graphRender();
   requestAnimationFrame(loop);
 })();
@@ -408,8 +416,13 @@ function drawGraph() {
     return;
   }
 
-  // Visible time window
-  const tEnd = graphPaused ? graphFrozenEnd : Date.now();
+  // Visible time window. The right edge tracks wall-clock only while the bus is
+  // live; when paused it sits at the captured freeze point, and when the bus is
+  // disconnected/bus-paused it holds at the last live instant so traces don't drift.
+  const busLive = graphBusLive();
+  const nowMs = Date.now();
+  if (busLive && !graphPaused) graphLiveEnd = nowMs;
+  const tEnd = graphPaused ? graphFrozenEnd : (busLive ? nowMs : (graphLiveEnd || nowMs));
   const win = graphWindowMs / graphZoom;
 
   // Oldest retained sample across all signals (for pan clamp)

@@ -88,7 +88,7 @@
   font-weight:500; font-family:var(--sans); white-space:nowrap;
   /* opaque bg on the cell (not <thead>) so the sticky header isn't see-through
      with border-collapse:collapse */
-  background:var(--bg2); cursor:default;
+  background:var(--bg2); cursor:default; position:sticky; top:0; z-index:1;
 }
 .chademo-tbl td {
   padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top;
@@ -355,9 +355,10 @@ function chademoRenderSession() {
 function chademoRenderLog() {
   const el = document.getElementById('chademo-log');
   if (!chademoLog.length) { el.innerHTML = '<div class="chademo-empty">No CHAdeMO frames in log yet.</div>'; return; }
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   el.innerHTML = `<table class="chademo-tbl">
     <thead><tr><th>Time</th><th>ID</th><th>Message</th><th>Bytes</th><th>Decoded</th></tr></thead><tbody>` +
-    [...chademoLog].reverse().map(e => {
+    chademoLog.map(e => {
       const m = CHADEMO_MSGS[e.id];
       const raw = Array.from(e.data).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
       return `<tr>
@@ -368,6 +369,7 @@ function chademoRenderLog() {
         <td class="cm-val">${e.val || '<span style="color:var(--text3)">—</span>'}</td>
       </tr>`;
     }).join('') + '</tbody></table>';
+  if (nearBottom) el.scrollTop = el.scrollHeight;
 }
 
 // ── Demo session (tab button) — replays a handshake + charging ramp ───────────

@@ -34,6 +34,7 @@
   text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
   color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
   font-weight:500; font-family:var(--sans); white-space:nowrap;
+  background:var(--bg2); position:sticky; top:0; z-index:1;
 }
 .j1939-tbl td {
   padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top;
@@ -1021,17 +1022,18 @@ function j1939RenderPGN() {
   '</tbody></table>';
 }
 
-// Frame Log — last J1939_LOG_MAX decoded frames, newest first
+// Frame Log — last J1939_LOG_MAX decoded frames, chronological (newest at bottom)
 function j1939RenderLog() {
   const el = document.getElementById('j1939-log');
   if (!j1939Log.length) { el.innerHTML = '<div class="j1939-empty">No J1939 frames in log yet.</div>'; return; }
 
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   el.innerHTML = `<table class="j1939-tbl">
   <thead><tr>
     <th>Time</th><th>PGN</th><th>SA → DA</th><th>Values / Raw</th>
   </tr></thead>
   <tbody>` +
-  [...j1939Log].reverse().map(e => {
+  j1939Log.map(e => {
     const entry = j1939ActiveDb()[e.pgn];
     const pgnLabel = entry ? `<b>${entry.abbr}</b>` : j1939H(e.pgn,4);
     const tpBadge  = e.fromTP ? `<span class="j1939-tp-badge">${e.fromTP === 'etp' ? 'ETP' : (j1939ProtoMode === 'nmea2000' ? 'FP' : 'TP')}</span>` : '';
@@ -1045,6 +1047,7 @@ function j1939RenderLog() {
     </tr>`;
   }).join('') +
   '</tbody></table>';
+  if (nearBottom) el.scrollTop = el.scrollHeight;
 }
 
 // Faults — DM1 (active) and DM2 (previously active) per SA

@@ -95,6 +95,23 @@ const GS_MODE = { RESET: 0, START: 1 };
 const GS_MODE_LISTEN_ONLY = 1 << 0;
 const CAN_EFF_FLAG = 0x80000000, CAN_RTR_FLAG = 0x40000000, CAN_ERR_FLAG = 0x20000000;
 const CAN_SFF_MASK = 0x7FF, CAN_EFF_MASK = 0x1FFFFFFF;
+
+// Hard-clamp a CAN-ID text input in place: strip non-hex, uppercase, cap to the
+// fixed hex width the hardware expects (3 for 11-bit, 8 for 29-bit), and clamp the
+// value to range (0x7FF / 0x1FFFFFFF). Leading zeros are preserved as typed.
+// Marks the field .invalid when empty. Returns the numeric value (0 when empty).
+function clampIdInput(el, ext) {
+  if (!el) return 0;
+  const maxHex = ext ? 8 : 3;
+  const mask = ext ? CAN_EFF_MASK : CAN_SFF_MASK;
+  let s = String(el.value || '').replace(/[^0-9A-Fa-f]/g, '').toUpperCase().slice(0, maxHex);
+  if (s !== '' && parseInt(s, 16) > mask) s = mask.toString(16).toUpperCase();
+  if (el.value !== s) el.value = s;
+  el.maxLength = maxHex;
+  el.classList.toggle('invalid', s === '');
+  return s === '' ? 0 : parseInt(s, 16);
+}
+window.clampIdInput = clampIdInput;
 const SLCAN_BITRATE_HZ = {
   S0: 10000, S1: 20000, S2: 50000, S3: 100000, S4: 125000,
   S5: 250000, S6: 500000, S7: 800000, S8: 1000000
@@ -261,17 +278,33 @@ let txSeq = 0;
 let txSuspended = false;
 
 function toggleTxPanel() {
-  const body    = document.getElementById('txBody');
+  const content = document.getElementById('txContent');
   const chevron = document.getElementById('txChevron');
-  const open    = body.style.display !== 'none';
-  body.style.display = open ? 'none' : '';
+  const open    = content.style.display !== 'none';
+  content.style.display = open ? 'none' : '';
   chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
   scheduleSave(); // panel state is a global UI pref
 }
 
+// Expand the scheduler if collapsed — called when transmission starts.
+function txAutoExpand() {
+  const content = document.getElementById('txContent');
+  if (content && content.style.display === 'none') toggleTxPanel();
+}
+
+window.txAutoExpand = txAutoExpand;   // modules (fuzz.js) expand the panel when they start sending
+
+// Collapse/expand the automatic (module-driven) message section independently.
+function toggleTxModule() {
+  const body = document.getElementById('txModuleBody');
+  const chev = document.getElementById('txModuleChevron');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (chev) chev.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
 function addTxMessage() {
-  const body = document.getElementById('txBody');
-  if (body.style.display === 'none') toggleTxPanel();
+  txAutoExpand();
   const msg = { seq: txSeq++, enabled: false, ext: false, rtr: false,
                 id: '000', dlc: 8, data: '00 00 00 00 00 00 00 00', period: 100, timer: null, note: '' };
   txMessages.push(msg);
@@ -348,6 +381,7 @@ function renderTxRows() {
     </div>`;
   }).join('') || '<div style="padding:8px 16px;font-size:12px;color:var(--text3);font-family:var(--sans)">No messages. Click Add to create one.</div>';
   updateTxIndicator();
+  renderTxModuleRows();
 }
 
 // Tokenize the data field into byte strings. Accepts "AA BB CC"
@@ -394,6 +428,10 @@ function txSyncField(seq, field, val) {
   const msg = txMessages.find(m => m.seq === seq);
   if (!msg) return;
   txAutoDisable(seq);
+  if (field === 'id') {
+    const idInput = document.querySelector(`.tx-row[data-seq="${seq}"] input[oninput*="'id'"]`);
+    if (idInput) { clampIdInput(idInput, msg.ext); val = idInput.value; }
+  }
   msg[field] = val;
   if (field === 'data') {
     const input = document.querySelector(`.tx-row[data-seq="${seq}"] input[oninput*="'data'"]`);
@@ -479,6 +517,7 @@ function txSetEnabled(seq, enabled) {
     return;
   }
   msg.enabled = enabled;
+  if (enabled) txAutoExpand();
   if (enabled && !txSuspended) {
     txSendOne(msg);
     msg.timer = setInterval(() => txSendOne(msg), msg.period);
@@ -584,6 +623,53 @@ function updateTxIndicator() {
   const panel = document.getElementById('txPanel');
   if (panel) panel.classList.toggle('transmitting', active);
 }
+
+// One read-only TX-scheduler row mirroring a frame driven by another module
+// (Quick Watch, Fuzzer). Non-editable — purely informational — and tinted with
+// the TX warning colour so it reads as "this is being transmitted, not by you".
+function txModuleRowHtml(module, idText, ext, dataText, periodText, note) {
+  return `<div class="tx-row tx-module-row" title="Sent by ${escHtml(module)} — read-only">
+    <span class="tx-module-tag">${escHtml(module)}</span>
+    <span class="tx-sep"></span>
+    <span class="tx-lbl">ID</span><span class="tx-module-val">${escHtml(idText)}</span>
+    <span class="tx-module-type">${ext ? 'EXT' : 'STD'}</span>
+    <span class="tx-sep"></span>
+    <span class="tx-lbl">Data</span><span class="tx-module-val">${escHtml(dataText)}</span>
+    <span class="tx-sep"></span>
+    <span class="tx-lbl">Period</span><span class="tx-module-val">${escHtml(periodText)}</span>
+    <span class="tx-sep"></span>
+    <span class="tx-module-note">${escHtml(note || '')}</span>
+  </div>`;
+}
+
+// Refresh the read-only module-driven rows beneath the editable TX rows.
+function renderTxModuleRows() {
+  const body = document.getElementById('txModuleBody');
+  const section = document.getElementById('txModuleSection');
+  if (!body || !section) return;
+  const rows = [];
+  // OBD-II Quick Watch — one round-robin poll per watched PID on the ISO-TP Tx ID.
+  if (obdWatchOn && obdWatch.length) {
+    const cfg = isotpCfg();
+    const idHex = (cfg.txId >>> 0).toString(16).toUpperCase().padStart(cfg.isExt ? 8 : 3, '0');
+    const eff = Math.max(60, obdPollMs) * obdWatch.length;       // effective per-PID interval
+    const periodText = txSuspended ? 'paused' : `~${eff} ms`;
+    obdWatch.forEach(pid => {
+      const ph = pid.toString(16).toUpperCase().padStart(2, '0');
+      const name = OBD_PID01[pid] ? ` · ${OBD_PID01[pid]}` : '';
+      rows.push(txModuleRowHtml('Quick Watch', idHex, cfg.isExt, `01 ${ph}`, periodText, `Mode 01 PID ${ph}${name}`));
+    });
+  }
+  // Fuzzer — randomized frames; show a single summary row.
+  const fz = window.fuzzModuleSummary ? window.fuzzModuleSummary() : null;
+  if (fz) rows.push(txModuleRowHtml('Fuzzer', fz.idText, fz.ext, fz.dataText, fz.periodText, fz.note));
+
+  body.innerHTML = rows.join('');
+  section.style.display = rows.length ? '' : 'none';   // body's own collapse is via toggleTxModule
+  const cnt = document.getElementById('txModuleCount');
+  if (cnt) cnt.textContent = rows.length;
+}
+window.renderTxModuleRows = renderTxModuleRows;   // fuzz.js refreshes its summary row through this
 
 // ── Fuzzer hooks (used by fuzz.js — remove with that module to revert) ────────
 // Single seam the fuzzer calls to put a raw frame on the wire. Mirrors the
@@ -778,6 +864,18 @@ function showToast(msg, type = 'err', ms = 5000) {
   el.onclick = dismiss;
   host.appendChild(el);
   setTimeout(dismiss, ms);
+}
+
+// Inline connection-failure message anchored below the Connect button (complements the toast).
+function showConnectError(msg) {
+  const el = document.getElementById('connectError');
+  if (!el) return;
+  el.textContent = String(msg);
+  el.hidden = false;
+}
+function clearConnectError() {
+  const el = document.getElementById('connectError');
+  if (el) { el.textContent = ''; el.hidden = true; }
 }
 
 function termLog(direction, text) {
@@ -1160,6 +1258,7 @@ async function usbSerialPump() {
 
 async function connectSerial() {
   const adapter = document.getElementById('adapterType').value; // 'serial' | 'gsusb'
+  clearConnectError();
   try {
     if (adapter === 'gsusb') {
       connMode = 'gsusb';
@@ -1180,7 +1279,7 @@ async function connectSerial() {
       connMode = 'serial';
       port = await navigator.serial.requestPort();
       await port.open({ baudRate: 115200 });
-      log('Port opened at 115200 baud', 'ok');
+      log('Port opened successfully', 'ok');
       readLoop();
     }
 
@@ -1231,8 +1330,9 @@ async function connectSerial() {
   } catch (e) {
     if (e.name !== 'NotFoundError') {
       log(`Connection error: ${e.message}`, 'err');
-      log('Connection failed — review your adapter settings (Adapter, Baudrate, Advanced).', 'warn');
-      showToast('Connection failed — check your adapter settings (Adapter, Baudrate, Advanced).', 'err');
+      log('Connection failed — make sure the adapter is not already open in another program or browser tab, then review your settings (Adapter, Baudrate, Advanced).', 'warn');
+      showToast('Connection failed — is the adapter already in use by another app or tab? Otherwise check your adapter settings.', 'err');
+      showConnectError(`Connection failed: ${e.message}. The adapter may already be open in another program or browser tab — close it and retry. Otherwise check Adapter, Baudrate & Advanced settings.`);
       flashSettingsHint();
     }
     try { if (port) await port.close(); } catch(_) {}
@@ -1261,6 +1361,7 @@ function flashSettingsHint() {
 }
 
 async function disconnectSerial() {
+  clearConnectError();
   if (usbSerDev) {
     if (connMode === 'gsusb') { try { await gsSetMode(false, false); } catch(e) {} }
     const dev = usbSerDev;
@@ -1328,11 +1429,6 @@ async function readLoop() {
       bytesReceived += value.byteLength;
       document.getElementById('statBytes').textContent = bytesReceived.toLocaleString();
       const text = decoder.decode(value, { stream: true });
-      // Log first few raw chars for diagnostics (only while low traffic)
-      if (bytesReceived <= 512) {
-        const preview = Array.from(value).map(b => b < 32 ? `\\x${b.toString(16).padStart(2,'0')}` : String.fromCharCode(b)).join('');
-        log(`raw(${value.byteLength}B): ${escHtml(preview)}`, '');
-      }
       dispatchSerialText(text);
     }
   } catch (e) {
@@ -1383,12 +1479,23 @@ function processBuffer() {
   }
 }
 
+// Render a raw SLCAN line with control chars escaped, for diagnostic logging.
+function escRawLine(s) {
+  return Array.from(s).map(ch => {
+    const c = ch.charCodeAt(0);
+    return c < 32 ? `\\x${c.toString(16).padStart(2, '0')}` : ch;
+  }).join('');
+}
+
 // SLCAN format:
 // tIIILDD...   standard frame (11-bit ID, 3 hex digits)
 // TIIIIIIIILDD... extended frame (29-bit ID, 8 hex digits)
 // rIIIL        standard remote frame
 // RIIIIIIIIL   extended remote frame
 // z/Z          timestamps (optional, some adapters add them)
+//
+// Raw bytes are surfaced to the log ONLY when a frame line can't be parsed
+// (malformed/truncated) or throws — recognised status/timestamp lines stay silent.
 function parseSLCAN(line) {
   try {
     const type = line[0];
@@ -1396,7 +1503,7 @@ function parseSLCAN(line) {
 
     if (type === 't' || type === 'r') {
       // Standard 11-bit
-      if (line.length < 5) return;
+      if (line.length < 5) { parseErrors++; log(`raw(unparsed): ${escHtml(escRawLine(line))}`, 'warn'); return; }
       const id = parseInt(line.substring(1, 4), 16);
       const dlc = parseInt(line[4], 16);
       const isRtr = type === 'r';
@@ -1405,7 +1512,7 @@ function parseSLCAN(line) {
       frame = { id, dlc, data, isRtr, isExt: false };
     } else if (type === 'T' || type === 'R') {
       // Extended 29-bit
-      if (line.length < 10) return;
+      if (line.length < 10) { parseErrors++; log(`raw(unparsed): ${escHtml(escRawLine(line))}`, 'warn'); return; }
       const id = parseInt(line.substring(1, 9), 16);
       const dlc = parseInt(line[9], 16);
       const isRtr = type === 'R';
@@ -1413,7 +1520,7 @@ function parseSLCAN(line) {
       const data = hexToBytes(dataHex);
       frame = { id, dlc, data, isRtr, isExt: true };
     } else {
-      // status, timestamps, etc — ignore silently
+      // status, timestamps, etc — recognised non-frame line, ignore silently
       return;
     }
 
@@ -1427,7 +1534,7 @@ function parseSLCAN(line) {
     }
   } catch(e) {
     parseErrors++;
-    log(`Parse error on: ${line} — ${e.message}`, 'err');
+    log(`raw(unparsed): ${escHtml(escRawLine(line))} — ${e.message}`, 'err');
   }
 }
 
@@ -3646,18 +3753,15 @@ function isotpExplainerLink(e) {
   document.getElementById('isotpLearnLink').href = 'isotp-explainer.html';
 }
 
-// Validate the Tx/Rx ID fields (red on bad hex) and flag a broadcast Tx (orange Rx + hint).
+// Clamp the Tx/Rx ID fields to range/width (red when empty) and flag a broadcast Tx (orange Rx + hint).
 function isotpIdInput() {
   const txEl = document.getElementById('isotpTxId');
   const rxEl = document.getElementById('isotpRxId');
-  const txVal = txEl.value.trim(), rxVal = rxEl.value.trim();
-  const hexOk = v => /^[0-9A-Fa-f]{1,8}$/.test(v);
-  txEl.classList.toggle('invalid', !hexOk(txVal));
-  rxEl.classList.toggle('invalid', !hexOk(rxVal));
   const isExt = document.getElementById('isotpCanType').value === 'ext';
-  const txId  = parseInt(txVal, 16);
-  const broadcast = hexOk(txVal) && ((!isExt && txId === 0x7DF) || (isExt && txId === 0x18DB33F1));
-  rxEl.classList.toggle('isotp-broadcast', broadcast && hexOk(rxVal) && !rxEl.classList.contains('invalid'));
+  const txId = clampIdInput(txEl, isExt);
+  clampIdInput(rxEl, isExt);
+  const broadcast = txEl.value !== '' && ((!isExt && txId === 0x7DF) || (isExt && txId === 0x18DB33F1));
+  rxEl.classList.toggle('isotp-broadcast', broadcast && rxEl.value !== '' && !rxEl.classList.contains('invalid'));
   document.getElementById('isotpBroadcastHint').style.display = broadcast ? 'inline-flex' : 'none';
 }
 
@@ -3833,6 +3937,11 @@ function isotpSetProtoMode(mode) {
   document.getElementById('udsWrap').style.display = obdProtoMode === 'uds' ? 'flex' : 'none';
   document.getElementById('isotpInputLabel').textContent =
     obdProtoMode === 'obd' ? 'OBD' : obdProtoMode === 'kwp' ? 'KWP' : 'UDS';
+  // Per-mode example in the terminal input — match each protocol's own frame format.
+  document.getElementById('isotpInput').placeholder =
+    obdProtoMode === 'obd' ? 'hex bytes — e.g.  01 0C  or  03'
+    : obdProtoMode === 'kwp' ? 'hex bytes — e.g.  21 F0  or  3E'
+    : 'hex bytes — e.g.  22 F1 84  or  3E 00';
   // Active-protocol explainer link lives in the config strip (next to the ISO-TP one).
   const protoLink = document.getElementById('isotpProtoLearnLink');
   const protoInfo = obdProtoMode === 'obd' ? ['obd2-explainer.html', 'Learn how OBD-II works ↗']
@@ -3912,11 +4021,21 @@ function buildSvcPalette(containerId, palette, sendFn) {
         input = document.createElement('input');
         input.type = 'text'; input.value = p.def; input.className = 'svc-phex';
       }
-      els.push({ p, el: input });
+      els.push({ p, el: input, row });
       row.appendChild(lab); row.appendChild(input);
       panel.appendChild(row);
     });
-    const assemble = () => [entry.sid, ...els.flatMap(({p,el}) => svcParamBytes(p, el))];
+    // Hidden (conditionally-visible) params contribute no bytes.
+    const assemble = () => [entry.sid, ...els.flatMap(({p,el,row}) =>
+      row.style.display === 'none' ? [] : svcParamBytes(p, el))];
+    // Some params (e.g. SecurityAccess key, LinkControl baudrate record) appear only
+    // for certain sibling values — recompute their visibility on any change.
+    const refreshVis = () => {
+      els.forEach(({ p, row }) => { if (p.visibleWhen) row.style.display = p.visibleWhen(els) ? '' : 'none'; });
+      face.title = obdHex(assemble());
+    };
+    els.forEach(({ el }) => { el.addEventListener('input', refreshVis); el.addEventListener('change', refreshVis); });
+    refreshVis();
     face.title = obdHex(assemble());
     face.onclick = () => sendFn(assemble());
     const send = document.createElement('button');
@@ -3976,11 +4095,20 @@ const UDS_PALETTE = [
   { label:'ReadDTCInformation',       sid:0x19, params:[{kind:'select', map:UDS_DTC_SF, def:0x02},{kind:'hex', label:'Status mask', def:'FF'}] },
   { label:'ReadDataByIdentifier',     sid:0x22, params:[{kind:'hex', label:'DID', def:'F1 84'}] },
   { label:'ClearDiagnosticInformation', sid:0x14, params:[{kind:'hex', label:'Group', def:'FF FF FF'}] },
-  { label:'SecurityAccess',           sid:0x27, params:[{kind:'hex', label:'Level', def:'01'}] },
+  { label:'SecurityAccess',           sid:0x27, params:[
+      {kind:'hex', label:'Level', def:'01'},
+      // Even level = sendKey: the key is appended after the level byte (ISO 14229).
+      {kind:'hex', label:'Key', def:'', visibleWhen: els => {
+        const lvl = parseInt((els[0].el.value || '').trim().split(/[\s,]+/)[0], 16);
+        return Number.isFinite(lvl) && (lvl % 2 === 0);
+      }} ] },
   { label:'CommunicationControl',     sid:0x28, params:[{kind:'select', map:UDS_COMM_SF, def:0x00},{kind:'hex', label:'Comm type', def:'01'}] },
   { label:'RoutineControl',           sid:0x31, params:[{kind:'select', map:UDS_RTN_SF, def:0x01},{kind:'hex', label:'Routine ID', def:'F0 0F'}] },
   { label:'ControlDTCSetting',        sid:0x85, params:[{kind:'select', map:UDS_DTC_ON, def:0x02}] },
-  { label:'LinkControl',              sid:0x87, params:[{kind:'select', map:UDS_LNK_SF, def:0x01},{kind:'hex', label:'Baudrate record', def:'01'}] },
+  { label:'LinkControl',              sid:0x87, params:[
+      {kind:'select', map:UDS_LNK_SF, def:0x01},
+      // 0x03 transitionBaudrate carries no record — hide the field for that sub-function.
+      {kind:'hex', label:'Baudrate record', def:'12', visibleWhen: els => parseInt(els[0].el.value, 10) !== 0x03} ] },
 ];
 let udsInited = false;
 function udsInit() {
@@ -4148,6 +4276,7 @@ function obdWatchToggle(pid, on) {
   if (on) { if (!obdWatch.includes(pid)) obdWatch.push(pid); }
   else    { obdWatch = obdWatch.filter(p => p !== pid); obdWatchVals.delete(pid); }
   obdRenderWatch();
+  if (obdWatchOn) renderTxModuleRows();   // keep the scheduler mirror in sync while watching
   if (window.obdScheduleSave) window.obdScheduleSave();
 }
 function obdWatchStart() {
@@ -4157,6 +4286,7 @@ function obdWatchStart() {
   document.getElementById('obdWatchBtn').textContent = 'Stop';
   document.getElementById('obdWatchBtn').classList.add('obd-btn-active');
   obdEnsurePump();
+  txAutoExpand();
   obdWatchUpdateIndicator();
 }
 function obdWatchStop() {
@@ -4176,6 +4306,7 @@ function obdWatchUpdateIndicator() {
   if (cnt) cnt.textContent = obdWatch.length;
   const lbl = document.getElementById('obdWatchActiveLabel');
   if (lbl) lbl.textContent = txSuspended ? 'Quick Watch (paused)' : 'Quick Watch';
+  renderTxModuleRows();
 }
 function obdWatchDone(pid, payload) {
   if (payload && payload[0] === 0x41 && payload[1] === pid) {
@@ -4293,6 +4424,8 @@ function exportDumpCSV(saveAll) {
   for (let i = 0; i < dumpLog.size; i++) {
     const e = dumpLog.get(i);
     if (flt && !applyFilter(e, flt)) continue;
+    // Frames are timestamped with Date.now() (integer ms), so sub-ms digits would
+    // always be .000 — keep the column as integer milliseconds.
     const relMs = Math.round(e.ts - startTs);
     const idHex = e.isExt
       ? '0x' + e.id.toString(16).toUpperCase().padStart(8,'0')
@@ -4484,7 +4617,7 @@ function collectPrefs() {
   return {
     fps: _el('fpsLimit').value,
     buffer: _el('bufferSizeSelect').value,
-    txPanelOpen: _el('txBody').style.display !== 'none',
+    txPanelOpen: _el('txContent').style.display !== 'none',
     consoleOpen: _el('pane-console').style.display !== 'none',
   };
 }
@@ -4493,7 +4626,7 @@ function applyPrefs(p) {
   p = p || {};
   if (p.fps != null)    { _el('fpsLimit').value = p.fps; setFpsLimit(parseInt(p.fps)); }
   if (p.buffer != null) { _el('bufferSizeSelect').value = p.buffer; setBufferSize(parseInt(p.buffer)); }
-  if (p.txPanelOpen != null && (_el('txBody').style.display !== 'none') !== p.txPanelOpen) toggleTxPanel();
+  if (p.txPanelOpen != null && (_el('txContent').style.display !== 'none') !== p.txPanelOpen) toggleTxPanel();
   if (p.consoleOpen != null && (_el('pane-console').style.display !== 'none') !== p.consoleOpen) toggleConsole();
 }
 
@@ -4526,6 +4659,15 @@ function renderWsSelect() {
   if (!sel) return;
   sel.innerHTML = workspaces.map(w =>
     `<option value="${w.id}"${w.id === activeWsId ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
+  updateWsDeleteLabel();
+}
+
+// The "Default" workspace can't be removed (it always reappears), so offer Reset instead of Delete.
+function updateWsDeleteLabel() {
+  const btn = _el('wsDeleteBtn');
+  if (!btn) return;
+  const ws = workspaces.find(w => w.id === activeWsId);
+  btn.textContent = (ws && ws.name === 'Default') ? 'Reset' : 'Delete';
 }
 
 function switchWorkspace(id) {
@@ -4583,6 +4725,18 @@ function duplicateWorkspace() {
 function deleteWorkspace() {
   const ws = workspaces.find(w => w.id === activeWsId);
   if (!ws) return;
+  // "Default" is permanent — reset it to factory settings in place instead of deleting.
+  if (ws.name === 'Default') {
+    if (!confirm('Reset workspace "Default" to factory settings? This cannot be undone.')) return;
+    stopAllTx();
+    ws.data = defaultWorkspaceData();
+    ws.updatedAt = Date.now();
+    applySettings(ws.data);
+    renderWsSelect();
+    saveWorkspaces();
+    log('Reset workspace: Default', 'warn');
+    return;
+  }
   if (!confirm(`Delete workspace "${ws.name}"? This cannot be undone.`)) return;
   workspaces = workspaces.filter(w => w.id !== activeWsId);
   if (workspaces.length === 0) {
@@ -4636,6 +4790,7 @@ function toggleWsMenu() {
   const open = panel.style.display !== 'none';
   panel.style.display = open ? 'none' : 'flex';
   if (!open) {
+    updateWsDeleteLabel();
     setTimeout(() => {
       const close = (e) => {
         if (!panel.contains(e.target) && e.target.id !== 'wsMenuBtn') {

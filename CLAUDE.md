@@ -24,8 +24,8 @@ Demo mode (no hardware): click the **Demo** button.
 Three core files:
 
 - **`index.html`** — layout skeleton and inline styles; links CSS and JS
-- **`sloppycan.css`** — dark theme, CSS variables, component styles (~650 lines)
-- **`sloppycan.js`** — all application logic (~2950 lines), structured with `// ── Section ──` comments
+- **`sloppycan.css`** — dark theme, CSS variables, component styles (~1460 lines)
+- **`sloppycan.js`** — all application logic (~4900 lines), structured with `// ── Section ──` comments
 
 Optional bolt-on modules (each self-contained, deferred script, integration hooks only in core files):
 

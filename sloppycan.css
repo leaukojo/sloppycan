@@ -12,6 +12,7 @@
   --amber: #f59e0b;
   --amber-dim: #f59e0b22;
   --red: #f87171;
+  --red-dim: #f8717122;
   --blue: #60a5fa;
   --blue-dim: #60a5fa18;
   --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -36,6 +37,7 @@ body.light {
   --amber:     #b45309;   /* brown-amber, clear on white */
   --amber-dim: #b4530912;
   --red:       #b91c1c;   /* readable red */
+  --red-dim:   #b91c1c12;
   --blue:      #1d4ed8;   /* strong readable blue */
   --blue-dim:  #1d4ed810;
 }
@@ -401,6 +403,26 @@ input.isotp-broadcast { border-color: var(--amber) !important; background: #f59e
 .toast.ok   { border-left-color: var(--green); }
 .toast.hide { opacity: 0; transform: translateX(8px); transition: opacity 0.2s, transform 0.2s; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+
+/* Inline connection-failure message anchored below the Connect button. */
+.connect-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 300;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--bg2);
+  border: 1px solid var(--red);
+  border-left: 3px solid var(--red);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--red);
+  box-shadow: 0 8px 24px #0006;
+  cursor: pointer;
+}
 
 /* Filter IDs syntax help (? button + popover) */
 .filter-help-btn {
@@ -1117,6 +1139,32 @@ tbody td {
 }
 
 .tx-sep { width:1px; background:var(--border); height:18px; margin:0 2px; flex-shrink:0; }
+
+/* Automatic (module-driven) message section: collapsible sub-header + rows. */
+#txModuleHeader {
+  display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+  padding: 4px 12px; background: #f8717112; border-bottom: 1px solid #f8717133;
+  font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--red);
+}
+#txModuleHeader:hover { background: #f8717120; }
+.tx-module-count {
+  font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--red);
+  background: var(--red-dim); border-radius: 8px; padding: 0 7px; min-width: 18px; text-align: center;
+}
+.tx-module-subnote { font-family: var(--sans); font-size: 10px; font-weight: 400; color: var(--text3); margin-left: auto; }
+
+/* Read-only rows mirroring frames sent by other modules (Quick Watch, Fuzzer).
+   Tinted with the TX warning colour; not interactive (no inputs). */
+.tx-module-row { background: var(--red-dim); border-bottom-color: #f8717133; }
+.tx-module-row .tx-module-tag {
+  font-family: var(--sans); font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--red); border: 1px solid var(--red);
+  border-radius: 4px; padding: 1px 6px; white-space: nowrap;
+}
+.tx-module-row .tx-module-val  { font-family: var(--mono); font-size: 12px; color: var(--text); }
+.tx-module-row .tx-module-type { font-family: var(--sans); font-size: 10px; color: var(--text2); }
+.tx-module-row .tx-module-note { font-family: var(--sans); font-size: 10px; color: var(--text2);
+  margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .tx-row input[type=checkbox] {
   width:14px; height:14px; accent-color:var(--green); cursor:pointer; flex-shrink:0;
