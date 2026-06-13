@@ -2264,6 +2264,9 @@ function inspectFrame(f) {
       <span style="font-size:10px;font-weight:400;color:var(--text3);letter-spacing:0;text-transform:none">
         — ${stuffed.length} bits total, ${stuffCount} stuff bit${stuffCount !== 1 ? 's' : ''} inserted
       </span>
+      <a href="can-signals-explainer.html?bits=${stuffed.map(s => s.bit).join('')}" target="_blank"
+        style="font-size:11px;font-weight:400;color:var(--accent,#60a5fa);text-decoration:none;letter-spacing:0;text-transform:none;margin-left:8px"
+        title="See these bits as CAN_H / CAN_L oscilloscope waveforms">↗ View as oscilloscope signals</a>
     </div>
     <div class="stuff-wrap">
       ${legendHtml}

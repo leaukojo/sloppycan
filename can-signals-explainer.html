@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAN Signals Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 16px; height: 16px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 980px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose h3 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+.warn strong { color: var(--amber); }
+.good { border-left-color: var(--green); }
+.good strong { color: var(--green); }
+
+/* ── Input ───────────────────────────────────────────────── */
+.io-row { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 8px; }
+textarea#bitsInput {
+  flex: 1; min-width: 320px; min-height: 70px; resize: vertical;
+  background: var(--bg); border: 1px solid var(--border2); border-radius: 8px;
+  color: var(--text); font-family: var(--mono); font-size: 13px; letter-spacing: .12em;
+  padding: 10px 12px; outline: none; line-height: 1.6;
+}
+textarea#bitsInput:focus { border-color: var(--blue); }
+.io-side { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+.io-meta { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+.io-meta b { color: var(--text); }
+.io-bad { color: var(--red); }
+.vmsg { font-size: 12.5px; line-height: 1.6; margin: 2px 0 4px; }
+.vmsg code { font-family: var(--mono); font-size: .9em; background: var(--bg3); padding: 1px 4px; border-radius: 4px; }
+.vmsg .ok { color: var(--green); }
+.vmsg .err { color: var(--amber); display: block; }
+
+/* ── Scope ───────────────────────────────────────────────── */
+.scope-controls { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 12px 0 8px; font-size: 12px; }
+.scope-controls label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text2); }
+.scope-controls label:hover { color: var(--text); }
+.scope-controls .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+.scope-wrap { overflow-x: auto; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
+canvas#scope { display: block; }
+.readout {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
+  margin-top: 10px; padding: 10px 14px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; min-height: 42px;
+}
+.readout .rk { color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.readout .rv { font-family: var(--mono); color: var(--text); }
+.readout .badge { font-family: var(--mono); padding: 2px 8px; border-radius: 5px; font-size: 12px; }
+.badge.dom { background: var(--amber-dim); border: 1px solid var(--amber); color: var(--amber); }
+.badge.rec { background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0; font-size: 11px; color: var(--text2); }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend .sw { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Arbitration demo ────────────────────────────────────── */
+.arb-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 12px 0; }
+.arb-field { display: flex; flex-direction: column; gap: 4px; }
+.arb-field label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.arb-field input {
+  width: 120px; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+  color: var(--text); font-family: var(--mono); font-size: 14px; padding: 6px 9px; outline: none;
+}
+.arb-field input:focus { border-color: var(--blue); }
+.arb-grid { display: inline-grid; gap: 4px; margin: 6px 0 4px; font-family: var(--mono); }
+.arb-rowlabel { display: flex; align-items: center; font-size: 12px; color: var(--text2); padding-right: 10px; white-space: nowrap; }
+.arb-cell {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border-radius: 5px; border: 1px solid var(--border); font-size: 13px; position: relative;
+  transition: opacity .2s, background .2s;
+}
+.arb-cell.d { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); font-weight: 600; }
+.arb-cell.r { background: var(--bg3); color: var(--text2); }
+.arb-cell.hidden { opacity: .12; }
+.arb-cell.stopped { opacity: .22; }
+.arb-cell.decide { outline: 2px solid var(--red); outline-offset: 1px; }
+.arb-cell.active { box-shadow: 0 0 0 2px var(--text2); }
+.arb-cell.stuffbit { border-style: dashed; border-color: var(--text2); }
+.arb-lab { height: 14px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .03em; }
+.arb-lab.s { color: var(--text2); font-weight: 600; }
+.arb-bus { font-weight: 600; }
+.arb-status { margin-top: 10px; font-size: 13.5px; line-height: 1.6; }
+.arb-status .win { color: var(--green); font-weight: 600; }
+.arb-status .lose { color: var(--red); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1 11h2.5V5H7v6h2.5V5H13" stroke="#000" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">CAN Signals Explainer</div>
+      <div class="logo-sub">physical layer · dominant vs recessive</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="index.html" target="_blank" class="btn">sloppyCAN ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>What a CAN frame looks like on the wire</h1>
+  <p class="lede">
+    A CAN frame is, at heart, just a string of 1s and 0s. But on a real bus those bits are
+    <strong>voltages on a twisted pair</strong> — and the rules for how those voltages combine are
+    what make CAN robust, self-arbitrating, and self-acknowledging. Paste a bitstream below (or arrive
+    here from the Frame Inspector's <em>“Bitstream with Bit Stuffing”</em> link) and see exactly what an
+    oscilloscope would show.
+  </p>
+
+  <h2>The bitstream</h2>
+  <p>Each character is one bit, in transmission order, <strong>after bit-stuffing</strong> — the same
+     string the Frame Inspector shows. <code>0</code> is a <strong>dominant</strong> bit,
+     <code>1</code> is <strong>recessive</strong>.</p>
+  <div class="io-row">
+    <textarea id="bitsInput" aria-label="CAN bitstream (0s and 1s)" spellcheck="false" autocomplete="off"></textarea>
+    <div class="io-side">
+      <button class="btn" id="resetBtn" style="text-align:center">Reset to example</button>
+      <div class="io-meta" id="bitsMeta">—</div>
+    </div>
+  </div>
+  <div id="validation" class="vmsg"></div>
+
+  <h2>Oscilloscope view</h2>
+  <p>The bus is one differential pair. Every node sees the same <strong>CAN_H</strong> /
+     <strong>CAN_L</strong> voltages and the same logic level on its <strong>RX</strong> pin. The two
+     <strong>TX</strong> traces show what the <em>transmitter</em> and a <em>receiver</em> each drive —
+     watch how they combine at the ACK bit.</p>
+
+  <div class="scope-controls" id="scopeControls"></div>
+  <div class="legend" id="fieldLegend"></div>
+  <div class="scope-wrap">
+    <canvas id="scope"></canvas>
+  </div>
+  <div class="readout" id="readout">Hover over the scope to inspect a single bit.</div>
+  <p class="note"><strong>Tip:</strong> uncheck <em>Fit width</em> to spread the frame out and scroll —
+     handy for long frames. Move your mouse across the traces to read out the exact voltage of each
+     signal at any bit.</p>
+
+  <h2>Dominant vs recessive — why 0 always wins</h2>
+  <p>
+    A CAN transceiver does not drive the bus symmetrically. To send a <strong>dominant</strong> bit
+    (logic <code>0</code>) it <em>actively pulls</em> CAN_H up and CAN_L apart, creating a clear
+    differential voltage. To send a <strong>recessive</strong> bit (logic <code>1</code>) it simply
+    <em>lets go</em> — termination resistors relax both lines back to ~2.5&nbsp;V, so the differential
+    collapses to ~0&nbsp;V. The receiver decides by the difference, which rejects common-mode noise
+    picked up equally on both twisted wires.
+  </p>
+  <table>
+    <thead><tr><th>Bit</th><th>Logic</th><th class="mono">CAN_H</th><th class="mono">CAN_L</th><th class="mono">CAN_H − CAN_L</th><th>Who drives it</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Dominant</strong></td><td class="mono">0</td><td class="mono">~3.5 V</td><td class="mono">~1.5 V</td><td class="mono">~2.0 V</td><td>actively driven by a transceiver</td></tr>
+      <tr><td><strong>Recessive</strong></td><td class="mono">1</td><td class="mono">~2.5 V</td><td class="mono">~2.5 V</td><td class="mono">~0.0 V</td><td>no one — resistors relax the bus</td></tr>
+    </tbody>
+  </table>
+  <p class="note good"><strong>Wired-AND.</strong> Because dominant means “actively driven” and
+     recessive means “released”, the bus is a logical AND of every node: if <em>any</em> node sends a
+     dominant <code>0</code>, the whole bus reads <code>0</code>. A recessive bit only survives if
+     <em>every</em> node leaves it recessive. This single property powers both acknowledgement and
+     arbitration below.</p>
+
+  <h2>The ACK slot — proof someone heard you</h2>
+  <p>
+    Look at the three logic traces in the scope at the <strong>ACK bit</strong> (highlighted in red).
+    The transmitter sends the entire frame, but when it reaches the ACK slot it deliberately transmits
+    <strong>recessive</strong> and listens. Every node that received the frame with a valid CRC slams
+    the bus <strong>dominant</strong> for that one bit. Thanks to wired-AND, the transmitter reads back
+    a dominant bit on RX — instant proof that at least one other node is alive and got the message.
+  </p>
+  <ul>
+    <li><strong>Sender TX</strong> — drives the whole frame, but goes recessive at the ACK slot.</li>
+    <li><strong>Receiver TX</strong> — stays recessive the entire frame <em>except</em> it pulls the
+        ACK slot dominant.</li>
+    <li><strong>Bus / RX</strong> — the wired-AND of the two. Identical to Sender TX everywhere except
+        the ACK bit, which the receiver forced dominant.</li>
+  </ul>
+  <p class="note warn"><strong>No ACK?</strong> If no node acknowledges, the ACK slot stays recessive,
+     the transmitter detects an <em>ACK error</em>, and it retransmits. A lone node on a bus with no
+     listeners will retransmit forever.</p>
+
+  <h2>What if two ECUs transmit at once? — Arbitration</h2>
+  <p>
+    CAN has no master and no bus scheduler — any node may start transmitting when the bus is idle. If
+    two start in the same bit time, wired-AND resolves it <strong>without anyone losing data</strong>.
+    Every transmitter watches the bus while it sends. The moment a node sends a recessive <code>1</code>
+    but reads back a dominant <code>0</code>, it knows someone with a higher-priority message is talking
+    over it, so it <strong>backs off</strong> immediately and becomes a receiver. The winner never even
+    notices — its bits sailed through untouched.
+  </p>
+  <p>Lower numeric ID = more dominant bits early = <strong>higher priority</strong>. The sequence each
+     node arbitrates with is the <strong>SOF start bit followed by the 11-bit ID</strong>, and it is
+     <strong>bit-stuffed</strong> like any other part of the frame — so the demo below shows the
+     <em>actual</em> bits on the wire, stuff bits included. Both nodes insert identical stuff bits up to
+     the point they diverge, so stuffing never changes the outcome. Try it:</p>
+
+  <div class="card">
+    <div class="arb-controls">
+      <div class="arb-field">
+        <label for="arbA">ECU A — CAN ID</label>
+        <input id="arbA" value="0x123" aria-label="ECU A CAN ID" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="arb-field">
+        <label for="arbB">ECU B — CAN ID</label>
+        <input id="arbB" value="0x223" aria-label="ECU B CAN ID" spellcheck="false" autocomplete="off">
+      </div>
+      <button class="btn" id="arbStep">Step ▶</button>
+      <button class="btn" id="arbPlay">Play ▶▶</button>
+      <button class="btn" id="arbReset">Reset</button>
+    </div>
+    <div id="arbGridWrap" style="overflow-x:auto"></div>
+    <div class="arb-status" id="arbStatus"></div>
+    <div class="legend" style="margin-top:8px">
+      <span><span class="sw" style="background:var(--amber)"></span>dominant (0)</span>
+      <span><span class="sw" style="background:var(--bg3);border:1px solid var(--border2)"></span>recessive (1)</span>
+      <span><span class="sw" style="background:var(--bg3);border:1px dashed var(--text2)"></span>stuff bit</span>
+      <span><span class="sw" style="outline:2px solid var(--red);outline-offset:-1px"></span>arbitration decided here</span>
+    </div>
+  </div>
+  <p class="note"><strong>Non-destructive.</strong> Unlike Ethernet collisions, no message is
+     corrupted or lost. The high-priority frame is delivered with zero delay; the loser simply retries
+     the instant the bus is free again. The 11 (or 29) ID bits are the only arbitration field, so the
+     ID doubles as the message's priority.</p>
+
+</div>
+</main>
+
+<script>
+// ── Frame-section colours (mirrors the Frame Inspector) ─────────────────────
+const SECTION_COLORS = {
+  sof:'#e2e8f0', id:'#60a5fa', flags:'#f59e0b', dlc:'#f97316', data:'#00e87a',
+  crc:'#a78bfa', ack:'#f87171', eof:'#64748b', ifs:'#334155', other:'#475569',
+};
+const SECTION_LABELS = [
+  ['sof','SOF'],['id','ID'],['flags','Flags'],['dlc','DLC'],['data','Data'],
+  ['crc','CRC + Delim'],['ack','ACK + Delim'],['eof','EOF'],['ifs','IFS'],
+];
+const DEFAULT_BITS = '00000101001000001100000100111000001110100000110011000110111110101100110010010100011011111011101100010000011011111111111';
+
+// ── Parser: walk a stuffed bitstream, undo stuffing, map every bit to a field ─
+// Returns { bits, sec[], stuff[], fields[], ackIndex, ok }.
+function parseFrame(bits) {
+  const n = bits.length;
+  const sec = new Array(n).fill('other');
+  const stuff = new Array(n).fill(false);
+  const fields = [];
+  let pos = 0, runVal = -1, runLen = 0, lastSec = 'sof';
+
+  function readBit(active) {
+    if (pos >= n) return null;
+    // A stuff bit was inserted after any run of 5 identical transmitted bits.
+    if (active && runLen === 5) {
+      stuff[pos] = true; sec[pos] = lastSec;
+      runVal = bits[pos]; runLen = 1; pos++;
+      if (pos >= n) return null;
+    }
+    const b = bits[pos];
+    sec[pos] = lastSec;
+    if (b === runVal) runLen++; else { runVal = b; runLen = 1; }
+    pos++;
+    return b;
+  }
+  function take(label, section, count, active) {
+    lastSec = section;
+    const from = pos; const out = [];
+    for (let k = 0; k < count; k++) { const b = readBit(active); if (b === null) break; out.push(b); }
+    const seg = { label, sec: section, from, to: pos, bits: out };
+    fields.push(seg);
+    return seg;
+  }
+
+  const fb = () => ({ bits, sec, stuff, fields: [], ackIndex: (n >= 12 ? n - 12 : -1), ok: false });
+  if (n < 24) return fb();
+
+  take('SOF', 'sof', 1, true);
+  take('ID', 'id', 11, true);
+  const segA = take('SRR / RTR', 'flags', 1, true);   // disambiguated once IDE is known
+  const segIDE = take('IDE', 'flags', 1, true);
+  if (segIDE.bits.length < 1) return fb();
+  const isExt = segIDE.bits[0] === 1;
+
+  let rtrVal, dlcBits;
+  if (isExt) {
+    segA.label = 'SRR';
+    take('Ext ID', 'id', 18, true);
+    const segRTR = take('RTR', 'flags', 1, true);
+    take('r1', 'flags', 1, true);
+    take('r0', 'flags', 1, true);
+    rtrVal = segRTR.bits[0];
+    dlcBits = take('DLC', 'dlc', 4, true).bits;
+  } else {
+    segA.label = 'RTR';
+    rtrVal = segA.bits[0];
+    take('r0', 'flags', 1, true);
+    dlcBits = take('DLC', 'dlc', 4, true).bits;
+  }
+  if (dlcBits.length < 4) return fb();
+
+  const dlc = parseInt(dlcBits.join(''), 2);
+  const dataBytes = rtrVal === 1 ? 0 : Math.min(dlc, 8);
+  for (let d = 0; d < dataBytes; d++) take('D' + d, 'data', 8, true);
+
+  const crc = take('CRC', 'crc', 15, true);
+  if (crc.bits.length < 15) return fb();
+  // A trailing stuff bit may follow the CRC if it ended on a run of 5.
+  if (runLen === 5 && pos < n) { stuff[pos] = true; sec[pos] = 'crc'; pos++; }
+
+  take('CRC Delim', 'crc', 1, false);
+  const ack = take('ACK', 'ack', 1, false);
+  take('ACK Delim', 'ack', 1, false);
+  take('EOF', 'eof', 7, false);
+  take('IFS', 'ifs', 3, false);
+
+  const ok = ack.bits.length === 1;
+  return { bits, sec, stuff, fields, ackIndex: ok ? ack.from : (n >= 12 ? n - 12 : -1), ok };
+}
+
+// ── Trace definitions ───────────────────────────────────────────────────────
+let ACK = -1; // filled in per render
+const TRACES = [
+  { key:'canh', label:'CAN_H',       color:'#f87171', type:'volt',  vmin:1.0,  vmax:4.0, fn:(v)=> v===0?3.5:2.5 },
+  { key:'canl', label:'CAN_L',       color:'#60a5fa', type:'volt',  vmin:1.0,  vmax:4.0, fn:(v)=> v===0?1.5:2.5 },
+  { key:'diff', label:'CAN_H−CAN_L', color:'#00e87a', type:'volt',  vmin:-0.4, vmax:2.8, fn:(v)=> v===0?2.0:0.0 },
+  { key:'rx',   label:'RX (3V3)',    color:'#a78bfa', type:'logic', vmin:-0.3, vmax:3.6, fn:(v)=> v===0?0:3.3 },
+  { key:'stx',  label:'Sender TX',   color:'#f59e0b', type:'logic', vmin:-0.3, vmax:3.6, fn:(v,j)=> ((j===ACK?1:v)===0)?0:3.3 },
+  { key:'rtx',  label:'Receiver TX', color:'#22d3ee', type:'logic', vmin:-0.3, vmax:3.6, fn:(v,j)=> ((j===ACK?0:1)===0)?0:3.3 },
+];
+const enabled = new Set(TRACES.map(t => t.key));
+
+let parsed = null;       // current parse result
+let highlightJ = null;   // bit under the cursor
+
+const cssVar = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+
+// ── Build the trace toggles + field legend ──────────────────────────────────
+function buildControls() {
+  const c = document.getElementById('scopeControls');
+  let html = '';
+  for (const t of TRACES) {
+    html += '<label><input type="checkbox" data-key="' + t.key + '" ' + (enabled.has(t.key)?'checked':'') +
+            '><span class="sw" style="background:' + t.color + '"></span>' + t.label + '</label>';
+  }
+  html += '<label style="margin-left:8px"><input type="checkbox" id="fitToggle" checked> Fit width</label>';
+  c.innerHTML = html;
+  c.querySelectorAll('input[data-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) enabled.add(cb.dataset.key); else enabled.delete(cb.dataset.key);
+      drawScope();
+    });
+  });
+  document.getElementById('fitToggle').addEventListener('change', drawScope);
+
+  const lg = document.getElementById('fieldLegend');
+  lg.innerHTML = SECTION_LABELS.map(([s,l]) =>
+    '<span><span class="sw" style="background:' + SECTION_COLORS[s] + '"></span>' + l + '</span>'
+  ).join('') + '<span><span class="sw" style="background:repeating-linear-gradient(45deg,var(--text2),var(--text2) 2px,transparent 2px,transparent 4px)"></span>stuff bit</span>';
+}
+
+// ── Draw the oscilloscope ────────────────────────────────────────────────────
+function drawScope() {
+  const canvas = document.getElementById('scope');
+  const ctx = canvas.getContext('2d');
+  if (!parsed || parsed.bits.length === 0) {
+    canvas.width = 10; canvas.height = 10; ctx.clearRect(0,0,10,10);
+    return;
+  }
+  const bits = parsed.bits;
+  const n = bits.length;
+  ACK = parsed.ackIndex;
+  const lanes = TRACES.filter(t => enabled.has(t.key));
+
+  const wrap = canvas.parentElement;
+  const fit = document.getElementById('fitToggle').checked;
+  const padL = 108, padR = 14, padTop = 30, padBot = 26, laneH = 56, laneGap = 12;
+
+  const availW = wrap.clientWidth - 16; // minus wrapper padding
+  let bitW = fit ? Math.max(2, (availW - padL - padR) / n) : 12;
+  const plotW = n * bitW;
+  const cssW = fit ? availW : (padL + plotW + padR);
+  const cssH = padTop + lanes.length * (laneH + laneGap) - laneGap + padBot;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const X = (j) => padL + j * bitW;
+  const colText = cssVar('--text'), colText2 = cssVar('--text2'), colText3 = cssVar('--text3');
+  const colBorder = cssVar('--border');
+
+  // Field colour bands behind everything
+  const plotTop = padTop, plotBot = cssH - padBot;
+  const plotH = plotBot - plotTop;
+  if (parsed.ok) {
+    for (let j = 0; j < n; j++) {
+      ctx.fillStyle = SECTION_COLORS[parsed.sec[j]] + '22';
+      ctx.fillRect(X(j), plotTop, bitW, plotH);
+    }
+  }
+  // Stuff-bit columns: diagonal hatch + dashed edges so inserted bits stand out
+  for (let j = 0; j < n; j++) {
+    if (!parsed.stuff[j]) continue;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(X(j), plotTop, bitW, plotH); ctx.clip();
+    ctx.strokeStyle = colText; ctx.globalAlpha = 0.28; ctx.lineWidth = 1;
+    for (let xx = X(j) - plotH; xx < X(j) + bitW; xx += 5) {
+      ctx.beginPath(); ctx.moveTo(xx, plotBot); ctx.lineTo(xx + plotH, plotTop); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = colText2; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(X(j) + 0.5, plotTop); ctx.lineTo(X(j) + 0.5, plotBot);
+    ctx.moveTo(X(j) + bitW - 0.5, plotTop); ctx.lineTo(X(j) + bitW - 0.5, plotBot);
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  // ACK column highlight
+  if (ACK >= 0 && ACK < n) {
+    ctx.fillStyle = '#f8717126';
+    ctx.fillRect(X(ACK), plotTop, bitW, plotBot - plotTop);
+    ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1.4;
+    ctx.strokeRect(X(ACK) + 0.5, plotTop + 0.5, bitW - 1, plotBot - plotTop - 1);
+  }
+  // Bit-cell grid lines (only when there is room)
+  if (bitW >= 5) {
+    ctx.strokeStyle = colBorder; ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    for (let j = 0; j <= n; j++) { const x = X(j); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBot); }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // Highlighted column
+  if (highlightJ != null && highlightJ >= 0 && highlightJ < n) {
+    ctx.fillStyle = cssVar('--text') === '#1a1a1a' ? '#00000014' : '#ffffff1c';
+    ctx.fillRect(X(highlightJ), plotTop, bitW, plotBot - plotTop);
+  }
+
+  // Field labels across the top
+  if (parsed.ok) {
+    ctx.font = '600 10px ' + cssVar('--mono').replace(/['"]/g,'') ;
+    ctx.textBaseline = 'middle';
+    for (const f of parsed.fields) {
+      const w = (f.to - f.from) * bitW;
+      if (w < 16) continue;
+      ctx.fillStyle = SECTION_COLORS[f.sec];
+      ctx.textAlign = 'center';
+      const label = f.label.length * 6 > w ? f.label.replace(/[^A-Za-z0-9]/g,'').slice(0,Math.max(1,Math.floor(w/6))) : f.label;
+      ctx.fillText(label, X(f.from) + w/2, padTop/2);
+    }
+  }
+
+  // Each lane
+  ctx.textBaseline = 'alphabetic';
+  lanes.forEach((t, li) => {
+    const top = padTop + li * (laneH + laneGap);
+    const bot = top + laneH;
+    const Y = (val) => bot - (val - t.vmin) / (t.vmax - t.vmin) * (bot - top);
+
+    // lane label + frame
+    ctx.fillStyle = colText2;
+    ctx.font = '600 11px ' + cssVar('--sans').replace(/['"]/g,'');
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(t.label, padL - 10, top + laneH/2);
+
+    // reference line (recessive level / 0 V threshold)
+    const refVal = t.type === 'volt' ? (t.key === 'diff' ? 0.0 : 2.5) : 0;
+    ctx.strokeStyle = colBorder; ctx.setLineDash([3,4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, Y(refVal)); ctx.lineTo(padL + plotW, Y(refVal)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // the waveform
+    ctx.strokeStyle = t.color; ctx.lineWidth = 1.8;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let j = 0; j < n; j++) {
+      const yy = Y(t.fn(bits[j], j));
+      const x0 = X(j), x1 = X(j + 1);
+      if (j === 0) ctx.moveTo(x0, yy); else ctx.lineTo(x0, yy);
+      ctx.lineTo(x1, yy);
+    }
+    ctx.stroke();
+  });
+
+  // Bottom axis: bit values (if room), plus index ticks every 8 bits
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  const valY = plotBot + 9, idxY = cssH - 6;
+  const monoFont = cssVar('--mono').replace(/['"]/g, '');
+  for (let j = 0; j < n; j++) {
+    if (bitW >= 11) {
+      ctx.fillStyle = parsed.stuff[j] ? colText3 : colText;
+      ctx.font = (parsed.stuff[j] ? '400 ' : '500 ') + '11px ' + monoFont;
+      ctx.fillText(String(bits[j]), X(j) + bitW/2, valY);
+    }
+    if (j % 8 === 0) {
+      ctx.fillStyle = colText3; ctx.font = '400 9px ' + monoFont;
+      ctx.fillText(String(j), X(j) + bitW/2, idxY);
+    }
+  }
+}
+
+// ── Scrub readout ────────────────────────────────────────────────────────────
+function bitAtX(clientX) {
+  const canvas = document.getElementById('scope');
+  const rect = canvas.getBoundingClientRect();
+  const padL = 108;
+  const n = parsed.bits.length;
+  const cssW = rect.width;
+  const fit = document.getElementById('fitToggle').checked;
+  const bitW = fit ? Math.max(2, (cssW - padL - 14) / n) : 12;
+  const x = clientX - rect.left - padL;
+  const j = Math.floor(x / bitW);
+  return (j >= 0 && j < n) ? j : null;
+}
+function updateReadout(j) {
+  const ro = document.getElementById('readout');
+  if (j == null || !parsed) { ro.innerHTML = 'Hover over the scope to inspect a single bit.'; return; }
+  const v = parsed.bits[j];
+  const dom = v === 0;
+  const field = parsed.ok ? (parsed.fields.find(f => j >= f.from && j < f.to) || {label:'—'}).label : '—';
+  const stuffTag = parsed.stuff[j] ? ' <span class="rv" style="color:var(--text3)">(stuff bit)</span>' : '';
+  let html = '';
+  html += '<span><span class="rk">bit</span> <span class="rv">#' + j + '</span></span>';
+  html += '<span><span class="rk">field</span> <span class="rv">' + field + '</span>' + stuffTag + '</span>';
+  html += '<span class="badge ' + (dom?'dom':'rec') + '">' + (dom?'dominant 0':'recessive 1') + '</span>';
+  for (const t of TRACES) {
+    if (!enabled.has(t.key)) continue;
+    const val = t.fn(v, j);
+    html += '<span><span class="rk" style="color:' + t.color + '">' + t.label + '</span> <span class="rv">' + val.toFixed(1) + ' V</span></span>';
+  }
+  ro.innerHTML = html;
+}
+
+// ── Bit-stuffing helper (forward): insert opposite bit after any run of 5 ─────
+function stuffSeq(raw) {
+  const out = [];
+  let runLen = 1, last = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const b = raw[i];
+    out.push({ bit: b, stuff: false });
+    if (i === 0) { last = b; continue; }
+    if (b === last) {
+      runLen++;
+      if (runLen === 5) { const sb = b ^ 1; out.push({ bit: sb, stuff: true }); last = sb; runLen = 1; }
+      else last = b;
+    } else { runLen = 1; last = b; }
+  }
+  return out;
+}
+
+// ── Validation: is this a well-formed, correctly stuffed CAN bitstream? ───────
+function validate(bits) {
+  const n = bits.length;
+  const errs = [];
+  if (n < 24) { errs.push('Too short to be a CAN frame (a minimal frame is ~44 bits).'); return errs; }
+  // Trailer: ACK(0) · ACK-delim(1) · EOF(1111111) · IFS(111)
+  const tail = bits.slice(n - 12).join('');
+  if (tail !== '011111111111') {
+    const shown = tail.replace(/^(.)(.)(.{0,7})(.*)$/, '$1 $2 $3 $4').trim();
+    errs.push('Frame must end with <code>0 1 1111111 111</code> — ACK (dominant) · ACK delimiter · 7-bit EOF · 3-bit IFS. Found <code>' + shown + '</code>.');
+  }
+  // CRC delimiter (the bit just before the ACK slot) must be recessive
+  if (bits[n - 13] !== 1) errs.push('The CRC delimiter (bit ' + (n - 13) + ', just before the ACK slot) must be recessive (<code>1</code>).');
+  // Bit-stuffing: no run of 6 identical bits anywhere in SOF…CRC (everything but the 13-bit trailer)
+  let rl = 1;
+  for (let i = 1; i < n - 13; i++) {
+    if (bits[i] === bits[i - 1]) {
+      if (++rl === 6) { errs.push('Bit-stuffing error: 6 identical bits in a row ending at bit ' + i + '. CAN inserts an opposite stuff bit after every run of 5.'); break; }
+    } else rl = 1;
+  }
+  return errs;
+}
+
+// ── Input handling ───────────────────────────────────────────────────────────
+function loadBits(raw) {
+  const cleaned = (raw || '').replace(/[^01]/g, '');
+  const meta = document.getElementById('bitsMeta');
+  const vmsg = document.getElementById('validation');
+  if (cleaned.length === 0) {
+    parsed = { bits: [], sec: [], stuff: [], fields: [], ackIndex: -1, ok: false };
+    meta.innerHTML = '<span class="io-bad">no bits</span>';
+    vmsg.innerHTML = '';
+    drawScope(); updateReadout(null);
+    return;
+  }
+  parsed = parseFrame(cleaned.split('').map(Number));
+  const kind = parsed.ok ? (parsed.fields.some(f => f.label === 'Ext ID') ? 'extended frame' : 'standard frame') : 'unparsed';
+  const stuffN = parsed.stuff.filter(Boolean).length;
+  meta.innerHTML = '<b>' + cleaned.length + '</b> bits · ' + kind + ' · <b>' + stuffN + '</b> stuff bit' + (stuffN === 1 ? '' : 's') +
+    (parsed.ok ? ' · ACK @ bit <b>' + parsed.ackIndex + '</b>' : '');
+
+  const errs = validate(parsed.bits);
+  vmsg.innerHTML = errs.length === 0
+    ? '<span class="ok">✓ Valid CAN frame — correctly bit-stuffed and properly terminated (ACK → IFS).</span>'
+    : errs.map(e => '<span class="err">⚠ ' + e + '</span>').join('');
+
+  drawScope(); updateReadout(null);
+}
+
+// ── Arbitration demo (SOF + bit-stuffed ID, just like the real bus) ──────────
+let arbStep = 0, arbTimer = null, arbCols = 12;
+function parseId(s) {
+  s = (s || '').trim();
+  let v = s.toLowerCase().startsWith('0x') ? parseInt(s, 16) : parseInt(s, 10);
+  if (isNaN(v)) v = 0;
+  return v & 0x7FF; // 11-bit
+}
+function idBits(v) { return v.toString(2).padStart(11, '0').split('').map(Number); }
+function renderArb() {
+  const a = parseId(document.getElementById('arbA').value);
+  const b = parseId(document.getElementById('arbB').value);
+  // What each node actually puts on the wire while arbitrating: SOF (dominant) + ID,
+  // run through bit-stuffing exactly as the transmitter would.
+  const seqA = stuffSeq([0, ...idBits(a)]);
+  const seqB = stuffSeq([0, ...idBits(b)]);
+
+  // Sequences share an identical prefix (same bits → same stuff bits) until the IDs
+  // first differ. The node sending recessive (1) there loses.
+  let decide = -1, loser = 0; // 0 none, 1=A, 2=B
+  const L = Math.min(seqA.length, seqB.length);
+  for (let i = 0; i < L; i++) {
+    if (seqA[i].bit !== seqB[i].bit) { decide = i; loser = seqA[i].bit === 1 ? 1 : 2; break; }
+  }
+  const winSeq = loser === 1 ? seqB : seqA;
+  arbCols = decide < 0 ? Math.max(seqA.length, seqB.length) : winSeq.length;
+  if (arbStep > arbCols - 1) arbStep = arbCols - 1;
+
+  // Bus value per column: wired-AND while both transmit; after a node loses only the winner drives.
+  const busAt = (i) => {
+    if (decide < 0 || i <= decide) {
+      const ba = i < seqA.length ? seqA[i].bit : 1;
+      const bb = i < seqB.length ? seqB[i].bit : 1;
+      return ba & bb;
+    }
+    return i < winSeq.length ? winSeq[i].bit : null;
+  };
+
+  const wrap = document.getElementById('arbGridWrap');
+  const grid = document.createElement('div');
+  grid.className = 'arb-grid';
+  grid.style.gridTemplateColumns = 'auto repeat(' + arbCols + ', 30px)';
+
+  // Field-label row: SOF / S(tuff) / ID
+  const blank = document.createElement('div'); blank.className = 'arb-rowlabel'; grid.appendChild(blank);
+  for (let i = 0; i < arbCols; i++) {
+    const lab = document.createElement('div');
+    const isStuff = winSeq[i] && winSeq[i].stuff;
+    lab.className = 'arb-lab' + (isStuff ? ' s' : '');
+    lab.textContent = i === 0 ? 'SOF' : (isStuff ? 'S' : '');
+    grid.appendChild(lab);
+  }
+
+  const mkRow = (label, seq, opts) => {
+    const lab = document.createElement('div'); lab.className = 'arb-rowlabel'; lab.innerHTML = label; grid.appendChild(lab);
+    for (let i = 0; i < arbCols; i++) {
+      const cell = document.createElement('div');
+      const src = opts.isBus ? { bit: busAt(i), stuff: (i <= decide || decide < 0 ? (seqA[i] && seqA[i].stuff) : (winSeq[i] && winSeq[i].stuff)) } : (seq[i] || null);
+      const val = src ? src.bit : null;
+      cell.className = 'arb-cell ' + (val === 0 ? 'd' : val === 1 ? 'r' : '');
+      cell.textContent = val == null ? '' : val;
+      if (src && src.stuff) cell.classList.add('stuffbit');
+      if (i > arbStep) cell.classList.add('hidden');
+      if (opts.stoppedFrom >= 0 && i > opts.stoppedFrom) cell.classList.add('stopped');
+      if (opts.isBus && i === decide && decide >= 0 && arbStep >= decide) cell.classList.add('decide');
+      if (i === arbStep) cell.classList.add('active');
+      grid.appendChild(cell);
+    }
+  };
+
+  const aStop = (loser === 1 && decide >= 0) ? decide : -1;
+  const bStop = (loser === 2 && decide >= 0) ? decide : -1;
+  mkRow('ECU A&nbsp; <span style="color:var(--text3)">0x' + a.toString(16).toUpperCase() + '</span>', seqA, { stoppedFrom: aStop });
+  mkRow('ECU B&nbsp; <span style="color:var(--text3)">0x' + b.toString(16).toUpperCase() + '</span>', seqB, { stoppedFrom: bStop });
+  mkRow('<b>Bus</b> (wired-AND)', null, { isBus: true, stoppedFrom: -1 });
+
+  wrap.innerHTML = '';
+  wrap.appendChild(grid);
+
+  const stuffBefore = winSeq.slice(0, decide < 0 ? winSeq.length : decide + 1).some(s => s.stuff);
+  const st = document.getElementById('arbStatus');
+  if (a === b) {
+    st.innerHTML = 'Both IDs are <b>identical</b> — arbitration can\'t separate them. On a real bus two nodes never send the same ID simultaneously; if they did, the collision would surface later as a bit error.';
+  } else if (decide < 0) {
+    st.innerHTML = '';
+  } else if (arbStep < decide) {
+    st.innerHTML = 'Bits 0–' + arbStep + ' match (including the <b>SOF</b> start bit' + (stuffBefore ? ' and any <b>stuff bits</b>, which both nodes insert identically' : '') + '), so both ECUs are still transmitting and each sees its own bits on the bus. Keep stepping…';
+  } else {
+    const winId = loser === 1 ? b : a, loseId = loser === 1 ? a : b;
+    const winN = loser === 1 ? 'B' : 'A', loseN = loser === 1 ? 'A' : 'B';
+    st.innerHTML = 'At <b>bit ' + decide + '</b>' + (winSeq[decide] && winSeq[decide].stuff ? ' (a stuff bit)' : '') +
+      ', ECU ' + loseN + ' (0x' + loseId.toString(16).toUpperCase() +
+      ') sent <b>recessive&nbsp;1</b> but read back <b>dominant&nbsp;0</b> — so <span class="lose">ECU ' + loseN +
+      ' loses arbitration</span> and switches to listening. <span class="win">ECU ' + winN + ' (0x' +
+      winId.toString(16).toUpperCase() + ') wins</span> with the lower ID and finishes its frame uninterrupted' +
+      (stuffBefore ? '. Note both nodes inserted the <b>same stuff bits</b> up to here — stuffing never changes who wins.' : '.');
+  }
+}
+function arbResetFn() { arbStep = 0; stopArbPlay(); renderArb(); }
+function arbStepFn() { if (arbStep < arbCols - 1) arbStep++; renderArb(); }
+function stopArbPlay() { if (arbTimer) { clearInterval(arbTimer); arbTimer = null; document.getElementById('arbPlay').textContent = 'Play ▶▶'; } }
+function arbPlayFn() {
+  if (arbTimer) { stopArbPlay(); return; }
+  if (arbStep >= arbCols - 1) arbStep = 0;
+  document.getElementById('arbPlay').textContent = 'Pause ❚❚';
+  arbTimer = setInterval(() => { if (arbStep >= arbCols - 1) { stopArbPlay(); return; } arbStep++; renderArb(); }, 550);
+}
+
+// ── Wire-up ──────────────────────────────────────────────────────────────────
+function init() {
+  buildControls();
+
+  const params = new URLSearchParams(location.search);
+  const qbits = (params.get('bits') || '').replace(/[^01]/g, '');
+  const initial = qbits.length ? qbits : DEFAULT_BITS;
+  const ta = document.getElementById('bitsInput');
+  ta.value = initial;
+  loadBits(initial);
+
+  ta.addEventListener('input', () => loadBits(ta.value));
+  document.getElementById('resetBtn').addEventListener('click', () => { ta.value = DEFAULT_BITS; loadBits(DEFAULT_BITS); });
+
+  const canvas = document.getElementById('scope');
+  canvas.addEventListener('mousemove', (e) => { highlightJ = bitAtX(e.clientX); drawScope(); updateReadout(highlightJ); });
+  canvas.addEventListener('mouseleave', () => { highlightJ = null; drawScope(); updateReadout(null); });
+  window.addEventListener('resize', drawScope);
+
+  document.getElementById('arbStep').addEventListener('click', arbStepFn);
+  document.getElementById('arbPlay').addEventListener('click', arbPlayFn);
+  document.getElementById('arbReset').addEventListener('click', arbResetFn);
+  document.getElementById('arbA').addEventListener('input', arbResetFn);
+  document.getElementById('arbB').addEventListener('input', arbResetFn);
+  renderArb();
+}
+
+// ── Theme (shared with the other explainers) ─────────────────────────────────
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+  if (parsed) drawScope();
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+init();
+</script>
+</body>
+</html>

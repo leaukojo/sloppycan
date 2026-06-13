@@ -49,7 +49,7 @@ Most tabs are self-contained modules and work fully in **Demo** mode.
 Standalone explainers (open from `file://`, no connection needed): `dtc.html`,
 `obd2-explainer.html`, `kwp2000-explainer.html`, `uds-explainer.html`,
 `nmea2000-explainer.html`, `iso11783-explainer.html`, `ev-charging-explainer.html`,
-`xcp-explainer.html`, `canopen-explainer.html`.
+`xcp-explainer.html`, `canopen-explainer.html`, `can-signals-explainer.html`.
 
 ## For contributors
 

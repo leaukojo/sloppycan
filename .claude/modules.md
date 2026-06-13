@@ -154,3 +154,13 @@ Passively decodes CANopen (CiA 301) and acts as an active client. COB-ID = `(fun
 **Integration points:** `ingestFrame` → `canopenIngestFrame`; `clearFrames` → `canopenClear`; `disconnectSerial` → `canopenStop`; `switchViewTab` + `canopenOnShow`; three persistence functions (`canopen` key via `canopenCollect`/`canopenApply`/`_canopenPending`); `window.canopenScheduleSave = scheduleSave` + `window.canopenDemoActive = () => demoMode` at startup. `index.html`: `#vtab-canopen`, `#canopenWrap`, `<script src="canopen.js" defer>`. Explainer: `canopen-explainer.html`.
 
 **Revert:** delete `canopen.js` + `canopen-explainer.html`; remove tab button, `switchViewTab` lines, ingest/clear/disconnect hooks, `canopen` persistence key + startup lines, `#canopenWrap`, `<script>` tag. **Future work:** user-supplied PDO mapping; SDO block transfer.
+
+---
+
+## CAN Signals explainer (`can-signals-explainer.html`)
+
+Standalone physical-layer page (no app integration, no `sloppycan.js` import). Takes a stuffed CAN bitstream via `?bits=<0/1 string>` (default: the example 119-bit standard frame) and draws an oscilloscope view on a `<canvas>`: CAN_H, CAN_L, differential, RX, Sender TX, Receiver TX. Self-contains a `parseFrame()` that reverses bit-stuffing to colour-code fields and locate the ACK slot (falls back to "12th-from-last bit" + uncoloured traces on malformed input). Also has an interactive arbitration demo. Teaches dominant/recessive, wired-AND, ACK, and arbitration.
+
+**Integration point:** one `<a href="can-signals-explainer.html?bits=${stuffed.map(s => s.bit).join('')}">` in `inspectFrame`'s "Bitstream with Bit Stuffing" title (`sloppycan.js`).
+
+**Revert:** delete `can-signals-explainer.html`; remove that one `<a>` in `inspectFrame`.

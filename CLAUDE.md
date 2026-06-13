@@ -40,7 +40,7 @@ Optional bolt-on modules (each self-contained, deferred script, integration hook
 
 OBD-II, KWP2000, UDS, DTC decoder, NMEA 2000, and ISOBUS are sub-modes implemented inside the core files or `j1939.js` — no separate module.
 
-Standalone reference pages: `dtc.html`, `obd2-explainer.html`, `kwp2000-explainer.html`, `uds-explainer.html`, `nmea2000-explainer.html`, `iso11783-explainer.html`, `ev-charging-explainer.html`, `xcp-explainer.html`, `canopen-explainer.html`.
+Standalone reference pages: `dtc.html`, `obd2-explainer.html`, `kwp2000-explainer.html`, `uds-explainer.html`, `nmea2000-explainer.html`, `iso11783-explainer.html`, `ev-charging-explainer.html`, `xcp-explainer.html`, `canopen-explainer.html`, `can-signals-explainer.html` (physical-layer oscilloscope view, linked from the Frame Inspector's bitstream).
 
 ## Detailed references
 
