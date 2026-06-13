@@ -1258,6 +1258,11 @@ async function usbSerialPump() {
 
 async function connectSerial() {
   const adapter = document.getElementById('adapterType').value; // 'serial' | 'gsusb'
+  if (!confirm(
+    'This AI-built tool is for education only.\n\n' +
+    'Use it only with testbeds and simulators. Connecting to a real vehicle is dangerous and strongly discouraged.\n\n' +
+    'Continue?'
+  )) return;
   clearConnectError();
   try {
     if (adapter === 'gsusb') {
