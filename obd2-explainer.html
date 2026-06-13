@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBD-II / SAE J1979 Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 16px 0; }
+.node { flex: 1; min-width: 180px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; }
+.node .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); }
+.node .id { font-family: var(--mono); font-size: 18px; font-weight: 500; margin: 4px 0; }
+.node.req .id { color: var(--amber); }
+.node.rsp .id { color: var(--green); }
+.node .desc { font-size: 12px; color: var(--text2); }
+.arrow { display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 22px; }
+.bits { display: flex; gap: 3px; flex-wrap: wrap; margin: 10px 0; font-family: var(--mono); }
+.bit { width: 30px; text-align: center; padding: 5px 0; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.bit.on { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+.bit small { display: block; font-size: 9px; color: var(--text3); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <rect x="11" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <path d="M5 8h6" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="8" r="1.5" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">OBD-II Explainer</div>
+      <div class="logo-sub">SAE J1979 · ISO 15031</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>OBD-II &amp; SAE J1979</h1>
+  <p class="lede">
+    On-Board Diagnostics II is the standardized language every emissions-related ECU
+    speaks. <strong>SAE J1979</strong> (a.k.a. ISO 15031-5) defines the request/response
+    messages — engine RPM, vehicle speed, trouble codes, the VIN — that a generic scan
+    tool can read from <em>any</em> compliant vehicle. On a modern car it rides on CAN,
+    transported by ISO-TP.
+  </p>
+
+  <h2>It rides on ISO-TP</h2>
+  <p>
+    OBD-II is just an application layer. The bytes travel inside <strong>ISO-TP</strong>
+    (ISO 15765-2) frames — the same transport UDS uses. sloppyCAN's ISO-TP/UDS tab already
+    handles the framing; OBD-II mode simply gives you one-click buttons instead of typing
+    raw hex. Short requests (1–3 bytes) fit in a single frame; long responses like the VIN
+    arrive as a multi-frame sequence and are reassembled for you.
+  </p>
+  <p class="note">
+    Want to see the transport mechanics — Single Frame, First Frame, Flow Control,
+    Consecutive Frames? Open the <a href="isotp-explainer.html" target="_blank" style="color:var(--blue)">ISO-TP Explainer</a>.
+  </p>
+
+  <h2>The connector &amp; CAN pins</h2>
+  <p>
+    Every OBD-II car has a 16-pin <strong>SAE J1962</strong> connector within reach of the
+    driver's seat. On a CAN bus vehicle (mandatory in the US since 2008) the diagnostic
+    CAN pair lives on:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">Pin</th><th>Signal</th></tr>
+      <tr><td class="mono">6</td><td>CAN High (CAN-H)</td></tr>
+      <tr><td class="mono">14</td><td>CAN Low (CAN-L)</td></tr>
+      <tr><td class="mono">16</td><td>Battery + (12&nbsp;V, unswitched)</td></tr>
+      <tr><td class="mono">4 / 5</td><td>Chassis / signal ground</td></tr>
+    </table>
+    <p style="margin:8px 0 0;color:var(--text2);font-size:13px">
+      The diagnostic CAN runs at <strong>500&nbsp;kbit/s</strong> (sometimes 250&nbsp;kbit/s)
+      with 11-bit identifiers on most vehicles.
+    </p>
+  </div>
+
+  <h2>Request &rarr; response flow</h2>
+  <p>
+    A scan tool broadcasts to the <strong>functional</strong> address <code>0x7DF</code>.
+    Any ECU that can answer replies on its own address in the range
+    <code>0x7E8</code>–<code>0x7EF</code>. The engine ECU almost always answers first, on
+    <code>0x7E8</code>.
+  </p>
+  <div class="flow">
+    <div class="node req">
+      <div class="tag">Tester → broadcast</div>
+      <div class="id">0x7DF</div>
+      <div class="desc"><code>01 0C</code> — "give me current Mode&nbsp;01, PID&nbsp;0C (RPM)"</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node rsp">
+      <div class="tag">Engine ECU → tester</div>
+      <div class="id">0x7E8</div>
+      <div class="desc"><code>41 0C 1A F8</code> — response SID <code>0x41</code>, PID <code>0C</code>, value bytes</div>
+    </div>
+  </div>
+  <p>
+    The response SID is the request mode <strong>+ 0x40</strong> (Mode <code>01</code> →
+    <code>0x41</code>), and it echoes the PID so you know which answer is which.
+    Physical (point-to-point) addressing also exists: request <code>0x7E0</code> →
+    response <code>0x7E8</code>. The 29-bit equivalents are
+    <code>0x18DB33F1</code> (broadcast) and <code>0x18DAF1xx</code> (responses).
+  </p>
+  <p class="note">
+    Because <code>0x7DF</code> is a broadcast, <strong>several ECUs can answer the same request</strong>
+    — engine on <code>0x7E8</code>, transmission on <code>0x7E9</code>, and so on. sloppyCAN groups every
+    responder under the one request, tagged by ID. One subtlety: if a reply spans multiple frames, the
+    Flow Control the tester sends back must go to that ECU's <em>physical</em> address
+    (<code>0x7E0</code>), not the broadcast <code>0x7DF</code> — otherwise a real ECU ignores it.
+  </p>
+
+  <h2>The modes</h2>
+  <p>OBD-II groups functions into <strong>modes</strong> (also called services):</p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">Mode</th><th>Meaning</th><th class="mono">Request</th></tr>
+      <tr><td class="mono">01</td><td>Current data (live PIDs)</td><td class="mono">01 &lt;pid&gt;</td></tr>
+      <tr><td class="mono">02</td><td>Freeze-frame data (snapshot at fault)</td><td class="mono">02 &lt;pid&gt; &lt;frame#&gt;</td></tr>
+      <tr><td class="mono">03</td><td>Stored DTCs</td><td class="mono">03</td></tr>
+      <tr><td class="mono">04</td><td>Clear DTCs &amp; reset MIL</td><td class="mono">04</td></tr>
+      <tr><td class="mono">06</td><td>On-board monitor test results</td><td class="mono">06 &lt;mid&gt;</td></tr>
+      <tr><td class="mono">07</td><td>Pending DTCs (this drive cycle)</td><td class="mono">07</td></tr>
+      <tr><td class="mono">08</td><td>Control on-board component</td><td class="mono">08 …</td></tr>
+      <tr><td class="mono">09</td><td>Vehicle info (VIN, CalID, CVN)</td><td class="mono">09 &lt;pid&gt;</td></tr>
+      <tr><td class="mono">0A</td><td>Permanent DTCs</td><td class="mono">0A</td></tr>
+    </table>
+  </div>
+  <p class="note">
+    <strong>Mode 04 is destructive.</strong> Clearing DTCs also wipes freeze-frame data and
+    resets the readiness monitors — the car has to re-run its self-tests before it will pass
+    inspection. sloppyCAN guards this button with a confirmation.
+  </p>
+
+  <h2>How a PID encodes a value</h2>
+  <p>
+    Each PID has a fixed formula. Take <strong>Engine RPM</strong> (Mode 01, PID
+    <code>0x0C</code>). The ECU returns two bytes <code>A</code> and <code>B</code>, and the
+    standard says:
+  </p>
+  <div class="card" style="text-align:center">
+    <div style="font-family:var(--mono);font-size:16px;color:var(--green)">RPM = ((A × 256) + B) ÷ 4</div>
+    <p style="margin:10px 0 0;color:var(--text2);font-size:13px">
+      Response <code>41 0C 1A F8</code> → A=0x1A=26, B=0xF8=248 →
+      ((26×256)+248)÷4 = <strong>1726 rpm</strong>
+    </p>
+  </div>
+  <p>
+    Other PIDs use one byte: <strong>Vehicle speed</strong> (PID <code>0D</code>) is simply
+    <code>A</code> km/h; <strong>Coolant temp</strong> (PID <code>05</code>) is
+    <code>A − 40</code> °C (the −40 offset lets one unsigned byte cover −40…215 °C).
+    Percentages are usually <code>A × 100 ÷ 255</code>. sloppyCAN applies these conversions
+    automatically and shows the engineering value.
+  </p>
+
+  <h2>Discovering what a car supports</h2>
+  <p>
+    A scan tool doesn't guess which PIDs exist — it asks. <strong>PID 0x00</strong> returns a
+    4-byte bitmask of which PIDs in <code>0x01</code>–<code>0x20</code> are supported, MSB
+    first (the top bit = PID <code>0x01</code>). If the very last bit (PID <code>0x20</code>)
+    is set, it means "ask PID <code>0x20</code> for the next block" — and so on through
+    <code>0x40</code> and <code>0x60</code>.
+  </p>
+  <div class="card">
+    <div style="font-family:var(--mono);font-size:13px;color:var(--text2);margin-bottom:6px">Response <span style="color:var(--green)">41 00 BE 1F A8 13</span> → first byte 0xBE = <span style="color:var(--green)">1011 1110</span>:</div>
+    <div class="bits">
+      <div class="bit on">1<small>01</small></div>
+      <div class="bit">0<small>02</small></div>
+      <div class="bit on">1<small>03</small></div>
+      <div class="bit on">1<small>04</small></div>
+      <div class="bit on">1<small>05</small></div>
+      <div class="bit on">1<small>06</small></div>
+      <div class="bit on">1<small>07</small></div>
+      <div class="bit">0<small>08</small></div>
+    </div>
+    <p style="margin:4px 0 0;color:var(--text2);font-size:13px">So PIDs 01, 03, 04, 05, 06, 07 are supported; 02 and 08 are not. The <strong>Probe supported PIDs</strong> button walks all four blocks and lights the grid.</p>
+  </div>
+
+  <h2>Trouble codes (DTCs)</h2>
+  <p>
+    Modes 03, 07 and 0A return <strong>Diagnostic Trouble Codes</strong> — two bytes each.
+    Those 16 bits unpack into the familiar <code>P0420</code> form:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th>Bits</th><th>Meaning</th></tr>
+      <tr><td class="mono">15–14</td><td>System letter — <code>00</code>=P (Powertrain), <code>01</code>=C (Chassis), <code>10</code>=B (Body), <code>11</code>=U (Network)</td></tr>
+      <tr><td class="mono">13–12</td><td>First digit (0–3)</td></tr>
+      <tr><td class="mono">11–0</td><td>Remaining three hex digits</td></tr>
+    </table>
+    <p style="margin:8px 0 0;color:var(--text2);font-size:13px">
+      Example <code>0x0420</code> → top two bits <code>00</code> = <strong>P</strong>,
+      next two <code>00</code> = <strong>0</strong>, low 12 bits <code>0x420</code> →
+      <strong>P0420</strong> ("Catalyst System Efficiency Below Threshold, Bank 1").
+    </p>
+  </div>
+
+  <h2>Try it</h2>
+  <p>
+    Back in sloppyCAN, switch the ISO-TP/UDS tab to <strong>OBD-II</strong>, click
+    <strong>Demo</strong> in the header, then hit <em>Engine RPM</em> or start
+    <em>Quick Watch</em> on RPM + Speed + Coolant. The demo ECU answers on
+    <code>0x7E8</code> with live-ish values so you can see the whole flow without hardware.
+  </p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

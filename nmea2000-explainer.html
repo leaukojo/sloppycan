@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NMEA 2000 Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+
+/* Frame byte strips */
+.frame { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-family: var(--mono); }
+.cell { min-width: 38px; text-align: center; padding: 6px 4px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.cell small { display: block; font-size: 9px; color: var(--text3); margin-top: 2px; }
+.cell.hdr  { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.cell.len  { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.cell.data { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.lane { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <rect x="11" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <path d="M5 8h6" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="8" r="1.5" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">NMEA 2000 Explainer</div>
+      <div class="logo-sub">IEC 61162-3 · marine CAN</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>NMEA 2000</h1>
+  <p class="lede">
+    NMEA 2000 (IEC 61162-3) is the network marine electronics speak — chartplotters,
+    GPS receivers, wind and depth sensors, engine gateways, battery monitors. Under the
+    hood it is <strong>J1939 with a marine dictionary</strong>: the same 29-bit CAN
+    framing, the same PGN/source-address structure, the same ISO address claim. Three
+    things differ — the message catalogue, the multi-frame transport (<strong>Fast
+    Packet</strong>), and how fields are packed.
+  </p>
+
+  <h2>It's J1939 at the wire level</h2>
+  <p>
+    Every NMEA 2000 frame is a standard CAN 2.0B frame with a 29-bit extended identifier,
+    and the identifier is split exactly the way J1939 does it:
+  </p>
+  <table>
+    <thead><tr><th>Bits</th><th>Field</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">28–26</td><td>Priority</td><td>0 = highest</td></tr>
+      <tr><td class="mono">25–24</td><td>Reserved / Data Page</td><td>extends the PGN range</td></tr>
+      <tr><td class="mono">23–16</td><td>PDU Format (PF)</td><td>≥ 0xF0 → broadcast (PGN includes byte 15–8)</td></tr>
+      <tr><td class="mono">15–8</td><td>PDU Specific (PS)</td><td>destination addr (PF&lt;0xF0) or PGN low byte</td></tr>
+      <tr><td class="mono">7–0</td><td>Source Address</td><td>which device sent it</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The <strong>PGN</strong> (Parameter Group Number) identifies <em>what</em> the message
+    is — e.g. <code>127250</code> Vessel Heading, <code>130306</code> Wind Data. sloppyCAN
+    reuses its J1939 ID parser verbatim and just swaps in a marine PGN dictionary when you
+    pick <strong>NMEA 2000</strong> from the protocol dropdown in the J1939 / N2K tab.
+  </p>
+  <div class="note">
+    The bus runs at <strong>250 kbit/s</strong>. Set the header <strong>Speed</strong>
+    dropdown to 250k before connecting to a real backbone — sloppyCAN does not change it
+    for you.
+  </div>
+
+  <h2>Fast Packet — the one new transport</h2>
+  <p>
+    A single CAN frame carries at most 8 data bytes. J1939 moves longer messages with its
+    Transport Protocol (TP.CM / TP.DT); NMEA 2000 does <em>not</em> — it uses
+    <strong>Fast Packet</strong>, which packs the sequencing into the data field of ordinary
+    frames of the same PGN. Whether a PGN is single-frame or Fast Packet is a fixed property
+    of that PGN (it's in the dictionary).
+  </p>
+  <p>
+    Byte 0 of every Fast Packet frame is a control byte: the top 3 bits are a
+    <strong>sequence counter</strong> (0–7, ties one logical message together) and the low
+    5 bits are a <strong>frame counter</strong> (the ordinal within the message).
+  </p>
+
+  <div class="lane">First frame (frame counter = 0)</div>
+  <div class="frame">
+    <div class="cell hdr">SC|0<small>byte 0</small></div>
+    <div class="cell len">LEN<small>byte 1</small></div>
+    <div class="cell data">D0<small>byte 2</small></div>
+    <div class="cell data">D1</div><div class="cell data">D2</div>
+    <div class="cell data">D3</div><div class="cell data">D4</div>
+    <div class="cell data">D5<small>byte 7</small></div>
+  </div>
+  <p style="font-size:13px;color:var(--text2)">
+    Byte 1 is the <strong>total payload length</strong>; bytes 2–7 carry the first
+    <strong>6</strong> payload bytes.
+  </p>
+
+  <div class="lane">Continuation frames (frame counter = 1, 2, 3 …)</div>
+  <div class="frame">
+    <div class="cell hdr">SC|n<small>byte 0</small></div>
+    <div class="cell data">D<small>byte 1</small></div>
+    <div class="cell data">D</div><div class="cell data">D</div>
+    <div class="cell data">D</div><div class="cell data">D</div>
+    <div class="cell data">D</div>
+    <div class="cell data">D<small>byte 7</small></div>
+  </div>
+  <p style="font-size:13px;color:var(--text2)">
+    Each continuation carries <strong>7</strong> payload bytes, placed at offset
+    <code>6 + (frameCounter − 1) × 7</code>. Collect frames until you have
+    <code>LEN</code> bytes, then decode the whole buffer as that PGN. A Fast Packet message
+    can be up to 223 bytes.
+  </p>
+  <div class="note">
+    sloppyCAN keys each reassembly slot by <code>(PGN, source, sequence)</code> and drops
+    a slot that makes no progress for ~1 s, so one lost middle frame can't wedge it. In the
+    PGN Monitor and Frame Log, reassembled messages get an <strong>FP</strong> badge.
+  </div>
+
+  <h2>Field encoding</h2>
+  <p>
+    NMEA 2000 fields are little-endian and frequently <strong>bit-packed</strong> — a field
+    can be 2, 4 or 6 bits wide and start anywhere, not just on a byte boundary. (J1939's
+    whole-byte SPN model can't express this, so the marine decoder works in bit offsets.)
+    Each field has a resolution, an optional offset, and a unit; the all-ones value means
+    <em>data not available</em> and the next value down means <em>out of range</em>.
+  </p>
+  <table>
+    <thead><tr><th>Quantity</th><th>Resolution</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Angle (heading, wind, COG)</td><td class="mono">0.0001 rad</td><td>shown in degrees</td></tr>
+      <tr><td>Temperature</td><td class="mono">0.01 K</td><td>shown in °C (−273.15)</td></tr>
+      <tr><td>Pressure</td><td class="mono">100 Pa</td><td>shown in kPa / hPa</td></tr>
+      <tr><td>Speed</td><td class="mono">0.01 m/s</td><td></td></tr>
+      <tr><td>Latitude / Longitude</td><td class="mono">1e-7 deg</td><td>32-bit signed (rapid)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Worked example — 130306 Wind Data</h2>
+  <p>
+    Wind Data is a single-frame PGN. The 8 data bytes lay out as:
+  </p>
+  <div class="frame">
+    <div class="cell">SID<small>byte 0</small></div>
+    <div class="cell data">SPD<small>byte 1–2</small></div>
+    <div class="cell data">SPD</div>
+    <div class="cell data">ANG<small>byte 3–4</small></div>
+    <div class="cell data">ANG</div>
+    <div class="cell len">REF<small>byte 5</small></div>
+    <div class="cell">—<small>byte 6–7</small></div>
+    <div class="cell">—</div>
+  </div>
+  <div class="card">
+    <p style="margin-bottom:8px"><strong>Payload:</strong> <code>FF 4E 06 60 16 02 FF FF</code></p>
+    <ul style="margin-bottom:0">
+      <li><strong>Wind Speed</strong> = bytes 1–2 LE = <code>0x064E</code> = 1614 × 0.01 m/s =
+        <strong>16.14 m/s</strong></li>
+      <li><strong>Wind Angle</strong> = bytes 3–4 LE = <code>0x1660</code> = 5728 × 0.0001 rad =
+        0.5728 rad = <strong>32.8°</strong></li>
+      <li><strong>Reference</strong> = byte 5 low bits = <code>2</code> = <strong>Apparent</strong></li>
+    </ul>
+  </div>
+  <p>
+    That's exactly what the PGN Monitor shows when you run <strong>Demo</strong> with the
+    dropdown set to NMEA 2000 — it streams heading, engine RPM, position, wind, and a
+    Fast-Packet engine-dynamic message so you can watch reassembly happen with no hardware
+    attached.
+  </p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

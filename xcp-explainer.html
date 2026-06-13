@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XCP-on-CAN Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose h3 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+.warn strong { color: var(--amber); }
+
+/* Frame byte strips */
+.frame { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-family: var(--mono); }
+.cell { min-width: 38px; text-align: center; padding: 6px 4px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.cell small { display: block; font-size: 9px; color: var(--text3); margin-top: 2px; }
+.cell.id   { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.cell.pid  { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.cell.data { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.cell.flag { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.lane { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+
+/* exchange pills */
+.states { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
+.pill { padding:5px 11px; border-radius:14px; font-size:12px; background:var(--bg2); border:1px solid var(--border); }
+.pill .k { color: var(--blue); font-weight:600; font-family:var(--mono); }
+.arrow { color: var(--text3); align-self:center; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 1L3 9h4l-1 6 7-9H9l1-5z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">XCP-on-CAN Explainer</div>
+      <div class="logo-sub">ASAM MCD-1 XCP · measurement &amp; calibration</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>XCP — reading and writing ECU memory over CAN</h1>
+  <p class="lede">
+    XCP (the <strong>Universal Measurement and Calibration Protocol</strong>, ASAM MCD-1) is
+    how calibration tools peek and poke an ECU's RAM/flash live: read a memory address, write a
+    calibration constant, or stream signal values at high rate (DAQ). It runs over many
+    transports; this page is about <strong>XCP-on-CAN</strong>, which the sloppyCAN XCP tab
+    decodes and can actively drive.
+  </p>
+
+  <h2>Two IDs: CRO and DTO</h2>
+  <p>
+    XCP-on-CAN uses exactly <strong>two CAN identifiers</strong>, configured from the ECU's A2L
+    file (defaults vary — <code>0x7E0</code>/<code>0x7E8</code> is a common pair, but always
+    check):
+  </p>
+  <ul>
+    <li><strong>CRO — Command Receive Object</strong> (master → slave). The first byte is the
+      <strong>command code (PID)</strong>; the rest are parameters.</li>
+    <li><strong>DTO — Data Transmit Object</strong> (slave → master). The first byte
+      <em>classifies</em> the packet.</li>
+  </ul>
+
+  <div class="card">
+    <div class="lane">CRO — master → slave (e.g. 0x7E0)</div>
+    <div class="frame">
+      <div class="cell pid">F4<small>SHORT_UPLOAD</small></div>
+      <div class="cell data">08<small>#bytes</small></div>
+      <div class="cell">00<small>rsvd</small></div>
+      <div class="cell flag">00<small>addr ext</small></div>
+      <div class="cell data">00 10 00 20<small>address (per byte order)</small></div>
+    </div>
+    <div class="lane">DTO — slave → master (e.g. 0x7E8)</div>
+    <div class="frame">
+      <div class="cell pid">FF<small>RES (positive)</small></div>
+      <div class="cell data">12 34 56 78 9A BC DE<small>uploaded bytes</small></div>
+    </div>
+  </div>
+
+  <h3>DTO first byte — the packet class</h3>
+  <table>
+    <thead><tr><th class="mono">Byte 0</th><th>Class</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">0xFF</td><td><strong>RES</strong></td><td>Positive command response — decode it <em>in the context of the command you sent</em></td></tr>
+      <tr><td class="mono">0xFE</td><td><strong>ERR</strong></td><td>Error — byte 1 is the error code (e.g. <code>0x13</code> ERR_CMD_UNKNOWN)</td></tr>
+      <tr><td class="mono">0xFD</td><td><strong>EV</strong></td><td>Event packet (DAQ overload, session terminated, …)</td></tr>
+      <tr><td class="mono">0xFC</td><td><strong>SERV</strong></td><td>Service request packet</td></tr>
+      <tr><td class="mono">0x00–0xFB</td><td><strong>DAQ</strong></td><td>Measurement data — the first byte is the PID (ODT number); the rest is sampled signal data</td></tr>
+    </tbody>
+  </table>
+  <p class="note"><strong>Why pairing matters:</strong> a bare <code>FF</code> RES carries no hint
+    of what it answers. The same <code>FF …</code> means resources+versions after CONNECT, but
+    raw memory bytes after UPLOAD. The XCP tab remembers the last command and decodes the
+    response in that context — that's what makes the log readable.</p>
+
+  <h2>The CONNECT handshake (and byte order)</h2>
+  <p>
+    Everything starts with <code>CONNECT</code> (<code>0xFF</code>). The positive response tells
+    the master what the slave can do:
+  </p>
+  <div class="card">
+    <div class="lane">CONNECT response — 0xFF …</div>
+    <div class="frame">
+      <div class="cell pid">FF<small>RES</small></div>
+      <div class="cell flag">15<small>resource</small></div>
+      <div class="cell flag">00<small>COMM_MODE_BASIC</small></div>
+      <div class="cell data">08<small>MAX_CTO</small></div>
+      <div class="cell data">08 00<small>MAX_DTO</small></div>
+      <div class="cell data">01<small>proto ver</small></div>
+      <div class="cell data">01<small>transport ver</small></div>
+    </div>
+  </div>
+  <ul>
+    <li><strong>resource</strong> bitmask — which features are available: <code>CAL/PAG</code>
+      (bit 0), <code>DAQ</code> (bit 2), <code>STIM</code> (bit 3), <code>PGM</code> (bit 4).</li>
+    <li><strong>COMM_MODE_BASIC</strong> — bit 0 is the <strong>BYTE ORDER</strong>
+      (0 = little-endian/Intel, 1 = big-endian/Motorola). <em>Every multi-byte field after
+      this — MAX_DTO, addresses, DAQ values — uses that order.</em></li>
+    <li><strong>MAX_CTO / MAX_DTO</strong> — the largest command/data packet the slave accepts
+      or sends. On classic CAN these are ≤ 8.</li>
+  </ul>
+  <p class="note warn"><strong>Don't hardcode little-endian.</strong> Byte order is per-slave and
+    only known after CONNECT. The XCP tab learns it from the response (and offers a manual
+    override for decoding traffic you captured before the CONNECT).</p>
+
+  <h2>Reading and writing memory</h2>
+  <table>
+    <thead><tr><th class="mono">Cmd</th><th>Name</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">0xF6</td><td>SET_MTA</td><td>Set the Memory Transfer Address (addr ext + 32-bit address)</td></tr>
+      <tr><td class="mono">0xF5</td><td>UPLOAD</td><td>Read N bytes from the MTA; MTA auto-advances</td></tr>
+      <tr><td class="mono">0xF4</td><td>SHORT_UPLOAD</td><td>One-shot read: #bytes + address in one frame (no prior SET_MTA) — the easiest read</td></tr>
+      <tr><td class="mono">0xF0</td><td>DOWNLOAD</td><td>Write N bytes to the MTA — <strong>changes ECU memory</strong></td></tr>
+    </tbody>
+  </table>
+  <p>The XCP tab's <strong>Read memory</strong> form sends a single <code>SHORT_UPLOAD</code> and
+    hex-dumps the response. <strong>Write memory</strong> sends <code>SET_MTA</code> then
+    <code>DOWNLOAD</code> — behind a second explicit confirm, because it modifies the ECU.</p>
+  <p class="note warn"><strong>Active XCP is not read-only by nature.</strong> DOWNLOAD writes
+    real calibration/RAM. The tab gates every transmit on a live bus, the listen-only checkbox
+    being off, and a one-time session confirm; writes add their own confirm. Only point it at a
+    bench ECU you control.</p>
+
+  <h2>DAQ — streaming measurements</h2>
+  <p>
+    DAQ (Data AcQuisition) is XCP's high-rate measurement mode: instead of polling addresses, the
+    master configures <strong>DAQ lists</strong> (which signals, how often) and the slave then
+    <em>pushes</em> DTO packets autonomously. Each DAQ DTO's first byte is a <strong>PID</strong>
+    identifying the ODT (object descriptor table), and the rest is packed signal data.
+  </p>
+  <div class="card">
+    <div class="lane">DAQ data DTO — first byte is the PID (ODT number)</div>
+    <div class="frame">
+      <div class="cell pid">00<small>PID / ODT</small></div>
+      <div class="cell data">E8 03<small>signal A (u16 LE)</small></div>
+      <div class="cell data">5C<small>signal B</small></div>
+      <div class="cell data">07<small>counter</small></div>
+      <div class="cell">00 00 00<small>—</small></div>
+    </div>
+  </div>
+  <p>Full DAQ <em>authoring</em> is a sequence — <code>FREE_DAQ</code> → <code>ALLOC_DAQ</code> →
+    <code>ALLOC_ODT</code> → <code>ALLOC_ODT_ENTRY</code> → <code>SET_DAQ_PTR</code> →
+    <code>WRITE_DAQ</code> → <code>SET_DAQ_LIST_MODE</code> → <code>START_STOP_DAQ_LIST</code>.
+    The XCP tab covers the read-capability + start/stop end of this
+    (<code>GET_DAQ_PROCESSOR_INFO</code> <code>0xDA</code>, <code>START_STOP_SYNCH</code>
+    <code>0xDD</code>) and <strong>passively classifies</strong> incoming DAQ DTOs by PID; building
+    DAQ lists from an A2L is left as future work.</p>
+
+  <h2>The active session, end to end</h2>
+  <div class="states">
+    <span class="pill"><span class="k">1</span> CONNECT</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">2</span> GET_STATUS / GET_COMM_MODE_INFO</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">3</span> SHORT_UPLOAD (read) / DOWNLOAD (write)</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">4</span> DAQ start → stream → stop</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">5</span> DISCONNECT</span>
+  </div>
+  <p class="note"><strong>Single transaction in flight.</strong> XCP is request/response: send one
+    CRO, wait for its RES/ERR before the next. The tab enforces this (like the ISO-TP/UDS tab) and
+    times out if the slave goes quiet. Turn on <strong>Demo</strong> mode to drive the whole flow
+    against a simulated slave — including a live DAQ stream — with no hardware.</p>
+
+  <h3>Common error codes</h3>
+  <table>
+    <thead><tr><th class="mono">Code</th><th>Name</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">0x10</td><td>ERR_CMD_BUSY</td></tr>
+      <tr><td class="mono">0x11</td><td>ERR_DAQ_ACTIVE</td></tr>
+      <tr><td class="mono">0x13</td><td>ERR_CMD_UNKNOWN — command not implemented</td></tr>
+      <tr><td class="mono">0x15</td><td>ERR_OUT_OF_RANGE — parameter out of range</td></tr>
+      <tr><td class="mono">0x17</td><td>ERR_ACCESS_DENIED</td></tr>
+      <tr><td class="mono">0x18</td><td>ERR_ACCESS_LOCKED — Seed &amp; Key required</td></tr>
+      <tr><td class="mono">0x22</td><td>ERR_VERIFY — slave's verify routine failed</td></tr>
+    </tbody>
+  </table>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UDS / ISO 14229 Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 16px 0; }
+.node { flex: 1; min-width: 150px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; }
+.node .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); }
+.node .id { font-family: var(--mono); font-size: 16px; font-weight: 500; margin: 4px 0; }
+.node.req .id { color: var(--amber); }
+.node.rsp .id { color: var(--green); }
+.node .desc { font-size: 12px; color: var(--text2); }
+.arrow { display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 22px; }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <rect x="11" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <path d="M5 8h6" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="8" r="1.5" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">UDS Explainer</div>
+      <div class="logo-sub">Unified Diagnostic Services · ISO 14229</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>UDS &amp; ISO 14229</h1>
+  <p class="lede">
+    Unified Diagnostic Services is the <strong>standard diagnostic language of modern
+    vehicles</strong>. It's what a dealer scan tool, a flashing tool, or an end-of-line
+    tester speaks to read fault codes, log data, run actuator tests, unlock security, and
+    reprogram ECUs. On CAN it rides the same <strong>ISO-TP</strong> (ISO 15765-2) transport
+    sloppyCAN already speaks — UDS just defines the application layer on top.
+  </p>
+
+  <h2>Request / response grammar</h2>
+  <p>
+    Every exchange follows the same simple convention — learn it once and every service reads
+    the same way:
+  </p>
+  <ul style="line-height:1.8;color:var(--text);margin:0 0 12px 22px">
+    <li>A <strong>request</strong> starts with a Service ID (SID) byte, e.g. <code>22 F1 90</code>.</li>
+    <li>A <strong>positive response</strong> echoes the SID <strong>+ 0x40</strong>, e.g. <code>62 F1 90 …</code>.</li>
+    <li>A <strong>negative response</strong> is always <code>7F &lt;sid&gt; &lt;nrc&gt;</code>.</li>
+    <li>NRC <code>0x78</code> "responsePending" means "still working, wait for the real answer" — handled automatically.</li>
+    <li>Many services take a <strong>sub-function</strong> byte; its top bit (<code>0x80</code>) is "suppress positive response".</li>
+  </ul>
+  <div class="flow">
+    <div class="node req">
+      <div class="tag">Tester → ECU</div>
+      <div class="id">22 F1 90</div>
+      <div class="desc">ReadDataByIdentifier, DID <code>0xF190</code> (VIN)</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node rsp">
+      <div class="tag">ECU → tester</div>
+      <div class="id">62 F1 90 …</div>
+      <div class="desc">positive response (<code>0x22 + 0x40</code>), DID echoed, then data</div>
+    </div>
+  </div>
+  <p class="note">
+    Want the transport mechanics — how a long response splits into First Frame + Flow
+    Control + Consecutive Frames? Open the
+    <a href="isotp-explainer.html" target="_blank" style="color:var(--blue)">ISO-TP Explainer</a>.
+  </p>
+
+  <h2>The services you'll actually use</h2>
+  <p>
+    There are dozens of services in ISO 14229, but a handful cover most day-to-day work — and
+    these are exactly the buttons in sloppyCAN's UDS palette:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">SID</th><th>Service</th><th>What it does</th></tr>
+      <tr><td class="mono">10</td><td>DiagnosticSessionControl</td><td>Switch session — default / programming / <strong>extended</strong>. Unlocks the rest.</td></tr>
+      <tr><td class="mono">11</td><td>ECUReset</td><td>hardReset / keyOffOn / softReset.</td></tr>
+      <tr><td class="mono">19</td><td>ReadDTCInformation</td><td>Read fault codes by a sub-function + status mask.</td></tr>
+      <tr><td class="mono">22</td><td>ReadDataByIdentifier</td><td>Read a value by 16-bit DID (e.g. <code>F190</code> VIN).</td></tr>
+      <tr><td class="mono">14</td><td>ClearDiagnosticInformation</td><td>Clear DTCs for a group (<code>FFFFFF</code> = all).</td></tr>
+      <tr><td class="mono">27</td><td>SecurityAccess</td><td>Seed/key challenge to unlock protected services.</td></tr>
+      <tr><td class="mono">28</td><td>CommunicationControl</td><td>Enable/disable normal Rx/Tx messaging.</td></tr>
+      <tr><td class="mono">2E</td><td>WriteDataByIdentifier</td><td>Write a value by DID.</td></tr>
+      <tr><td class="mono">31</td><td>RoutineControl</td><td>Start / stop / get results of an on-ECU routine.</td></tr>
+      <tr><td class="mono">3E</td><td>TesterPresent</td><td>Heartbeat that keeps a non-default session alive.</td></tr>
+      <tr><td class="mono">85</td><td>ControlDTCSetting</td><td>Turn DTC logging on/off during a test.</td></tr>
+    </table>
+  </div>
+
+  <h2>Sessions &amp; security gate the good stuff</h2>
+  <p>
+    At power-up an ECU is in the <strong>default session</strong>, where it answers only safe,
+    read-only requests. Anything intrusive — writing data, running actuators, flashing — first
+    needs an <strong>extended</strong> or <strong>programming</strong> session
+    (<code>10 03</code> / <code>10 02</code>), and usually a <strong>SecurityAccess</strong>
+    unlock (<code>27</code>): you request a seed, compute a key with the manufacturer's secret
+    algorithm, and send it back.
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">Step</th><th class="mono">Request</th><th>Meaning</th></tr>
+      <tr><td>1</td><td class="mono">10 03</td><td>Enter extended diagnostic session</td></tr>
+      <tr><td>2</td><td class="mono">27 01</td><td>SecurityAccess — request seed (response: <code>67 01 &lt;seed&gt;</code>)</td></tr>
+      <tr><td>3</td><td class="mono">27 02 &lt;key&gt;</td><td>Send computed key (response: <code>67 02</code> = unlocked)</td></tr>
+      <tr><td>4</td><td class="mono">2E F1 90 …</td><td>Now a protected WriteDataByIdentifier is accepted</td></tr>
+      <tr><td>5</td><td class="mono">3E 00</td><td>TesterPresent — keep the session alive while you work</td></tr>
+    </table>
+  </div>
+  <p class="note warn">
+    <strong>TesterPresent matters.</strong> If the tester goes quiet for the session timeout
+    (typically ~5 s), the ECU drops back to the default session and you lose your unlock — so
+    tools send <code>3E 00</code> on a heartbeat.
+  </p>
+
+  <h2>Negative response codes (NRCs)</h2>
+  <p>
+    When an ECU rejects a request it replies <code>7F &lt;sid&gt; &lt;nrc&gt;</code>. The most
+    common NRCs you'll meet:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">NRC</th><th>Name</th><th>Usually means</th></tr>
+      <tr><td class="mono">11</td><td>serviceNotSupported</td><td>This ECU doesn't implement that service</td></tr>
+      <tr><td class="mono">12</td><td>subFunctionNotSupported</td><td>Service exists, that sub-function doesn't</td></tr>
+      <tr><td class="mono">22</td><td>conditionsNotCorrect</td><td>Wrong session/state for this request</td></tr>
+      <tr><td class="mono">31</td><td>requestOutOfRange</td><td>Bad DID / parameter value</td></tr>
+      <tr><td class="mono">33</td><td>securityAccessDenied</td><td>Need a SecurityAccess unlock first</td></tr>
+      <tr><td class="mono">7E / 7F</td><td>…InActiveSession</td><td>Service/sub-function not allowed in the current session</td></tr>
+    </table>
+  </div>
+
+  <h2>UDS vs OBD-II vs KWP2000</h2>
+  <p>
+    All three ride ISO-TP on CAN. <strong>OBD-II</strong> (SAE J1979) is the legally-mandated,
+    emissions-only subset — fixed PIDs, no sessions, no security. <strong>KWP2000</strong>
+    (ISO 14230) is UDS's older cousin; same grammar, a few service IDs collide and mean
+    different things. <strong>UDS</strong> is the full modern toolbox. sloppyCAN switches
+    between all three from the protocol toggle on the ISO-TP tab.
+  </p>
+
+  <h2>Try it</h2>
+  <p>
+    On the ISO-TP tab select <strong>UDS</strong> and turn on <strong>Demo</strong>. The palette
+    buttons each transmit a real request — the ones with a <code>▾</code> caret open a small
+    panel where you pick a sub-function (e.g. session type) or type a hex argument (e.g. a DID),
+    then Send. A simulated ECU answers, and unknown services come back as
+    <code>7F &lt;sid&gt; 11</code> (serviceNotSupported). You can also type any hex into the
+    input directly, e.g. <code>22 F1 90</code> or <code>10 03</code>.
+  </p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

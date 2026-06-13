@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CANopen Interactive Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose h3 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+.warn strong { color: var(--amber); }
+
+/* Frame byte strips */
+.frame { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-family: var(--mono); }
+.cell { min-width: 38px; text-align: center; padding: 6px 4px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.cell small { display: block; font-size: 9px; color: var(--text3); margin-top: 2px; }
+.cell.id   { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.cell.cs   { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.cell.data { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.cell.flag { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.lane { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+
+/* COB-ID bit diagram */
+.bits { display:flex; gap:4px; margin:10px 0; font-family:var(--mono); flex-wrap:wrap; }
+.bitgrp { text-align:center; }
+.bitgrp .b { display:flex; gap:2px; }
+.bitgrp .b span { width:22px; padding:5px 0; border-radius:4px; border:1px solid var(--border); font-size:12px; }
+.bitgrp .fc span  { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.bitgrp .nid span { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.bitgrp .lbl { font-size:10px; color:var(--text3); margin-top:4px; text-transform:uppercase; letter-spacing:.05em; }
+
+/* state pills */
+.states { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
+.pill { padding:5px 11px; border-radius:14px; font-size:12px; background:var(--bg2); border:1px solid var(--border); }
+.pill .k { color: var(--blue); font-weight:600; font-family:var(--mono); }
+.arrow { color: var(--text3); align-self:center; }
+.chip { display:inline-block; padding:2px 10px; border-radius:11px; font-size:12px; font-weight:600; }
+.chip.oper  { background: var(--green-dim); color: var(--green); }
+.chip.preop { background: var(--amber-dim); color: var(--amber); }
+.chip.stop  { background: var(--red-dim);   color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 1L3 9h4l-1 6 7-9H9l1-5z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">CANopen Explainer</div>
+      <div class="logo-sub">CiA 301 · industrial device network</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>CANopen — a device network on top of CAN</h1>
+  <p class="lede">
+    CANopen (standardised as <strong>CiA 301</strong>) turns a raw CAN bus into a plug-and-play
+    network of up to <strong>127 nodes</strong>: motor drives, I/O blocks, sensors, controllers.
+    It defines what the 11-bit CAN identifiers <em>mean</em>, an <strong>object dictionary</strong>
+    in every device, and a handful of services (NMT, SYNC, EMCY, PDO, SDO, heartbeat). The
+    sloppyCAN CANopen tab decodes all of these and can actively read/write a node.
+  </p>
+
+  <h2>The COB-ID: function code + node-ID</h2>
+  <p>
+    CANopen never invents new framing — it just <strong>partitions the 11-bit CAN ID</strong>.
+    The top 4 bits are a <strong>function code</strong> (what kind of message), the low 7 bits are
+    the <strong>node-ID</strong> (1–127, or 0 for broadcast). Together they're called the
+    <strong>COB-ID</strong> (Communication Object Identifier).
+  </p>
+  <div class="card">
+    <div class="bits">
+      <div class="bitgrp"><div class="b fc"><span>10</span><span>9</span><span>8</span><span>7</span></div><div class="lbl">function code</div></div>
+      <div class="bitgrp"><div class="b nid"><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span><span>0</span></div><div class="lbl">node-ID (1–127)</div></div>
+    </div>
+    <p style="margin:6px 0 0"><code>node = id &amp; 0x7F</code> &nbsp;·&nbsp; <code>fc = (id &gt;&gt; 7) &amp; 0xF</code></p>
+  </div>
+  <p>This fixed assignment is the <strong>predefined connection set</strong>:</p>
+  <table>
+    <thead><tr><th class="mono">COB-ID</th><th>Message</th><th>Direction</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">0x000</td><td><strong>NMT</strong> node control</td><td>master → all (broadcast)</td></tr>
+      <tr><td class="mono">0x080</td><td><strong>SYNC</strong></td><td>broadcast</td></tr>
+      <tr><td class="mono">0x080 + node</td><td><strong>EMCY</strong> (emergency)</td><td>node →</td></tr>
+      <tr><td class="mono">0x100</td><td>TIME stamp</td><td>broadcast</td></tr>
+      <tr><td class="mono">0x180 / 0x280 / 0x380 / 0x480 + node</td><td><strong>TPDO</strong> 1–4 (transmit process data)</td><td>node →</td></tr>
+      <tr><td class="mono">0x200 / 0x300 / 0x400 / 0x500 + node</td><td><strong>RPDO</strong> 1–4 (receive process data)</td><td>→ node</td></tr>
+      <tr><td class="mono">0x580 + node</td><td><strong>SDO</strong> response (server → client)</td><td>node →</td></tr>
+      <tr><td class="mono">0x600 + node</td><td><strong>SDO</strong> request (client → server)</td><td>→ node</td></tr>
+      <tr><td class="mono">0x700 + node</td><td><strong>Heartbeat</strong> / NMT error control</td><td>node →</td></tr>
+    </tbody>
+  </table>
+  <p class="note">So classification is pure arithmetic — no payload inspection needed. The one
+    wrinkle: <code>0x080</code> is SYNC when the node bits are zero, and an EMCY from
+    <code>node</code> otherwise.</p>
+
+  <h2>NMT — the network state machine</h2>
+  <p>
+    Every node is in one of a few states. The NMT master flips them with a 2-byte broadcast on
+    <code>0x000</code>: <code>byte0 = command</code>, <code>byte1 = target node</code>
+    (<code>0</code> = all nodes).
+  </p>
+  <div class="card">
+    <div class="lane">NMT — master → all (0x000)</div>
+    <div class="frame">
+      <div class="cell cs">01<small>Start</small></div>
+      <div class="cell id">05<small>node 5</small></div>
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr><th class="mono">Cmd</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">0x01</td><td>Start → <span class="chip oper">Operational</span> (PDOs flow)</td></tr>
+        <tr><td class="mono">0x02</td><td>Stop → <span class="chip stop">Stopped</span> (only NMT + heartbeat)</td></tr>
+        <tr><td class="mono">0x80</td><td>Enter <span class="chip preop">Pre-Operational</span> (SDO yes, PDO no)</td></tr>
+        <tr><td class="mono">0x81</td><td>Reset Node</td></tr>
+        <tr><td class="mono">0x82</td><td>Reset Communication</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Each node announces its current state in its <strong>heartbeat</strong> (<code>0x700+node</code>,
+    1 byte): <code>0x00</code> Boot-up, <code>0x04</code> Stopped, <code>0x05</code> Operational,
+    <code>0x7F</code> Pre-Operational. The tab's node map colours the chip from this byte.</p>
+
+  <h2>EMCY — emergency messages</h2>
+  <p>When a device faults it broadcasts an 8-byte EMCY on <code>0x080+node</code>:</p>
+  <div class="card">
+    <div class="lane">EMCY — node → (0x080 + node)</div>
+    <div class="frame">
+      <div class="cell data">30 81<small>error code (LE)</small></div>
+      <div class="cell flag">11<small>error register</small></div>
+      <div class="cell">00 00 00 00 00<small>manufacturer-specific</small></div>
+    </div>
+  </div>
+  <ul>
+    <li><strong>Error code</strong> (bytes 0–1, little-endian): the high byte is a class —
+      <code>0x10xx</code> generic, <code>0x20xx</code> current, <code>0x30xx</code> voltage,
+      <code>0x40xx</code> temperature, <code>0x81xx</code> communication. Some full codes are
+      named: <code>0x8110</code> CAN overrun, <code>0x8130</code> heartbeat error,
+      <code>0x8140</code> recovered from bus-off.</li>
+    <li><strong>Error register</strong> (byte 2, object <code>0x1001</code>): a bitfield —
+      bit 0 generic, 1 current, 2 voltage, 3 temperature, 4 communication, 5 device-profile,
+      7 manufacturer.</li>
+  </ul>
+
+  <h2>SDO — the read/write channel</h2>
+  <p>
+    The <strong>Service Data Object</strong> protocol reads and writes any entry in a node's
+    object dictionary. Every SDO frame is 8 bytes: a <strong>command specifier</strong>, the
+    16-bit <strong>index</strong> (LE), an 8-bit <strong>sub-index</strong>, then data.
+  </p>
+  <div class="card">
+    <div class="lane">Read request — client → server (0x600 + node)</div>
+    <div class="frame">
+      <div class="cell cs">40<small>upload req</small></div>
+      <div class="cell id">00 10<small>index 0x1000</small></div>
+      <div class="cell id">00<small>sub</small></div>
+      <div class="cell">00 00 00 00<small>—</small></div>
+    </div>
+    <div class="lane">Read response (expedited) — server → client (0x580 + node)</div>
+    <div class="frame">
+      <div class="cell cs">43<small>4 data bytes</small></div>
+      <div class="cell id">00 10<small>index</small></div>
+      <div class="cell id">00<small>sub</small></div>
+      <div class="cell data">91 01 02 00<small>value (LE)</small></div>
+    </div>
+  </div>
+  <p><strong>Expedited</strong> transfers carry ≤ 4 data bytes in that single response frame. The
+    command byte encodes the size: <code>0x43</code> = 4 bytes, <code>0x47</code> = 3,
+    <code>0x4B</code> = 2, <code>0x4F</code> = 1. A <strong>write</strong> mirrors this:
+    <code>0x2n</code> request (<code>0x23/0x27/0x2B/0x2F</code>) → <code>0x60</code> confirm.</p>
+  <h3>Segmented transfers (&gt; 4 bytes)</h3>
+  <p>Longer values (a device name, say) don't fit in one frame. The server answers the read
+    request with an <strong>initiate</strong> (<code>0x41</code>) carrying the total size, then the
+    client pulls 7 bytes at a time with segment requests (<code>0x60</code>/<code>0x70</code>,
+    a toggling bit), until a segment arrives with the <strong>last</strong> flag set. The tab
+    reassembles the pieces and shows the value as text + hex.</p>
+  <h3>Aborts</h3>
+  <p>If a request can't be served, the server replies with <code>0x80</code> and a 4-byte
+    <strong>abort code</strong> (LE). Common ones: <code>0x06020000</code> object doesn't exist,
+    <code>0x06010002</code> attempt to write a read-only object, <code>0x06090011</code> sub-index
+    doesn't exist, <code>0x06070010</code> type/length mismatch, <code>0x08000000</code> general.</p>
+  <p class="note warn"><strong>Active SDO is not read-only.</strong> A download (write) changes the
+    node's object dictionary, and an NMT Stop halts its PDOs. The tab gates every transmit on a
+    live bus, the listen-only checkbox being off, and a one-time session confirm; writes add their
+    own confirm. Point it only at a bench network you control. <strong>One SDO transaction is in
+    flight at a time</strong> per node — segmented transfers must not interleave.</p>
+
+  <h2>PDO — process data (and why it's raw here)</h2>
+  <p>
+    TPDO/RPDO carry the actual application data — motor speed, I/O states — with
+    <strong>no protocol header at all</strong>. Which bytes mean what is defined by the device's
+    <strong>PDO mapping</strong> objects (<code>0x1600</code>/<code>0x1A00</code>…) in its object
+    dictionary. Without that mapping (which lives in the device's EDS file, not on the wire) a
+    sniffer can only show <strong>which PDO of which node</strong> plus the <strong>raw
+    bytes</strong>. That's what the tab does; user-supplied mappings are future work.
+  </p>
+
+  <h2>A session, end to end</h2>
+  <div class="states">
+    <span class="pill"><span class="k">1</span> node boots → heartbeat Boot-up</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">2</span> Pre-Op (configure via SDO)</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">3</span> NMT Start</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">4</span> Operational — PDOs + SYNC flow</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">5</span> EMCY on fault</span>
+  </div>
+  <p class="note"><strong>Try it with no hardware:</strong> turn on <strong>Demo</strong> mode and
+    open the CANopen tab. Two simulated nodes emit heartbeats and a TPDO; the SDO client can read
+    <code>0x1000</code> (device type, expedited) and <code>0x1008</code> (device name, segmented),
+    and NMT buttons flip a node's state live in the node map.</p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sloppyCAN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="sloppycan.css">
+<script src="j1939.js" defer></script><!-- J1939 — remove this line to revert -->
+<script src="graph.js" defer></script><!-- Graph — remove this line to revert -->
+<script src="fuzz.js" defer></script><!-- Fuzzing — remove this line to revert -->
+<script src="chademo.js" defer></script><!-- CHAdeMO — remove this line to revert -->
+<script src="xcp.js" defer></script><!-- XCP — remove this line to revert -->
+<script src="canopen.js" defer></script><!-- CANopen — remove this line to revert -->
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <rect x="11" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <path d="M5 8h6" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="8" r="1.5" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">sloppyCAN</div>
+      <a class="logo-sub logo-src" href="https://github.com/leaukojo/sloppycan" target="_blank" rel="noopener" title="View source on GitHub">
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        Source
+      </a>
+    </div>
+  </div>
+  <div class="header-cluster" style="display:flex;align-items:center;gap:2px;padding:0 10px;border-left:1px solid var(--border);border-right:1px solid var(--border);margin:0 4px">
+    <label class="header-check" style="gap:5px" title="Saved per-vehicle workspace — settings, filters, TX rows, pins, colours and notes are stored per workspace and restored on reload.">
+      <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em">Workspace</span>
+      <select id="wsSelect" onchange="switchWorkspace(this.value)" class="hdr-select" style="max-width:130px"></select>
+    </label>
+    <div style="position:relative">
+      <button class="btn" id="wsMenuBtn" onclick="toggleWsMenu()" title="Workspace actions"
+        style="padding:3px 9px;font-size:14px;line-height:1;color:var(--text3)">⋯</button>
+      <div id="wsMenu" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:200;
+        background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px;
+        min-width:150px;box-shadow:0 8px 24px #0006;flex-direction:column;gap:2px">
+        <button class="ws-item" onclick="newWorkspace();closeWsMenu()">New…</button>
+        <button class="ws-item" onclick="renameWorkspace();closeWsMenu()">Rename…</button>
+        <button class="ws-item" onclick="duplicateWorkspace();closeWsMenu()">Duplicate</button>
+        <button class="ws-item" onclick="deleteWorkspace();closeWsMenu()">Delete</button>
+        <div style="height:1px;background:var(--border);margin:4px 2px"></div>
+        <button class="ws-item" onclick="exportWorkspace();closeWsMenu()">Export…</button>
+        <button class="ws-item" onclick="document.getElementById('wsImportFile').click();closeWsMenu()">Import…</button>
+      </div>
+      <input type="file" id="wsImportFile" accept="application/json,.json" style="display:none"
+        onchange="if(this.files[0]){importWorkspace(this.files[0]);this.value=''}">
+    </div>
+    <div class="sep" style="height:20px;margin:0 6px"></div>
+    <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:6px 8px;border-color:transparent">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+      </svg>
+    </button>
+    <label class="header-check" style="gap:4px" title="Render refresh cap. Lower = less CPU; Max = render as fast as possible.">
+      <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em">FPS</span>
+      <select id="fpsLimit" onchange="setFpsLimit(parseInt(this.value))" class="hdr-select">
+        <option value="2">2</option>
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="30">30</option>
+        <option value="0">Max</option>
+      </select>
+    </label>
+  </div>
+  <div class="header-sep"></div>
+  <div class="header-stats" id="headerStats">
+    <div class="hstat"><div class="hstat-val" id="statIds">0</div><div class="hstat-lbl">IDs</div></div>
+    <div class="hstat"><div class="hstat-val" id="statTotal">0</div><div class="hstat-lbl">Frames</div></div>
+    <div class="hstat"><div class="hstat-val" id="statRate">0</div><div class="hstat-lbl">fps</div></div>
+    <div class="hstat"><div class="hstat-val" id="statErrors">0</div><div class="hstat-lbl">Errors</div></div>
+    <div class="hstat"><div class="hstat-val" id="statBytes">0</div><div class="hstat-lbl">Bytes</div></div>
+    <div class="hstat"><div class="hstat-val" id="statDumpBuf">0%</div><div class="hstat-lbl">Buf</div></div>
+  </div>
+  <div id="pausedBadge" style="display:none" class="badge-paused">
+    <div class="badge-paused-dot"></div> PAUSED
+  </div>
+  <label class="header-check" style="gap:5px" title="Adapter protocol. SLCAN = serial text adapters; gs_usb = candleLight / CANable native (WebUSB).">
+    <span style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Adapter</span>
+    <select id="adapterType" class="hdr-select">
+      <option value="serial" selected>SLCAN</option>
+      <option value="gsusb">gs_usb</option>
+    </select>
+  </label>
+  <label class="header-check" style="gap:5px">
+    <span style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Baudrate</span>
+    <select id="baudRate" class="hdr-select">
+      <option value="S0">10k</option>
+      <option value="S1">20k</option>
+      <option value="S2">50k</option>
+      <option value="S3">100k</option>
+      <option value="S4">125k</option>
+      <option value="S5">250k</option>
+      <option value="S6" selected>500k</option>
+      <option value="S7">800k</option>
+      <option value="S8">1M</option>
+    </select>
+  </label>
+  <div style="position:relative">
+    <button class="btn" id="advancedMenuBtn" onclick="toggleAdvancedMenu()" title="Advanced settings"
+      style="font-size:11px;padding:3px 9px;color:var(--text3)">Advanced ▾</button>
+    <div id="advancedMenu" style="display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:200;
+      background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;
+      min-width:180px;box-shadow:0 8px 24px #0006;flex-direction:column;gap:10px">
+      <label class="header-check" title="Open the CAN bus automatically as soon as the adapter connects.">
+        <input type="checkbox" id="autoOpen" checked>
+        <span>Auto-open</span>
+      </label>
+      <label class="header-check" title="Receive only — never transmit on the bus. Safe for tapping an unknown bus.">
+        <input type="checkbox" id="listenOnly" onchange="if(window.obdStop)obdUpdateAvailability()">
+        <span>Listen-only</span>
+      </label>
+      <label class="header-check" style="gap:6px" title="Traffic Dump capacity. When full, the oldest frames are dropped.">
+        <span style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;white-space:nowrap">Buffer size</span>
+        <select id="bufferSizeSelect" onchange="setBufferSize(parseInt(this.value))" class="hdr-select">
+          <option value="10000">10k</option>
+          <option value="50000">50k</option>
+          <option value="100000" selected>100k</option>
+          <option value="500000">500k</option>
+          <option value="1000000">1M</option>
+        </select>
+      </label>
+    </div>
+  </div>
+  <button class="btn primary" id="connectBtn" onclick="connectSerial()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    Connect
+  </button>
+  <button class="btn" id="demoBtn" onclick="startDemo()" style="border-color:#a78bfa;color:#a78bfa">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+    Demo
+  </button>
+  <button class="btn danger" id="disconnectBtn" onclick="disconnectSerial()" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    Disconnect
+  </button>
+  <div class="status-pill" id="statusPill">
+    <div class="status-dot"></div>
+    <span id="statusText">Disconnected</span>
+  </div>
+</header>
+
+<div id="noSerialBanner" class="no-serial-banner">
+  ⚠ Web Serial API not available. Please use Chrome or Edge (version 89+). This interface requires a Chromium-based browser.
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-group">
+    <span class="toolbar-label">Display</span>
+    <select id="byteFormat" onchange="dumpLastFirst=-1;rerenderTable();if(dumpViewActive)renderDump()">
+      <option value="hex">Hex</option>
+      <option value="hexascii" selected>Hex + ASCII</option>
+      <option value="bin">Binary</option>
+      <option value="ascii">ASCII</option>
+    </select>
+  </div>
+  <div class="sep"></div>
+  <!-- Merged bus/pause button: cycles Open Bus → Pause → Resume -->
+  <button class="btn" id="busPauseBtn" onclick="busPauseClick()" disabled>
+    <svg id="busPayIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+    <span id="busPayLabel">Open Bus</span>
+  </button>
+  <!-- Clear button (also resets counts, keeps IDs) -->
+  <button class="btn" id="clearMainBtn" onclick="clearFrames()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M8 6V4h8v2"/></svg>
+    Clear
+  </button>
+  <div class="stats-sep"></div>
+  <div class="toolbar-group" style="gap:6px">
+    <span class="toolbar-label">Frame</span>
+    <select id="filterFrameType" onchange="dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()" class="flt-control">
+      <option value="all">ALL</option>
+      <option value="std">STD</option>
+      <option value="ext">EXT</option>
+    </select>
+    <select id="filterDataType" onchange="dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()" class="flt-control">
+      <option value="all">ALL</option>
+      <option value="data">DATA</option>
+      <option value="rtr">RTR</option>
+    </select>
+  </div>
+  <div class="sep"></div>
+  <div class="toolbar-group" style="gap:6px">
+    <span class="toolbar-label">Filter IDs</span>
+    <input type="text" id="filterIds" placeholder="e.g. 024, 039, 000-02F" class="flt-control"
+      style="width:160px"
+      oninput="validateFilterIds();dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()">
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap">
+      <input type="checkbox" id="filterIdsExclude" style="width:12px;height:12px;accent-color:var(--red);cursor:pointer"
+        onchange="dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()">
+      Exclude
+    </label>
+    <div style="position:relative">
+      <button class="filter-help-btn" id="filterHelpBtn" onclick="toggleFilterHelp()" title="Filter ID syntax" aria-label="Filter ID syntax help">?</button>
+      <div id="filterHelpPop" class="filter-help-pop" style="display:none">
+        <div class="fh-title">Filter IDs — syntax</div>
+        <table class="fh-grid">
+          <tr><td><code>024</code></td><td>single ID (hex)</td></tr>
+          <tr><td><code>024, 039</code></td><td>list of IDs</td></tr>
+          <tr><td><code>000-02F</code></td><td>inclusive range</td></tr>
+          <tr><td><code>024, 100-1FF</code></td><td>mix lists &amp; ranges</td></tr>
+        </table>
+        <div class="fh-note">IDs are hexadecimal. Tick <b>Exclude</b> to hide matching IDs instead of showing only them.</div>
+      </div>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="toolbar-group" style="gap:6px">
+    <span class="toolbar-label">Data</span>
+    <input type="text" id="filterData" placeholder="hex or ASCII" class="flt-control"
+      style="width:120px"
+      oninput="dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()">
+  </div>
+</div>
+
+<div class="view-tabs" role="tablist" aria-label="View">
+  <button class="view-tab active" role="tab" aria-selected="true" id="vtab-ids" onclick="switchViewTab('ids')">ID List</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-dump" onclick="switchViewTab('dump')">Traffic Dump</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-inspect" onclick="switchViewTab('inspect')">Frame Inspector</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-isotp" onclick="switchViewTab('isotp')">ISO-TP</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-xcp" onclick="switchViewTab('xcp')">XCP</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-graph" onclick="switchViewTab('graph')">Graph</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-fuzz" onclick="switchViewTab('fuzz')">Fuzzing</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-j1939" onclick="switchViewTab('j1939')">J1939 / N2K</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-chademo" onclick="switchViewTab('chademo')">CHAdeMO</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-canopen" onclick="switchViewTab('canopen')">CANopen</button>
+  <button class="view-tab" role="tab" aria-selected="false" id="vtab-term" onclick="switchViewTab('term')" disabled>Serial Terminal</button>
+</div>
+
+<!-- Shared toolbar — visible for both ID List and Traffic Dump tabs -->
+<div id="sharedToolbar" style="background:var(--bg2);border-bottom:1px solid var(--border);padding:5px 12px;flex-shrink:0;display:flex;align-items:center;gap:8px">
+  <div style="position:relative">
+    <div style="display:flex;gap:0">
+      <button class="btn" id="notchBtn" onclick="notchClick()" disabled
+        title="Listen for a moment, then mark every byte that changed as 'noisy' (amber) and the rest as 'stable' (grey). Wiggle a control afterwards and the byte that reacts lights up green."
+        style="border-radius:8px 0 0 8px;border-right:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l3-8 4 16 3-8h3"/><path d="M19 12h3"/></svg>
+        <span id="notchLabel">Notch</span>
+      </button>
+      <button class="btn" id="notchArrowBtn" onclick="toggleNotchPanel()" disabled
+        style="border-radius:0 8px 8px 0;padding:7px 8px;font-size:11px"
+        title="Adjust notch settings">▾</button>
+    </div>
+    <div id="notchPanel" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:200;
+      background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;
+      min-width:260px;box-shadow:0 8px 24px #0006;gap:12px;flex-direction:column">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="toolbar-label">Listening duration</span>
+            <span id="notchDurVal" style="font-family:var(--mono);font-size:12px;color:var(--text2)">1.0s</span>
+          </div>
+          <input type="range" id="notchDuration" min="0.1" max="100" step="0.1" value="1"
+            style="width:100%;accent-color:var(--green)"
+            oninput="const _s=snapSeconds(parseFloat(this.value));this.value=_s;document.getElementById('notchDurVal').textContent=_s<10?_s.toFixed(1)+'s':_s.toFixed(0)+'s'">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="toolbar-label">Highlight duration</span>
+            <span id="hotDurVal" style="font-family:var(--mono);font-size:12px;color:var(--text2)">500ms</span>
+          </div>
+          <input type="range" id="hotDuration" min="0" max="100" step="1" value="25"
+            style="width:100%;accent-color:var(--green)"
+            oninput="hotMs=snapMs(Math.round(Math.pow(10,this.value/100*3+2)));document.getElementById('hotDurVal').textContent=hotMs>=10000?(hotMs/1000).toFixed(0)+'s':hotMs>=1000?(hotMs/1000).toFixed(1)+'s':hotMs+'ms'">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sep" style="height:20px"></div>
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap" title="Show only frames that still have at least one byte not yet seen settling (white/green) — i.e. data you haven't accounted for yet.">
+    <input type="checkbox" id="filterOnlyUnseen" style="width:12px;height:12px;accent-color:var(--blue);cursor:pointer"
+      onchange="dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()">
+    <span>Only unseen</span>
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap" id="filterOnlyHighlightedLabel" title="Show only frames with a byte that changed just now (green). Pair with Notch to isolate the byte a control affects.">
+    <input type="checkbox" id="filterOnlyHighlighted" style="width:12px;height:12px;accent-color:var(--green);cursor:pointer"
+      onchange="if(this.checked)document.getElementById('filterOnlyUnseen').checked=true;dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()">
+    <span>Only highlighted</span>
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap" title="Hide TX-only frames (ones this tool transmits but never received from the bus).">
+    <input type="checkbox" id="filterOnlyRx" style="width:12px;height:12px;accent-color:var(--green);cursor:pointer"
+      onchange="dumpFilterDirty=true;dumpLastSize=-1;rerenderTable();renderDump()">
+    <span>Only RX</span>
+  </label>
+  <!-- Export controls — shown only when Traffic Dump tab is active -->
+  <div id="dumpOnlyControls" style="display:none;align-items:center;gap:8px">
+    <div class="sep" style="height:20px"></div>
+    <button class="btn" id="dumpScrollBtn" onclick="toggleDumpScroll()" style="padding:3px 10px;font-size:11px">⏸ Pause scroll</button>
+    <div class="sep" style="height:20px"></div>
+    <span class="toolbar-label">Export</span>
+    <button class="btn" onclick="exportDumpCSV(false)" style="padding:3px 10px;font-size:11px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Save filtered
+    </button>
+    <button class="btn" onclick="exportDumpCSV(true)" style="padding:3px 10px;font-size:11px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Save all
+    </button>
+    <span id="dumpExportCount" style="font-size:11px;color:var(--text3);font-family:var(--sans)"></span>
+  </div>
+</div>
+
+<div class="table-wrap" id="tableWrap">
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </div>
+    <div class="empty-title">No frames yet</div>
+    <div class="empty-sub">Connect your SLCAN adapter and CAN frames will appear here, one row per unique identifier. New to the tool? Try the demo — no hardware needed.</div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn" onclick="startDemo()" style="border-color:#a78bfa;color:#a78bfa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        Try the demo
+      </button>
+      <button class="btn primary" onclick="connectSerial()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Connect to Hardware
+      </button>
+    </div>
+  </div>
+  <div id="byteLegend" style="display:none">
+    <span class="legend-title">Byte colours:</span>
+    <span class="legend-item"><span class="legend-swatch lg-hot"></span>just changed</span>
+    <span class="legend-item"><span class="legend-swatch lg-noisy"></span>changes a lot (noisy)</span>
+    <span class="legend-item"><span class="legend-swatch lg-stable"></span>stable</span>
+    <span class="legend-item"><span class="legend-swatch lg-tx"></span>TX-only</span>
+    <span class="legend-hint">Tip: click <b>Notch</b>, then wiggle a control to find the byte that reacts.</span>
+  </div>
+  <table id="frameTable" style="display:none">
+    <thead>
+      <tr>
+        <th style="width:32px;padding:4px 0;border-bottom:1px solid var(--border)"></th>
+        <th onclick="setSort('id')" id="th-id">ID <span class="sort-arrow"></span></th>
+        <th onclick="setSort('type')" id="th-type">Type <span class="sort-arrow"></span></th>
+        <th onclick="setSort('len')" id="th-len">DLC <span class="sort-arrow"></span></th>
+        <th>Data</th>
+        <th onclick="setSort('count')" id="th-count" style="text-align:right">Count <span class="sort-arrow"></span></th>
+        <th onclick="setSort('rate')" id="th-rate" style="text-align:right">Rate <span class="sort-arrow"></span></th>
+        <th onclick="setSort('age')" id="th-age" style="text-align:right">Last seen <span class="sort-arrow"></span></th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody id="frameBody"></tbody>
+  </table>
+</div>
+
+<!-- Traffic dump header — pinned outside the scroll area so it never scrolls away -->
+<div id="dumpHeader" style="display:none;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border)">
+  <table id="dumpHeaderTable" style="width:100%;border-collapse:collapse;table-layout:fixed">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>ID</th>
+        <th>Type</th>
+        <th style="text-align:center">DLC</th>
+        <th>Data</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+  </table>
+</div>
+
+<!-- Traffic dump view (virtual scroll) — no thead here, header is above -->
+<div class="table-wrap" id="dumpWrap" style="display:none;position:relative;overflow:auto" onscroll="onDumpScroll()">
+  <div id="dumpSpacer" style="position:relative;width:100%">
+    <table id="dumpTable" style="width:100%;position:absolute;top:0;left:0;border-collapse:collapse;table-layout:fixed">
+      <tbody id="dumpBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ISO-TP / UDS tab -->
+<div id="isotpWrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+
+  <!-- Config strip -->
+  <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;flex-wrap:wrap;gap:12px;flex-shrink:0">
+    <div class="obd-proto-toggle">
+      <button id="isotpModeUds" class="active" onclick="isotpSetProtoMode('uds')">UDS</button>
+      <button id="isotpModeObd" onclick="isotpSetProtoMode('obd')">OBD-II</button>
+      <button id="isotpModeKwp" onclick="isotpSetProtoMode('kwp')">KWP2000</button>
+    </div>
+    <div class="sep" style="height:20px"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">Tx ID (HEX)</span>
+      <input type="text" id="isotpTxId" value="7DF" maxlength="8"
+        style="width:70px;font-family:var(--mono);font-size:12px;padding:4px 7px"
+        oninput="isotpIdInput()">
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">Rx ID (HEX)</span>
+      <input type="text" id="isotpRxId" value="7E9" maxlength="8"
+        style="width:70px;font-family:var(--mono);font-size:12px;padding:4px 7px"
+        oninput="isotpIdInput()">
+    </div>
+    <span id="isotpBroadcastHint" style="display:none;align-items:center;gap:5px;font-size:10px;color:var(--amber);cursor:help"
+      title="Broadcast Tx (0x7DF 11-bit / 0x18DB33F1 29-bit) — many ECUs may answer. The Rx ID just prioritizes one; if it doesn't respond, the first observed responder is used.">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--amber);font-size:9px;font-weight:700">?</span>broadcast</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">CAN</span>
+      <select id="isotpCanType" style="font-size:11px;padding:4px 6px" onchange="isotpIdInput()">
+        <option value="std">STD (11-bit)</option>
+        <option value="ext">EXT (29-bit)</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">Addressing</span>
+      <select id="isotpAddrMode" style="font-size:11px;padding:4px 6px" onchange="isotpAddrModeChanged()">
+        <option value="normal">Normal</option>
+        <option value="extended">Extended</option>
+      </select>
+    </div>
+    <div id="isotpAddrByteWrap" style="display:none;align-items:center;gap:6px">
+      <span class="toolbar-label">Addr byte</span>
+      <input type="text" id="isotpAddrByte" value="F1" maxlength="2"
+        style="width:38px;font-family:var(--mono);font-size:12px;padding:4px 7px"
+        title="Source address byte prepended to each TX frame (Extended addressing)">
+    </div>
+    <div class="sep" style="height:20px"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">Block size (hex)</span>
+      <input type="text" id="isotpBlockSize" value="00" maxlength="2"
+        style="width:38px;font-family:var(--mono);font-size:12px;padding:4px 7px" title="00 = unlimited (send all CFs without waiting for intermediate FC). 01–FF = max CFs before Flow Control."
+        oninput="isotpValidateHex2('isotpBlockSize')">
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">STmin (hex)</span>
+      <input type="text" id="isotpStmin" value="00" maxlength="2"
+        style="width:38px;font-family:var(--mono);font-size:12px;padding:4px 7px"
+        title="ISO 15765-2: 00–7F = 0–127 ms, F1–F9 = 100–900 µs"
+        oninput="isotpUpdateStminLabel()">
+      <span id="isotpStminLabel" style="font-size:11px;color:var(--text2);white-space:nowrap">0 ms</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="toolbar-label">Padding</span>
+      <input type="text" id="isotpPadding" placeholder="none" maxlength="2"
+        style="width:46px;font-family:var(--mono);font-size:12px;padding:4px 7px"
+        title="Hex byte to pad frames to 8 bytes (e.g. AA). Empty = no padding."
+        oninput="const v=this.value.trim();this.classList.toggle('invalid',v.length>0&&!/^[0-9A-Fa-f]{1,2}$/.test(v))">
+    </div>
+    <a id="isotpLearnLink" href="isotp-explainer.html" target="_blank"
+      style="margin-left:auto;font-size:11px;color:var(--blue);text-decoration:none;white-space:nowrap"
+      onclick="isotpExplainerLink(event)">Learn how ISO-TP works ↗</a>
+    <a id="isotpProtoLearnLink" href="uds-explainer.html" target="_blank"
+      style="font-size:11px;color:var(--blue);text-decoration:none;white-space:nowrap">Learn how UDS works ↗</a>
+    <button class="btn" onclick="clearIsotpLog()" style="padding:4px 10px;font-size:11px">
+      Clear Window
+    </button>
+  </div>
+
+  <!-- UDS sub-mode panel (shown only in UDS mode) -->
+  <div id="udsWrap" style="display:none;flex-direction:column;gap:10px;background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;flex-shrink:0">
+    <!-- Request palette -->
+    <div id="udsPalette" class="obd-row"></div>
+  </div>
+
+  <!-- OBD-II sub-mode panel (shown only in OBD mode) -->
+  <div id="obdWrap" style="display:none;flex-direction:column;gap:10px;background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;flex-shrink:0;max-height:46%;overflow-y:auto">
+    <span id="obdHint" style="display:none;font-size:11px;color:var(--amber)">TX disabled — connect a bus and uncheck Listen-only.</span>
+
+    <!-- Request palette -->
+    <div id="obdPalette" class="obd-row"></div>
+
+    <!-- Mode + PID picker -->
+    <div class="obd-row" style="align-items:center">
+      <span class="toolbar-label">Send</span>
+      <select id="obdPickMode" style="font-size:11px;padding:4px 6px">
+        <option value="01">01 Current data</option>
+        <option value="02">02 Freeze frame</option>
+        <option value="06">06 Monitor tests</option>
+        <option value="09">09 Vehicle info</option>
+      </select>
+      <select id="obdPickPid" style="font-size:11px;padding:4px 6px;max-width:320px"></select>
+      <button id="obdPickSend" class="obd-btn">Send PID</button>
+      <button id="obdProbeBtn" class="obd-btn" style="margin-left:8px">Probe supported PIDs</button>
+    </div>
+
+    <!-- Supported-PID grid (populated by the probe) -->
+    <div id="obdProbeGrid" class="obd-pidgrid" style="display:none"></div>
+
+    <!-- Quick Watch -->
+    <div style="border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:8px">
+      <div class="obd-row" style="align-items:center">
+        <span style="font-size:11px;font-weight:700;color:var(--text2)">Quick Watch</span>
+        <div id="obdWatchSelect" class="obd-row" style="gap:8px"></div>
+        <span class="toolbar-label" style="margin-left:8px">Interval</span>
+        <select id="obdPollMs" style="font-size:11px;padding:4px 6px">
+          <option value="250">250 ms</option>
+          <option value="500" selected>500 ms</option>
+          <option value="1000">1 s</option>
+        </select>
+        <button id="obdWatchBtn" class="obd-btn">Start</button>
+      </div>
+      <div id="obdWatchGrid" class="obd-tiles"></div>
+    </div>
+  </div>
+
+  <!-- KWP2000 sub-mode panel (shown only in KWP mode) -->
+  <div id="kwpWrap" style="display:none;flex-direction:column;gap:10px;background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;flex-shrink:0">
+    <!-- Request palette -->
+    <div id="kwpPalette" class="obd-row"></div>
+  </div>
+
+  <!-- Conversation log -->
+  <div id="isotpLog" style="flex:1;overflow-y:auto;padding:14px 20px;font-family:var(--mono);font-size:12px;line-height:1.7"></div>
+
+  <!-- Input row -->
+  <div class="term-input-row">
+    <span id="isotpInputLabel" style="color:var(--amber);font-weight:700;font-family:var(--mono);font-size:12px;padding:0 10px 0 14px;letter-spacing:0.05em">UDS</span>
+    <input type="text" id="isotpInput"
+      placeholder="hex bytes — e.g.  22 F1 90  or  3E 00"
+      style="flex:1;border:none;background:transparent;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;padding:0;letter-spacing:0.04em"
+      onkeydown="isotpKeydown(event)" onblur="isotpFmtHex(this)">
+    <button class="btn" style="padding:4px 12px;font-size:11px;border-radius:0;border-top:none;border-bottom:none;border-right:none" onclick="isotpSend()">Send</button>
+  </div>
+</div>
+
+<!-- J1939 tab — remove this block + the script tag below to revert -->
+<div id="j1939Wrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+  <div role="tablist" aria-label="J1939 view" style="background:var(--bg2);border-bottom:1px solid var(--border);padding:0 12px;display:flex;align-items:center;flex-shrink:0">
+    <button class="j1939-stab active" role="tab" aria-selected="true"  id="j1939stab-pgn"  onclick="j1939SubTab('pgn')">PGN Monitor</button>
+    <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-log"  onclick="j1939SubTab('log')">Frame Log</button>
+    <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-dm"   onclick="j1939SubTab('dm')">Faults (DM1/DM2)</button>
+    <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-addr" onclick="j1939SubTab('addr')">Address Claim</button>
+    <select id="j1939ProtoSel" title="Protocol dictionary + transport"
+      onchange="window.j1939SetProto(this.value); window.j1939ScheduleSave && window.j1939ScheduleSave()"
+      style="margin-left:auto;font-size:11px;padding:3px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:6px;font-family:var(--sans)">
+      <option value="j1939">J1939</option>
+      <option value="nmea2000">NMEA 2000</option>
+      <option value="iso11783">ISO 11783</option>
+    </select>
+    <a id="nmea2000LearnLink" href="nmea2000-explainer.html" target="_blank"
+      style="display:none;font-size:11px;color:var(--blue);text-decoration:none;white-space:nowrap;padding:0 10px">Learn how NMEA 2000 works ↗</a>
+    <a id="iso11783LearnLink" href="iso11783-explainer.html" target="_blank"
+      style="display:none;font-size:11px;color:var(--blue);text-decoration:none;white-space:nowrap;padding:0 10px">Learn how ISO 11783 works ↗</a>
+    <span id="j1939Badge" style="font-size:10px;color:var(--text3);padding:0 8px;font-family:var(--sans)"></span>
+  </div>
+  <div id="j1939-pgn"  style="flex:1;overflow-y:auto;padding:14px 20px"></div>
+  <div id="j1939-log"  style="flex:1;overflow-y:auto;padding:14px 20px;display:none"></div>
+  <div id="j1939-dm"   style="flex:1;overflow-y:auto;padding:14px 20px;display:none"></div>
+  <div id="j1939-addr" style="flex:1;overflow-y:auto;padding:14px 20px;display:none"></div>
+</div>
+
+<!-- CHAdeMO tab — remove this block + the script tag above to revert -->
+<div id="chademoWrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+  <div class="chademo-note">
+    <span>CHAdeMO runs on the charge connector's own <b>500 kbit/s</b> CAN — tap that bus, not the vehicle's main bus.
+      <b>J1772</b> (analog pilot PWM) and <b>ISO 15118</b> (PLC/IPv6) are <b>not</b> on CAN, so only CHAdeMO is decoded here.</span>
+    <a href="ev-charging-explainer.html" target="_blank">Learn how EV charging works ↗</a>
+  </div>
+  <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:0 12px;display:flex;align-items:center;flex-shrink:0">
+    <button class="chademo-stab active" id="chademo-stab-session" onclick="chademoSubTab('session')">Session</button>
+    <button class="chademo-stab"        id="chademo-stab-log"     onclick="chademoSubTab('log')">Frame Log</button>
+    <button class="chademo-demo-btn" id="chademoDemoBtn" onclick="chademoDemo()">Demo session</button>
+  </div>
+  <div id="chademo-session" style="flex:1;overflow-y:auto;padding:14px 20px"></div>
+  <div id="chademo-log"     style="flex:1;overflow-y:auto;padding:0 20px 14px;display:none"></div>
+</div>
+
+<!-- XCP tab — remove this block + the script tag above to revert -->
+<div id="xcpWrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+  <div id="xcp-session" style="flex-shrink:0;overflow-y:auto;max-height:55%">
+    <div class="xcp-controls" id="xcp-controls">
+      <div class="xcp-config">
+        <label>CRO (HEX) <input id="xcpCro" value="552" onchange="xcpCfgChange()" title="Command Receive Object ID (master→slave), hex"></label>
+        <label>DTO (HEX) <input id="xcpDto" value="553" onchange="xcpCfgChange()" title="Data Transmit Object ID (slave→master), hex"></label>
+        <label>CAN
+          <select id="xcpCanType" onchange="xcpCfgChange()">
+            <option value="std">11-bit</option>
+            <option value="ext">29-bit</option>
+          </select>
+        </label>
+        <label>Byte order
+          <select id="xcpByteOrder" onchange="xcpCfgChange()" title="Auto = learn from CONNECT; override for pre-CONNECT decode">
+            <option value="auto">auto</option>
+            <option value="le">little</option>
+            <option value="be">big</option>
+          </select>
+        </label>
+        <span id="xcpDemoFlag" class="xcp-demo-flag" style="display:none">Demo slave active</span>
+        <button class="xcp-btn go xcp-tx-btn" id="xcpConnectBtn" onclick="xcpConnect()">Connect</button>
+        <button class="xcp-btn danger xcp-tx-btn xcp-hide-until-connected" onclick="xcpDisconnect()">Disconnect</button>
+      </div>
+      <div class="xcp-btn-row xcp-hide-until-connected">
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpGetStatus()">Get Status</button>
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpCommModeInfo()">Get Comm Mode Info</button>
+        <label class="xcp-form" style="gap:5px">Get ID
+          <select id="xcpIdType" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:5px;font-family:var(--mono);font-size:11px;padding:3px 5px">
+            <option value="0">ASCII</option>
+            <option value="1">MC2 filename</option>
+            <option value="2">MC2 path</option>
+            <option value="3">URL</option>
+            <option value="4">A2L upload</option>
+          </select>
+        </label>
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpGetId()">Get ID</button>
+      </div>
+      <div class="xcp-form xcp-hide-until-connected">
+        <span class="grp-title">Read memory</span>
+        <label>addr <input id="xcpReadAddr" value="0x00000000" style="width:104px"></label>
+        <label>len <input id="xcpReadLen" type="text" value="8" style="width:44px"></label>
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpReadMem()" title="SHORT_UPLOAD">Read</button>
+      </div>
+      <div class="xcp-form xcp-hide-until-connected">
+        <span class="grp-title">Write memory</span>
+        <label>addr <input id="xcpWriteAddr" value="0x00000000" style="width:104px"></label>
+        <label>data <input id="xcpWriteData" placeholder="DE AD BE EF" style="width:140px"></label>
+        <button class="xcp-btn danger xcp-tx-btn" onclick="xcpWriteMem()" title="SET_MTA + DOWNLOAD">Write ⚠</button>
+      </div>
+      <div class="xcp-form xcp-hide-until-connected">
+        <span class="grp-title">DAQ</span>
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpGetDaqInfo()" title="GET_DAQ_PROCESSOR_INFO">Get DAQ Info</button>
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpDaqStart()" title="START_STOP_SYNCH start">Start</button>
+        <button class="xcp-btn xcp-tx-btn" onclick="xcpDaqStop()" title="START_STOP_SYNCH stop">Stop</button>
+      </div>
+      <div id="xcp-readout" class="xcp-readout"></div>
+    </div>
+    <div id="xcp-sessioninfo" class="xcp-sess"></div>
+  </div>
+  <div class="xcp-log-bar">
+    <span>Message Log</span>
+    <a href="xcp-explainer.html" target="_blank">Learn how XCP works ↗</a>
+    <button class="xcp-btn" onclick="xcpClearLog()">Clear Window</button>
+  </div>
+  <div id="xcp-log" style="flex:1;overflow-y:auto;min-height:0;padding:0 20px 14px"></div>
+</div>
+
+<!-- CANopen tab — remove this block + the script tag above to revert -->
+<div id="canopenWrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+  <div class="co-note">
+    <span>CANopen (CiA 301). The 11-bit <b>COB-ID</b> = function code + node-ID, carrying NMT, SYNC,
+      EMCY, TPDO/RPDO, SDO and heartbeat. Active commands (SDO write, NMT) change node state —
+      gated on bus-ready, not-listen-only, and a confirm.</span>
+    <a href="canopen-explainer.html" target="_blank">Learn how CANopen works ↗</a>
+  </div>
+  <div class="co-config">
+    <label>Node <input id="coNode" value="1" onchange="canopenCfgChange()" style="width:48px" title="Default node-ID for the SDO/NMT forms"></label>
+    <label>SDO timeout <input id="coSdoTimeout" value="1000" onchange="canopenCfgChange()" style="width:60px" title="ms to wait for an SDO response">ms</label>
+    <label>SDO req <input id="coSdoReq" placeholder="auto" onchange="canopenCfgChange()" title="Override SDO request COB-ID (blank = 0x600+node)"></label>
+    <label>SDO rsp <input id="coSdoRsp" placeholder="auto" onchange="canopenCfgChange()" title="Override SDO response COB-ID (blank = 0x580+node)"></label>
+    <span id="coDemoFlag" class="co-demo-flag" style="display:none">Demo node active</span>
+  </div>
+  <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:0 12px;display:flex;align-items:center;flex-shrink:0">
+    <button class="co-stab active" id="co-stab-nodes" onclick="canopenSubTab('nodes')">Nodes &amp; Control</button>
+    <button class="co-stab"        id="co-stab-log"   onclick="canopenSubTab('log')">Message Log</button>
+  </div>
+  <div id="co-nodes" style="flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column">
+    <div id="co-nodemap" class="co-nodes" style="flex:1;min-height:0"></div>
+    <div class="co-controls">
+      <div class="co-form">
+        <span class="grp-title">SDO client</span>
+        <label>node <input id="coSdoNode" value="1"></label>
+        <label>index <input id="coSdoIndex" value="0x1000"></label>
+        <label>sub <input id="coSdoSub" value="0x00" style="width:48px"></label>
+        <button class="co-btn go co-tx-btn" onclick="canopenSdoReadBtn()" title="SDO upload (read)">Read</button>
+        <label>value <input id="coSdoValue" placeholder="0x00" style="width:84px"></label>
+        <button class="co-btn danger co-tx-btn" onclick="canopenSdoWriteBtn()" title="SDO download (write, expedited)">Write ⚠</button>
+      </div>
+      <div class="co-form">
+        <span class="grp-title">NMT</span>
+        <label>target <input id="coNmtNode" value="1" placeholder="all" title="Node-ID, or 'all' (0) for broadcast" style="width:48px"></label>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x01)" title="0x01 Start">Start</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x02)" title="0x02 Stop">Stop</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x80)" title="0x80 Enter Pre-Operational">Pre-Op</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x81)" title="0x81 Reset Node">Reset Node</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x82)" title="0x82 Reset Communication">Reset Comm</button>
+      </div>
+      <div class="co-form">
+        <span class="grp-title">SYNC</span>
+        <button class="co-btn co-tx-btn" onclick="canopenSyncBtn()" title="Broadcast SYNC (0x080)">Send SYNC</button>
+      </div>
+      <div id="co-readout" class="co-readout"></div>
+    </div>
+  </div>
+  <div id="co-log" style="flex:1;overflow-y:auto;min-height:0;padding:0 20px 14px;display:none"></div>
+</div>
+
+<!-- Graph tab — remove this block + the script tag above to revert -->
+<div id="graphWrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+  <div class="graph-toolbar">
+    <span class="graph-lbl">Signal</span>
+    <select id="graphPickId" class="graph-sel" title="Frame ID to graph"></select>
+    <span id="graphPickNote" class="graph-pick-note" style="display:none"></span>
+    <select id="graphPickByte" class="graph-sel" title="Byte index"></select>
+    <select id="graphPickWidth" class="graph-sel" title="Sample width">
+      <option value="1">8-bit</option>
+      <option value="2">16-bit</option>
+    </select>
+    <select id="graphPickEndian" class="graph-sel" title="Byte order" style="display:none">
+      <option value="le">LE</option>
+      <option value="be">BE</option>
+    </select>
+    <label id="graphPickSignedLbl" class="graph-signed-lbl" style="display:none"><input type="checkbox" id="graphPickSigned"> signed</label>
+    <button class="btn" id="graphAddBtn">Add</button>
+    <span class="graph-sep"></span>
+    <span class="graph-lbl">Window</span>
+    <select id="graphWindowSel" class="graph-sel" title="Visible time window">
+      <option value="10000">10s</option>
+      <option value="30000" selected>30s</option>
+      <option value="60000">60s</option>
+    </select>
+    <button class="btn" id="graphPauseBtn">Pause</button>
+    <button class="btn" id="graphLiveBtn" title="Resume live + reset zoom/pan">Live</button>
+    <span class="graph-lbl" style="margin-left:auto">drag = pan · wheel = zoom</span>
+  </div>
+  <div class="graph-stage"><canvas id="graphCanvas"></canvas></div>
+  <div id="graphLegend" class="graph-legend"></div>
+</div>
+<div id="graphCtxMenu" class="graph-ctx" style="display:none"></div>
+
+<!-- Fuzzing tab — remove this block + the script tag above to revert -->
+<div id="fuzzWrap" style="display:none;flex-direction:column;flex:1;overflow:auto;min-height:0;border-top:1px solid var(--border);padding:16px 20px;gap:18px">
+
+  <div class="fuzz-warn">⚠ Fuzzing transmits crafted frames onto the bus. On a live vehicle this can trigger unintended ECU behaviour. Only run on a bench/test bus you control.</div>
+
+  <!-- ID targeting -->
+  <section class="fuzz-sec">
+    <div class="fuzz-sec-title">Target ID</div>
+    <div class="fuzz-row">
+      <label class="fuzz-radio"><input type="radio" name="fuzzIdMode" value="range" checked onchange="fuzzCfgChange()"> ID range</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzIdMode" value="observed" onchange="fuzzCfgChange()"> From observed IDs</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzIdMode" value="single" onchange="fuzzCfgChange()"> Single ID</label>
+      <span class="fuzz-sep"></span>
+      <label class="fuzz-inline">Frame
+        <select id="fuzzIsExt" class="fuzz-sel" onchange="fuzzCfgChange()">
+          <option value="0">Std (11-bit)</option>
+          <option value="1">Ext (29-bit)</option>
+        </select>
+      </label>
+    </div>
+    <div class="fuzz-row" id="fuzzRangeOpts">
+      <label class="fuzz-inline">Start <input type="text" id="fuzzIdStart" class="fuzz-hex" value="000" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-inline">End <input type="text" id="fuzzIdEnd" class="fuzz-hex" value="7FF" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzIdScan" value="seq" checked onchange="fuzzCfgChange()"> Sequential</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzIdScan" value="rand" onchange="fuzzCfgChange()"> Random</label>
+    </div>
+    <div class="fuzz-row" id="fuzzSingleOpts" style="display:none">
+      <label class="fuzz-inline">ID <input type="text" id="fuzzSingleId" class="fuzz-hex" value="7DF" oninput="fuzzCfgChange()"></label>
+    </div>
+    <div class="fuzz-row" id="fuzzObservedOpts" style="display:none">
+      <span class="fuzz-note" id="fuzzObservedNote">Cycles through IDs currently in the ID List.</span>
+      <label class="fuzz-radio"><input type="radio" name="fuzzObsScan" value="seq" checked onchange="fuzzCfgChange()"> Sequential</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzObsScan" value="rand" onchange="fuzzCfgChange()"> Random</label>
+    </div>
+  </section>
+
+  <!-- DLC -->
+  <section class="fuzz-sec">
+    <div class="fuzz-sec-title">Data length (DLC)</div>
+    <div class="fuzz-row">
+      <label class="fuzz-radio"><input type="radio" name="fuzzDlcMode" value="fixed" checked onchange="fuzzCfgChange()"> Fixed</label>
+      <select id="fuzzDlcFixed" class="fuzz-sel" onchange="fuzzCfgChange()">
+        <option>0</option><option>1</option><option>2</option><option>3</option>
+        <option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option>
+      </select>
+      <label class="fuzz-radio"><input type="radio" name="fuzzDlcMode" value="rand" onchange="fuzzCfgChange()"> Random</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzDlcMode" value="inc" onchange="fuzzCfgChange()"> Increment</label>
+    </div>
+  </section>
+
+  <!-- Payload -->
+  <section class="fuzz-sec">
+    <div class="fuzz-sec-title">Payload</div>
+    <div class="fuzz-row">
+      <label class="fuzz-radio"><input type="radio" name="fuzzPayMode" value="random" checked onchange="fuzzCfgChange()"> Random bytes</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzPayMode" value="mask" onchange="fuzzCfgChange()"> Per-byte mask</label>
+      <label class="fuzz-radio"><input type="radio" name="fuzzPayMode" value="bitgrid" onchange="fuzzCfgChange()"> Bit grid</label>
+    </div>
+    <!-- Random: choose which byte indices vary -->
+    <div class="fuzz-row" id="fuzzRandomOpts">
+      <span class="fuzz-note">Fuzz bytes:</span>
+      <span id="fuzzRandomBytes" class="fuzz-bytesel"></span>
+    </div>
+    <!-- Mask: per-byte fixed/random/increment -->
+    <div id="fuzzMaskOpts" style="display:none">
+      <table class="fuzz-mask"><thead><tr>
+        <th>Byte</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th>
+      </tr></thead><tbody id="fuzzMaskBody"></tbody></table>
+    </div>
+    <!-- Bit grid: 8x8, click cycles never→always→fuzz -->
+    <div id="fuzzBitgridOpts" style="display:none">
+      <div class="fuzz-row">
+        <span class="fuzz-note">Pattern for fuzzed bits:</span>
+        <label class="fuzz-radio"><input type="radio" name="fuzzBitPat" value="rand" checked onchange="fuzzCfgChange()"> Random</label>
+        <label class="fuzz-radio"><input type="radio" name="fuzzBitPat" value="seq" onchange="fuzzCfgChange()"> Sequential</label>
+        <label class="fuzz-radio"><input type="radio" name="fuzzBitPat" value="sweep" onchange="fuzzCfgChange()"> Sweep</label>
+        <span class="fuzz-sep"></span>
+        <span class="fuzz-note"><span class="fuzz-swatch fuzz-cell never"></span>never &nbsp; <span class="fuzz-swatch fuzz-cell always"></span>always &nbsp; <span class="fuzz-swatch fuzz-cell fuzz"></span>fuzz &nbsp;— click to cycle, MSB left</span>
+      </div>
+      <div id="fuzzBitgrid" class="fuzz-grid"></div>
+    </div>
+  </section>
+
+  <!-- Timing + run -->
+  <section class="fuzz-sec">
+    <div class="fuzz-sec-title">Timing</div>
+    <div class="fuzz-row">
+      <label class="fuzz-inline">Gap (ms) <input type="number" id="fuzzGap" class="fuzz-num" min="1" value="50" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-inline">Frames per tick <input type="number" id="fuzzBurst" class="fuzz-num" min="1" value="1" oninput="fuzzCfgChange()"></label>
+    </div>
+    <div class="fuzz-row" style="margin-top:6px">
+      <button class="btn fuzz-start" id="fuzzStartBtn" onclick="fuzzToggleRun()">Start fuzzing</button>
+      <span class="fuzz-counter" id="fuzzCounter">0 frames sent</span>
+    </div>
+  </section>
+</div>
+
+<!-- Serial terminal main view -->
+<div id="termWrap" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;border-top:1px solid var(--border)">
+  <div class="log-body" id="termBody" style="flex:1;overflow-y:auto;padding:8px 16px"></div>
+  <div class="term-input-row">
+    <span style="color:var(--text3);font-family:var(--mono);font-size:12px;padding:0 8px 0 12px;">&gt;</span>
+    <input type="text" id="termInput" placeholder="Type command, Enter to send" disabled
+      style="flex:1;border:none;background:transparent;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;padding:0;opacity:0.4;transition:opacity 0.2s;"
+      onkeydown="termKeydown(event)">
+    <button class="btn" style="padding:4px 10px;font-size:11px;border-radius:0;border-top:none;border-bottom:none;border-right:none;" onclick="termSend()">Send</button>
+  </div>
+</div>
+
+<div id="inspectWrap" style="display:none;flex:1;overflow:auto;padding:24px;min-height:0">
+  <div id="inspectContent">
+    <div id="inspectEmpty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:200px;gap:14px;color:var(--text3)">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M9 5v14"/></svg>
+      <div style="font-size:15px;font-weight:500;color:var(--text2)">No frame selected</div>
+      <div style="font-size:13px;">Click a frame in the ID List or Traffic Dump to inspect it here.</div>
+    </div>
+  </div>
+</div>
+
+<div id="resizeHandle" style="height:5px;cursor:ns-resize;background:transparent;border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;" title="Drag to resize"></div>
+
+<!-- TX message scheduler panel -->
+<div id="txPanel" style="background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0">
+  <div class="log-header" onclick="toggleTxPanel()" style="cursor:pointer;user-select:none">
+    <span class="log-title">TX Scheduler</span>
+    <span id="txActiveBadge" class="tx-active-badge" style="display:none" title="One or more TX messages are actively transmitting onto the bus.">Transmitting</span>
+    <!-- Fuzzer global indicator + stop (remove with fuzz.js to revert) -->
+    <span id="fuzzActiveBadge" class="fuzz-active-badge" style="display:none" title="The fuzzer is actively transmitting frames onto the bus.">
+      Fuzzing <span id="fuzzActiveCount" style="font-family:var(--mono)">0</span>
+      <button class="fuzz-stop-btn" onclick="event.stopPropagation();window.fuzzStop&&window.fuzzStop()" title="Stop fuzzing">Stop</button>
+    </span>
+    <!-- OBD-II Quick Watch global indicator + stop -->
+    <span id="obdWatchActiveBadge" class="fuzz-active-badge" style="display:none" title="OBD-II Quick Watch is actively polling the bus.">
+      <span id="obdWatchActiveLabel">Quick Watch</span> <span id="obdWatchActiveCount" style="font-family:var(--mono)">0</span>
+      <button class="fuzz-stop-btn" onclick="event.stopPropagation();window.obdStop&&window.obdStop()" title="Stop Quick Watch">Stop</button>
+    </span>
+    <svg id="txChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text3);transform:rotate(180deg);transition:transform 0.2s"><path d="M18 15l-6-6-6 6"/></svg>
+    <div class="log-title-sep"></div>
+    <button class="btn" id="txSuspendBtn" style="padding:3px 10px;font-size:11px;" onclick="event.stopPropagation();toggleTxSuspend()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      Suspend All
+    </button>
+    <button class="btn" style="padding:3px 10px;font-size:11px;" onclick="event.stopPropagation();addTxMessage()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>
+      Add
+    </button>
+  </div>
+  <div id="txBody" style="display:block;padding:4px 0;max-height:200px;overflow-y:auto"></div>
+</div>
+
+<div class="log-panel" id="logPanel" style="height:28px">
+  <div class="log-header" onclick="toggleConsole()" style="cursor:pointer;user-select:none">
+    <span class="log-title">Console</span>
+    <svg id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text3);transform:rotate(180deg);transition:transform 0.2s"><path d="M18 15l-6-6-6 6"/></svg>
+    <div class="log-title-sep"></div>
+    <span id="deviceInfo" style="font-size:11px;color:var(--text3);font-family:var(--mono)"></span>
+    <div style="width:8px"></div>
+    <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="event.stopPropagation();document.getElementById('pane-console').innerHTML=''">Clear</button>
+  </div>
+  <div id="pane-console" class="log-body" style="display:none"></div>
+</div>
+
+<div id="toastHost" class="toast-host"></div>
+
+<script src="sloppycan.js"></script>
+</body>
+</html>

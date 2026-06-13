@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DTC Decoder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 28px 28px 80px; }
+h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+.lede { color: var(--text2); font-size: 14px; margin-bottom: 22px; line-height: 1.6; }
+.lede code { font-family: var(--mono); font-size: .9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+
+input[type=text], select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .15s;
+  padding: 9px 11px;
+}
+input[type=text]:focus, select:focus { border-color: var(--border2); }
+select { cursor: pointer; }
+
+.input-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+#dtcInput { flex: 1; min-width: 220px; font-family: var(--mono); }
+#fmtSel { min-width: 150px; }
+#decodeBtn { background: var(--green); border: none; color: #04130a; font-weight: 600; cursor: pointer; border-radius: 6px; padding: 9px 18px; font-family: var(--sans); font-size: 14px; }
+#decodeBtn:hover { filter: brightness(1.08); }
+.hint { font-size: 12px; color: var(--text3); margin-top: 8px; line-height: 1.6; }
+.hint code { font-family: var(--mono); color: var(--text2); }
+
+.results { margin-top: 22px; display: flex; flex-direction: column; gap: 16px; }
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.card.dual { border-color: var(--border2); }
+.card-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); margin-bottom: 8px; }
+.bigcode {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: .02em;
+  color: var(--green);
+  line-height: 1.1;
+}
+.bigcode.j1939 { color: var(--purple); font-size: 22px; }
+.desc { font-size: 15px; color: var(--text); margin-top: 6px; line-height: 1.5; }
+.desc.missing { color: var(--text2); font-style: italic; font-size: 14px; }
+.badge {
+  display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle;
+}
+.badge.generic { background: var(--green-dim); color: var(--green); }
+.badge.mfr     { background: var(--amber-dim); color: var(--amber); }
+
+.fields { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.field-row { display: flex; gap: 12px; padding: 5px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.field-row:last-child { border-bottom: none; }
+.field-row .k { color: var(--text3); min-width: 150px; flex-shrink: 0; }
+.field-row .v { color: var(--text); font-family: var(--mono); }
+.field-row .v.note { font-family: var(--sans); color: var(--text2); }
+
+.bits { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
+.bit { padding: 4px 8px; border-radius: 5px; border: 1px solid var(--border); font-size: 11px; font-family: var(--mono); color: var(--text3); }
+.bit.on { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); }
+.statuslist { margin-top: 8px; font-size: 12px; color: var(--text2); line-height: 1.7; }
+.statuslist .on { color: var(--blue); }
+
+.err { color: var(--red); font-size: 14px; background: var(--red-dim); border: 1px solid var(--red); border-radius: 8px; padding: 12px 14px; }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 20px 0 0; line-height: 1.6; }
+.note a { color: var(--blue); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 1.5l5.5 3.2v6.6L8 14.5l-5.5-3.2V4.7L8 1.5z" stroke="#000" stroke-width="1.2" opacity="0.85"/>
+        <circle cx="8" cy="8" r="2" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">DTC Decoder</div>
+      <div class="logo-sub">SAE J2012 · ISO 14229 · J1939</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="obd2-explainer.html" target="_blank" class="btn">OBD-II ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="wrap">
+
+  <h1>Diagnostic Trouble Code decoder</h1>
+  <p class="lede">
+    Paste a code like <code>P0301</code> or raw bytes from any of the three on-wire encodings —
+    OBD-II / SAE&nbsp;J2012 (2 bytes), UDS / ISO&nbsp;14229 (3 bytes + status), or J1939 SPN+FMI
+    (4-byte DM record) — and get a structural breakdown plus a plain-English description.
+    Descriptions are the <strong>generic SAE&nbsp;J2012</strong> set; manufacturer-specific codes
+    decode structurally but have no public description. Runs entirely offline.
+  </p>
+
+  <div class="input-bar">
+    <input type="text" id="dtcInput" placeholder="P0301   ·   03 01   ·   01 90 12 2F   ·   90 0C 03 01" autocomplete="off" spellcheck="false">
+    <select id="fmtSel">
+      <option value="auto">Auto-detect</option>
+      <option value="obdcode">OBD code (P/C/B/U)</option>
+      <option value="obd">OBD bytes (2)</option>
+      <option value="uds">UDS DTC (3 + status)</option>
+      <option value="j1939">J1939 record (4)</option>
+    </select>
+    <button id="decodeBtn" onclick="decode()">Decode</button>
+  </div>
+  <div class="hint">
+    Batch: separate several codes with commas or new lines.
+    Auto-detect sniffs the format — a bare 4-byte value is ambiguous (UDS+status vs J1939), so both
+    interpretations are shown.
+  </div>
+
+  <div class="results" id="results"></div>
+
+  <p class="note">
+    DTCs travel over different transports on the wire. Learn how the OBD-II / ISO-TP layer carries
+    them in the <a href="obd2-explainer.html" target="_blank">OBD-II Explainer</a>.
+  </p>
+
+</div>
+</main>
+
+<script>
+// ── Theme (shared localStorage key with the other explainer pages) ────────────
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+
+// ── J1939 FMI table (copied verbatim from j1939.js) ───────────────────────────
+const J1939_FMI = {
+  0:'Above normal range (severe)',   1:'Below normal range (severe)',
+  2:'Data erratic / incorrect',      3:'Voltage above normal / shorted high',
+  4:'Voltage below normal / shorted low', 5:'Current below normal / open circuit',
+  6:'Current above normal / grounded', 7:'Mechanical not responding',
+  8:'Abnormal frequency / pulse',    9:'Abnormal update rate',
+  10:'Abnormal rate of change',      11:'Root cause not known',
+  12:'Bad device or component',      13:'Out of calibration',
+  14:'Special instructions',         15:'Above normal (least severe)',
+  16:'Below normal (moderate)',       17:'Below normal (least severe)',
+  18:'Received data in error',        19:'Received data out of range',
+  31:'Condition exists',
+};
+
+// Small curated set of common J1939 SPN names (the full space is proprietary).
+const J1939_SPN_NAMES = {
+  84:'Wheel-Based Vehicle Speed', 91:'Accelerator Pedal Position 1', 92:'Engine Percent Load',
+  94:'Fuel Delivery Pressure', 96:'Fuel Level', 100:'Engine Oil Pressure',
+  102:'Boost Pressure', 105:'Intake Manifold 1 Temperature', 108:'Barometric Pressure',
+  110:'Engine Coolant Temperature', 111:'Coolant Level', 157:'Injector Metering Rail 1 Pressure',
+  158:'Battery Potential (Switched)', 167:'Charging System Potential', 168:'Battery Potential',
+  171:'Ambient Air Temperature', 174:'Fuel Temperature', 175:'Engine Oil Temperature',
+  177:'Transmission Oil Temperature', 183:'Engine Fuel Rate', 190:'Engine Speed',
+  247:'Engine Total Hours of Operation', 411:'EGR Differential Pressure',
+  412:'EGR Temperature', 512:'Driver Demand Torque', 513:'Actual Engine Torque',
+  524:'Transmission Selected Gear', 526:'Transmission Current Gear', 558:'Accelerator Pedal 1 Idle Switch',
+  629:'Controller #1', 639:'J1939 Network #1', 651:'Injector Cylinder 1', 652:'Injector Cylinder 2',
+  653:'Injector Cylinder 3', 654:'Injector Cylinder 4', 655:'Injector Cylinder 5', 656:'Injector Cylinder 6',
+  723:'Engine Speed Sensor 2', 1127:'Turbocharger 1 Boost Pressure', 3216:'NOx Upstream',
+  3226:'NOx Downstream', 3251:'DPF Differential Pressure', 3719:'DPF Soot Load',
+  4334:'DEF Pressure', 4364:'SCR Conversion Efficiency', 5246:'SCR Inducement Severity',
+};
+
+// ── Generic SAE J2012 description database ────────────────────────────────────
+// Keyed by the assembled code (letter + 4 chars), e.g. "P0301". Generic only —
+// manufacturer-specific codes (second char = 1) are proprietary and not listed.
+const DTC_DB = {
+// ── P00xx — Fuel & air metering, auxiliary emission controls ──
+"P0010":"\"A\" Camshaft Position Actuator Circuit (Bank 1)","P0011":"\"A\" Camshaft Position - Timing Over-Advanced or System Performance (Bank 1)","P0012":"\"A\" Camshaft Position - Timing Over-Retarded (Bank 1)","P0013":"\"B\" Camshaft Position Actuator Circuit (Bank 1)","P0014":"\"B\" Camshaft Position - Timing Over-Advanced (Bank 1)","P0015":"\"B\" Camshaft Position - Timing Over-Retarded (Bank 1)","P0016":"Crankshaft/Camshaft Position Correlation (Bank 1 Sensor A)","P0017":"Crankshaft/Camshaft Position Correlation (Bank 1 Sensor B)","P0018":"Crankshaft/Camshaft Position Correlation (Bank 2 Sensor A)","P0019":"Crankshaft/Camshaft Position Correlation (Bank 2 Sensor B)","P001A":"\"A\" Camshaft Profile Control Circuit (Bank 1)",
+"P0020":"\"A\" Camshaft Position Actuator Circuit (Bank 2)","P0021":"\"A\" Camshaft Position - Timing Over-Advanced (Bank 2)","P0022":"\"A\" Camshaft Position - Timing Over-Retarded (Bank 2)","P0023":"\"B\" Camshaft Position Actuator Circuit (Bank 2)","P0024":"\"B\" Camshaft Position - Timing Over-Advanced (Bank 2)","P0025":"\"B\" Camshaft Position - Timing Over-Retarded (Bank 2)","P0030":"HO2S Heater Control Circuit (Bank 1 Sensor 1)","P0031":"HO2S Heater Control Circuit Low (Bank 1 Sensor 1)","P0032":"HO2S Heater Control Circuit High (Bank 1 Sensor 1)","P0033":"Turbo/Super Charger Bypass Valve Control Circuit","P0034":"Turbo/Super Charger Bypass Valve Control Circuit Low","P0035":"Turbo/Super Charger Bypass Valve Control Circuit High","P0036":"HO2S Heater Control Circuit (Bank 1 Sensor 2)","P0037":"HO2S Heater Control Circuit Low (Bank 1 Sensor 2)","P0038":"HO2S Heater Control Circuit High (Bank 1 Sensor 2)",
+"P0040":"O2 Sensor Signals Swapped (Bank 1 Sensor 1 / Bank 2 Sensor 1)","P0041":"O2 Sensor Signals Swapped (Bank 1 Sensor 2 / Bank 2 Sensor 2)","P0050":"HO2S Heater Control Circuit (Bank 2 Sensor 1)","P0051":"HO2S Heater Control Circuit Low (Bank 2 Sensor 1)","P0052":"HO2S Heater Control Circuit High (Bank 2 Sensor 1)","P0053":"HO2S Heater Resistance (Bank 1 Sensor 1)","P0054":"HO2S Heater Resistance (Bank 1 Sensor 2)","P0055":"HO2S Heater Resistance (Bank 1 Sensor 3)","P0056":"HO2S Heater Control Circuit (Bank 2 Sensor 2)","P0057":"HO2S Heater Control Circuit Low (Bank 2 Sensor 2)","P0058":"HO2S Heater Control Circuit High (Bank 2 Sensor 2)",
+"P0060":"HO2S Heater Resistance (Bank 2 Sensor 2)","P0070":"Ambient Air Temperature Sensor Circuit","P0071":"Ambient Air Temperature Sensor Range/Performance","P0072":"Ambient Air Temperature Sensor Circuit Low","P0073":"Ambient Air Temperature Sensor Circuit High","P0074":"Ambient Air Temperature Sensor Circuit Intermittent","P0087":"Fuel Rail/System Pressure - Too Low","P0088":"Fuel Rail/System Pressure - Too High","P0089":"Fuel Pressure Regulator 1 Performance","P0090":"Fuel Pressure Regulator 1 Control Circuit","P0091":"Fuel Pressure Regulator 1 Control Circuit Low","P0092":"Fuel Pressure Regulator 1 Control Circuit High","P0093":"Fuel System Leak Detected - Large Leak","P0094":"Fuel System Leak Detected - Small Leak",
+// ── P01xx — Fuel & air metering ──
+"P0100":"Mass or Volume Air Flow Circuit","P0101":"Mass or Volume Air Flow Circuit Range/Performance","P0102":"Mass or Volume Air Flow Circuit Low Input","P0103":"Mass or Volume Air Flow Circuit High Input","P0104":"Mass or Volume Air Flow Circuit Intermittent","P0105":"Manifold Absolute Pressure/Barometric Pressure Circuit","P0106":"Manifold Absolute Pressure/Barometric Pressure Range/Performance","P0107":"Manifold Absolute Pressure/Barometric Pressure Circuit Low Input","P0108":"Manifold Absolute Pressure/Barometric Pressure Circuit High Input","P0109":"Manifold Absolute Pressure/Barometric Pressure Circuit Intermittent","P0110":"Intake Air Temperature Sensor 1 Circuit","P0111":"Intake Air Temperature Sensor 1 Range/Performance","P0112":"Intake Air Temperature Sensor 1 Circuit Low","P0113":"Intake Air Temperature Sensor 1 Circuit High","P0114":"Intake Air Temperature Sensor 1 Circuit Intermittent","P0115":"Engine Coolant Temperature Circuit","P0116":"Engine Coolant Temperature Circuit Range/Performance","P0117":"Engine Coolant Temperature Circuit Low","P0118":"Engine Coolant Temperature Circuit High","P0119":"Engine Coolant Temperature Circuit Intermittent",
+"P0120":"Throttle/Pedal Position Sensor/Switch A Circuit","P0121":"Throttle/Pedal Position Sensor/Switch A Range/Performance","P0122":"Throttle/Pedal Position Sensor/Switch A Circuit Low","P0123":"Throttle/Pedal Position Sensor/Switch A Circuit High","P0124":"Throttle/Pedal Position Sensor/Switch A Circuit Intermittent","P0125":"Insufficient Coolant Temperature for Closed Loop Fuel Control","P0126":"Insufficient Coolant Temperature for Stable Operation","P0127":"Intake Air Temperature Too High","P0128":"Coolant Thermostat (Temperature Below Regulating Temperature)","P0129":"Barometric Pressure Too Low","P0130":"O2 Sensor Circuit (Bank 1 Sensor 1)","P0131":"O2 Sensor Circuit Low Voltage (Bank 1 Sensor 1)","P0132":"O2 Sensor Circuit High Voltage (Bank 1 Sensor 1)","P0133":"O2 Sensor Circuit Slow Response (Bank 1 Sensor 1)","P0134":"O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 1)","P0135":"O2 Sensor Heater Circuit (Bank 1 Sensor 1)","P0136":"O2 Sensor Circuit (Bank 1 Sensor 2)","P0137":"O2 Sensor Circuit Low Voltage (Bank 1 Sensor 2)","P0138":"O2 Sensor Circuit High Voltage (Bank 1 Sensor 2)","P0139":"O2 Sensor Circuit Slow Response (Bank 1 Sensor 2)",
+"P0140":"O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 2)","P0141":"O2 Sensor Heater Circuit (Bank 1 Sensor 2)","P0142":"O2 Sensor Circuit (Bank 1 Sensor 3)","P0143":"O2 Sensor Circuit Low Voltage (Bank 1 Sensor 3)","P0144":"O2 Sensor Circuit High Voltage (Bank 1 Sensor 3)","P0145":"O2 Sensor Circuit Slow Response (Bank 1 Sensor 3)","P0146":"O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 3)","P0147":"O2 Sensor Heater Circuit (Bank 1 Sensor 3)","P0148":"Fuel Delivery Error","P0149":"Fuel Timing Error","P0150":"O2 Sensor Circuit (Bank 2 Sensor 1)","P0151":"O2 Sensor Circuit Low Voltage (Bank 2 Sensor 1)","P0152":"O2 Sensor Circuit High Voltage (Bank 2 Sensor 1)","P0153":"O2 Sensor Circuit Slow Response (Bank 2 Sensor 1)","P0154":"O2 Sensor Circuit No Activity Detected (Bank 2 Sensor 1)","P0155":"O2 Sensor Heater Circuit (Bank 2 Sensor 1)","P0156":"O2 Sensor Circuit (Bank 2 Sensor 2)","P0157":"O2 Sensor Circuit Low Voltage (Bank 2 Sensor 2)","P0158":"O2 Sensor Circuit High Voltage (Bank 2 Sensor 2)","P0159":"O2 Sensor Circuit Slow Response (Bank 2 Sensor 2)",
+"P0160":"O2 Sensor Circuit No Activity Detected (Bank 2 Sensor 2)","P0161":"O2 Sensor Heater Circuit (Bank 2 Sensor 2)","P0162":"O2 Sensor Circuit (Bank 2 Sensor 3)","P0163":"O2 Sensor Circuit Low Voltage (Bank 2 Sensor 3)","P0164":"O2 Sensor Circuit High Voltage (Bank 2 Sensor 3)","P0165":"O2 Sensor Circuit Slow Response (Bank 2 Sensor 3)","P0166":"O2 Sensor Circuit No Activity Detected (Bank 2 Sensor 3)","P0167":"O2 Sensor Heater Circuit (Bank 2 Sensor 3)","P0168":"Fuel Temperature Too High","P0169":"Incorrect Fuel Composition","P0170":"Fuel Trim (Bank 1)","P0171":"System Too Lean (Bank 1)","P0172":"System Too Rich (Bank 1)","P0173":"Fuel Trim (Bank 2)","P0174":"System Too Lean (Bank 2)","P0175":"System Too Rich (Bank 2)","P0176":"Fuel Composition Sensor Circuit","P0177":"Fuel Composition Sensor Circuit Range/Performance","P0178":"Fuel Composition Sensor Circuit Low","P0179":"Fuel Composition Sensor Circuit High",
+"P0180":"Fuel Temperature Sensor A Circuit","P0181":"Fuel Temperature Sensor A Range/Performance","P0182":"Fuel Temperature Sensor A Circuit Low","P0183":"Fuel Temperature Sensor A Circuit High","P0190":"Fuel Rail Pressure Sensor Circuit","P0191":"Fuel Rail Pressure Sensor Range/Performance","P0192":"Fuel Rail Pressure Sensor Circuit Low","P0193":"Fuel Rail Pressure Sensor Circuit High","P0194":"Fuel Rail Pressure Sensor Circuit Intermittent","P0195":"Engine Oil Temperature Sensor","P0196":"Engine Oil Temperature Sensor Range/Performance","P0197":"Engine Oil Temperature Sensor Low","P0198":"Engine Oil Temperature Sensor High","P0199":"Engine Oil Temperature Sensor Intermittent",
+// ── P02xx — Fuel & air metering (injector circuit) ──
+"P0200":"Injector Circuit/Open","P0201":"Injector Circuit/Open - Cylinder 1","P0202":"Injector Circuit/Open - Cylinder 2","P0203":"Injector Circuit/Open - Cylinder 3","P0204":"Injector Circuit/Open - Cylinder 4","P0205":"Injector Circuit/Open - Cylinder 5","P0206":"Injector Circuit/Open - Cylinder 6","P0207":"Injector Circuit/Open - Cylinder 7","P0208":"Injector Circuit/Open - Cylinder 8","P0209":"Injector Circuit/Open - Cylinder 9","P0210":"Injector Circuit/Open - Cylinder 10","P0211":"Injector Circuit/Open - Cylinder 11","P0212":"Injector Circuit/Open - Cylinder 12","P0213":"Cold Start Injector 1","P0214":"Cold Start Injector 2","P0215":"Engine Shutoff Solenoid","P0216":"Injection Timing Control Circuit","P0217":"Engine Coolant Over Temperature Condition","P0218":"Transmission Fluid Over Temperature Condition","P0219":"Engine Overspeed Condition",
+"P0220":"Throttle/Pedal Position Sensor/Switch B Circuit","P0221":"Throttle/Pedal Position Sensor/Switch B Range/Performance","P0222":"Throttle/Pedal Position Sensor/Switch B Circuit Low","P0223":"Throttle/Pedal Position Sensor/Switch B Circuit High","P0224":"Throttle/Pedal Position Sensor/Switch B Circuit Intermittent","P0225":"Throttle/Pedal Position Sensor/Switch C Circuit","P0226":"Throttle/Pedal Position Sensor/Switch C Range/Performance","P0227":"Throttle/Pedal Position Sensor/Switch C Circuit Low","P0228":"Throttle/Pedal Position Sensor/Switch C Circuit High","P0229":"Throttle/Pedal Position Sensor/Switch C Circuit Intermittent","P0230":"Fuel Pump Primary Circuit","P0231":"Fuel Pump Secondary Circuit Low","P0232":"Fuel Pump Secondary Circuit High","P0234":"Turbo/Super Charger Overboost Condition","P0235":"Turbocharger Boost Sensor A Circuit","P0236":"Turbocharger Boost Sensor A Range/Performance","P0237":"Turbocharger Boost Sensor A Circuit Low","P0238":"Turbocharger Boost Sensor A Circuit High",
+"P0243":"Turbocharger Wastegate Solenoid A","P0245":"Turbocharger Wastegate Solenoid A Low","P0246":"Turbocharger Wastegate Solenoid A High","P0251":"Injection Pump Fuel Metering Control A","P0252":"Injection Pump Fuel Metering Control A Range/Performance","P0253":"Injection Pump Fuel Metering Control A Low","P0254":"Injection Pump Fuel Metering Control A High","P0261":"Cylinder 1 Injector Circuit Low","P0262":"Cylinder 1 Injector Circuit High","P0263":"Cylinder 1 Contribution/Balance","P0264":"Cylinder 2 Injector Circuit Low","P0265":"Cylinder 2 Injector Circuit High","P0266":"Cylinder 2 Contribution/Balance","P0267":"Cylinder 3 Injector Circuit Low","P0268":"Cylinder 3 Injector Circuit High","P0269":"Cylinder 3 Contribution/Balance","P0270":"Cylinder 4 Injector Circuit Low","P0271":"Cylinder 4 Injector Circuit High","P0272":"Cylinder 4 Contribution/Balance",
+"P0273":"Cylinder 5 Injector Circuit Low","P0274":"Cylinder 5 Injector Circuit High","P0275":"Cylinder 5 Contribution/Balance","P0276":"Cylinder 6 Injector Circuit Low","P0277":"Cylinder 6 Injector Circuit High","P0278":"Cylinder 6 Contribution/Balance","P0279":"Cylinder 7 Injector Circuit Low","P0280":"Cylinder 7 Injector Circuit High","P0281":"Cylinder 7 Contribution/Balance","P0282":"Cylinder 8 Injector Circuit Low","P0283":"Cylinder 8 Injector Circuit High","P0284":"Cylinder 8 Contribution/Balance","P0285":"Cylinder 9 Injector Circuit Low","P0286":"Cylinder 9 Injector Circuit High","P0287":"Cylinder 9 Contribution/Balance","P0290":"Cylinder 10 Injector Circuit High","P0300":"Random/Multiple Cylinder Misfire Detected",
+// ── P03xx — Ignition system / misfire ──
+"P0301":"Cylinder 1 Misfire Detected","P0302":"Cylinder 2 Misfire Detected","P0303":"Cylinder 3 Misfire Detected","P0304":"Cylinder 4 Misfire Detected","P0305":"Cylinder 5 Misfire Detected","P0306":"Cylinder 6 Misfire Detected","P0307":"Cylinder 7 Misfire Detected","P0308":"Cylinder 8 Misfire Detected","P0309":"Cylinder 9 Misfire Detected","P0310":"Cylinder 10 Misfire Detected","P0311":"Cylinder 11 Misfire Detected","P0312":"Cylinder 12 Misfire Detected","P0313":"Misfire Detected with Low Fuel","P0314":"Single Cylinder Misfire (Cylinder not Specified)","P0315":"Crankshaft Position System Variation Not Learned","P0316":"Misfire Detected on Startup (First 1000 Revolutions)",
+"P0320":"Ignition/Distributor Engine Speed Input Circuit","P0321":"Ignition/Distributor Engine Speed Input Range/Performance","P0322":"Ignition/Distributor Engine Speed Input No Signal","P0323":"Ignition/Distributor Engine Speed Input Intermittent","P0325":"Knock Sensor 1 Circuit (Bank 1)","P0326":"Knock Sensor 1 Range/Performance (Bank 1)","P0327":"Knock Sensor 1 Circuit Low (Bank 1)","P0328":"Knock Sensor 1 Circuit High (Bank 1)","P0329":"Knock Sensor 1 Circuit Intermittent (Bank 1)","P0330":"Knock Sensor 2 Circuit (Bank 2)","P0331":"Knock Sensor 2 Range/Performance (Bank 2)","P0332":"Knock Sensor 2 Circuit Low (Bank 2)","P0333":"Knock Sensor 2 Circuit High (Bank 2)","P0334":"Knock Sensor 2 Circuit Intermittent (Bank 2)","P0335":"Crankshaft Position Sensor A Circuit","P0336":"Crankshaft Position Sensor A Range/Performance","P0337":"Crankshaft Position Sensor A Circuit Low","P0338":"Crankshaft Position Sensor A Circuit High","P0339":"Crankshaft Position Sensor A Circuit Intermittent",
+"P0340":"Camshaft Position Sensor A Circuit (Bank 1)","P0341":"Camshaft Position Sensor A Range/Performance (Bank 1)","P0342":"Camshaft Position Sensor A Circuit Low (Bank 1)","P0343":"Camshaft Position Sensor A Circuit High (Bank 1)","P0344":"Camshaft Position Sensor A Circuit Intermittent (Bank 1)","P0345":"Camshaft Position Sensor A Circuit (Bank 2)","P0346":"Camshaft Position Sensor A Range/Performance (Bank 2)","P0347":"Camshaft Position Sensor A Circuit Low (Bank 2)","P0348":"Camshaft Position Sensor A Circuit High (Bank 2)","P0349":"Camshaft Position Sensor A Circuit Intermittent (Bank 2)","P0350":"Ignition Coil Primary/Secondary Circuit","P0351":"Ignition Coil A Primary/Secondary Circuit","P0352":"Ignition Coil B Primary/Secondary Circuit","P0353":"Ignition Coil C Primary/Secondary Circuit","P0354":"Ignition Coil D Primary/Secondary Circuit","P0355":"Ignition Coil E Primary/Secondary Circuit","P0356":"Ignition Coil F Primary/Secondary Circuit","P0357":"Ignition Coil G Primary/Secondary Circuit","P0358":"Ignition Coil H Primary/Secondary Circuit","P0359":"Ignition Coil I Primary/Secondary Circuit",
+"P0360":"Ignition Coil J Primary/Secondary Circuit","P0361":"Ignition Coil K Primary/Secondary Circuit","P0362":"Ignition Coil L Primary/Secondary Circuit","P0365":"Camshaft Position Sensor B Circuit (Bank 1)","P0366":"Camshaft Position Sensor B Range/Performance (Bank 1)","P0367":"Camshaft Position Sensor B Circuit Low (Bank 1)","P0368":"Camshaft Position Sensor B Circuit High (Bank 1)","P0369":"Camshaft Position Sensor B Circuit Intermittent (Bank 1)","P0370":"Timing Reference High Resolution Signal A","P0371":"Timing Reference High Resolution Signal A Too Many Pulses","P0372":"Timing Reference High Resolution Signal A Too Few Pulses","P0373":"Timing Reference High Resolution Signal A Intermittent/Erratic Pulses","P0374":"Timing Reference High Resolution Signal A No Pulses","P0380":"Glow Plug/Heater Circuit A","P0381":"Glow Plug/Heater Indicator Circuit","P0382":"Exhaust Gas Recirculation Glow Plug Control Circuit","P0385":"Crankshaft Position Sensor B Circuit","P0386":"Crankshaft Position Sensor B Range/Performance","P0387":"Crankshaft Position Sensor B Circuit Low","P0388":"Crankshaft Position Sensor B Circuit High","P0389":"Crankshaft Position Sensor B Circuit Intermittent",
+// ── P04xx — Auxiliary emission controls ──
+"P0400":"Exhaust Gas Recirculation Flow","P0401":"Exhaust Gas Recirculation Flow Insufficient Detected","P0402":"Exhaust Gas Recirculation Flow Excessive Detected","P0403":"Exhaust Gas Recirculation Control Circuit","P0404":"Exhaust Gas Recirculation Control Circuit Range/Performance","P0405":"Exhaust Gas Recirculation Sensor A Circuit Low","P0406":"Exhaust Gas Recirculation Sensor A Circuit High","P0407":"Exhaust Gas Recirculation Sensor B Circuit Low","P0408":"Exhaust Gas Recirculation Sensor B Circuit High","P0409":"Exhaust Gas Recirculation Sensor A Circuit","P0410":"Secondary Air Injection System","P0411":"Secondary Air Injection System Incorrect Flow Detected","P0412":"Secondary Air Injection System Switching Valve A Circuit","P0413":"Secondary Air Injection System Switching Valve A Circuit Open","P0414":"Secondary Air Injection System Switching Valve A Circuit Shorted","P0415":"Secondary Air Injection System Switching Valve B Circuit","P0416":"Secondary Air Injection System Switching Valve B Circuit Open","P0417":"Secondary Air Injection System Switching Valve B Circuit Shorted","P0418":"Secondary Air Injection System Control A Circuit","P0419":"Secondary Air Injection System Control B Circuit",
+"P0420":"Catalyst System Efficiency Below Threshold (Bank 1)","P0421":"Warm Up Catalyst Efficiency Below Threshold (Bank 1)","P0422":"Main Catalyst Efficiency Below Threshold (Bank 1)","P0423":"Heated Catalyst Efficiency Below Threshold (Bank 1)","P0424":"Heated Catalyst Temperature Below Threshold (Bank 1)","P0425":"Catalyst Temperature Sensor (Bank 1)","P0426":"Catalyst Temperature Sensor Range/Performance (Bank 1)","P0427":"Catalyst Temperature Sensor Low (Bank 1)","P0428":"Catalyst Temperature Sensor High (Bank 1)","P0430":"Catalyst System Efficiency Below Threshold (Bank 2)","P0431":"Warm Up Catalyst Efficiency Below Threshold (Bank 2)","P0432":"Main Catalyst Efficiency Below Threshold (Bank 2)","P0433":"Heated Catalyst Efficiency Below Threshold (Bank 2)","P0434":"Heated Catalyst Temperature Below Threshold (Bank 2)","P0440":"Evaporative Emission System","P0441":"Evaporative Emission System Incorrect Purge Flow","P0442":"Evaporative Emission System Leak Detected (Small Leak)","P0443":"Evaporative Emission System Purge Control Valve Circuit","P0444":"Evaporative Emission System Purge Control Valve Circuit Open","P0445":"Evaporative Emission System Purge Control Valve Circuit Shorted",
+"P0446":"Evaporative Emission System Vent Control Circuit","P0447":"Evaporative Emission System Vent Control Circuit Open","P0448":"Evaporative Emission System Vent Control Circuit Shorted","P0449":"Evaporative Emission System Vent Valve/Solenoid Circuit","P0450":"Evaporative Emission System Pressure Sensor/Switch","P0451":"Evaporative Emission System Pressure Sensor Range/Performance","P0452":"Evaporative Emission System Pressure Sensor Low","P0453":"Evaporative Emission System Pressure Sensor High","P0454":"Evaporative Emission System Pressure Sensor Intermittent","P0455":"Evaporative Emission System Leak Detected (Large Leak)","P0456":"Evaporative Emission System Leak Detected (Very Small Leak)","P0457":"Evaporative Emission System Leak Detected (Fuel Cap Loose/Off)","P0458":"Evaporative Emission System Purge Control Valve Circuit Low","P0459":"Evaporative Emission System Purge Control Valve Circuit High","P0460":"Fuel Level Sensor A Circuit","P0461":"Fuel Level Sensor A Circuit Range/Performance","P0462":"Fuel Level Sensor A Circuit Low","P0463":"Fuel Level Sensor A Circuit High","P0464":"Fuel Level Sensor A Circuit Intermittent","P0470":"Exhaust Pressure Sensor",
+"P0471":"Exhaust Pressure Sensor Range/Performance","P0472":"Exhaust Pressure Sensor Low","P0473":"Exhaust Pressure Sensor High","P0480":"Fan 1 Control Circuit","P0481":"Fan 2 Control Circuit","P0482":"Fan 3 Control Circuit","P0483":"Cooling Fan Rationality Check","P0484":"Cooling Fan Circuit Over Current","P0485":"Cooling Fan Power/Ground Circuit",
+// ── P05xx — Vehicle speed, idle control, auxiliary inputs ──
+"P0500":"Vehicle Speed Sensor A","P0501":"Vehicle Speed Sensor A Range/Performance","P0502":"Vehicle Speed Sensor A Circuit Low Input","P0503":"Vehicle Speed Sensor A Intermittent/Erratic/High","P0505":"Idle Air Control System","P0506":"Idle Air Control System RPM Lower Than Expected","P0507":"Idle Air Control System RPM Higher Than Expected","P0508":"Idle Air Control System Circuit Low","P0509":"Idle Air Control System Circuit High","P0510":"Closed Throttle Position Switch","P0511":"Idle Air Control Circuit","P0512":"Starter Request Circuit","P0513":"Incorrect Immobilizer Key","P0520":"Engine Oil Pressure Sensor/Switch Circuit","P0521":"Engine Oil Pressure Sensor/Switch Range/Performance","P0522":"Engine Oil Pressure Sensor/Switch Low Voltage","P0523":"Engine Oil Pressure Sensor/Switch High Voltage","P0524":"Engine Oil Pressure Too Low","P0530":"A/C Refrigerant Pressure Sensor A Circuit","P0531":"A/C Refrigerant Pressure Sensor A Range/Performance","P0532":"A/C Refrigerant Pressure Sensor A Circuit Low","P0533":"A/C Refrigerant Pressure Sensor A Circuit High",
+"P0534":"Air Conditioner Refrigerant Charge Loss","P0540":"Intake Air Heater A Circuit","P0541":"Intake Air Heater A Circuit Low","P0542":"Intake Air Heater A Circuit High","P0545":"Exhaust Gas Temperature Sensor Circuit Low (Bank 1 Sensor 1)","P0546":"Exhaust Gas Temperature Sensor Circuit High (Bank 1 Sensor 1)","P0550":"Power Steering Pressure Sensor/Switch Circuit","P0551":"Power Steering Pressure Sensor/Switch Range/Performance","P0552":"Power Steering Pressure Sensor/Switch Low","P0553":"Power Steering Pressure Sensor/Switch High","P0554":"Power Steering Pressure Sensor/Switch Intermittent","P0560":"System Voltage","P0561":"System Voltage Unstable","P0562":"System Voltage Low","P0563":"System Voltage High","P0564":"Cruise Control Multi-Function Input A Circuit","P0565":"Cruise Control On Signal","P0566":"Cruise Control Off Signal","P0567":"Cruise Control Resume Signal","P0568":"Cruise Control Set Signal","P0569":"Cruise Control Coast Signal","P0570":"Cruise Control Accelerate Signal",
+"P0571":"Cruise Control/Brake Switch A Circuit","P0572":"Cruise Control/Brake Switch A Circuit Low","P0573":"Cruise Control/Brake Switch A Circuit High","P0574":"Cruise Control System - Vehicle Speed Too High","P0575":"Cruise Control Input Circuit","P0579":"Cruise Control Multi-Function Input A Circuit Range/Performance","P0580":"Cruise Control Multi-Function Input A Circuit Low","P0581":"Cruise Control Multi-Function Input A Circuit High","P0588":"Cruise Control Multi-Function Input B Circuit Range/Performance","P0589":"Cruise Control Multi-Function Input B Circuit Low","P0590":"Cruise Control Multi-Function Input B Circuit High",
+// ── P06xx — Computer & output circuit ──
+"P0600":"Serial Communication Link","P0601":"Internal Control Module Memory Check Sum Error","P0602":"Control Module Programming Error","P0603":"Internal Control Module Keep Alive Memory (KAM) Error","P0604":"Internal Control Module Random Access Memory (RAM) Error","P0605":"Internal Control Module Read Only Memory (ROM) Error","P0606":"ECM/PCM Processor","P0607":"Control Module Performance","P0608":"Control Module VSS Output A","P0609":"Control Module VSS Output B","P0610":"Control Module Vehicle Options Error","P0611":"Fuel Injector Control Module Performance","P0612":"Fuel Injector Control Module Relay Control","P0613":"TCM Processor","P0614":"ECM/TCM Incompatible","P0615":"Starter Relay Circuit","P0616":"Starter Relay Circuit Low","P0617":"Starter Relay Circuit High","P0618":"Alternative Fuel Control Module KAM Error","P0619":"Alternative Fuel Control Module RAM/ROM Error","P0620":"Generator Control Circuit","P0621":"Generator Lamp/L Terminal Circuit","P0622":"Generator Field/F Terminal Circuit","P0625":"Generator Field/F Terminal Circuit Low","P0626":"Generator Field/F Terminal Circuit High","P0627":"Fuel Pump A Control Circuit/Open","P0628":"Fuel Pump A Control Circuit Low","P0629":"Fuel Pump A Control Circuit High",
+"P0630":"VIN Not Programmed or Incompatible - ECM/PCM","P0633":"Immobilizer Key Not Programmed - ECM/PCM","P0634":"PCM/ECM/TCM Internal Temperature Too High","P0638":"Throttle Actuator Control Range/Performance (Bank 1)","P0639":"Throttle Actuator Control Range/Performance (Bank 2)","P0640":"Intake Air Heater Control Circuit","P0641":"Sensor Reference Voltage A Circuit/Open","P0642":"Sensor Reference Voltage A Circuit Low","P0643":"Sensor Reference Voltage A Circuit High","P0645":"A/C Clutch Relay Control Circuit","P0646":"A/C Clutch Relay Control Circuit Low","P0647":"A/C Clutch Relay Control Circuit High","P0650":"Malfunction Indicator Lamp (MIL) Control Circuit","P0651":"Sensor Reference Voltage B Circuit/Open","P0652":"Sensor Reference Voltage B Circuit Low","P0653":"Sensor Reference Voltage B Circuit High","P0654":"Engine RPM Output Circuit","P0655":"Engine Hot Lamp Output Control Circuit","P0660":"Intake Manifold Tuning Valve Control Circuit/Open (Bank 1)","P0670":"Glow Plug Module Control Circuit","P0685":"ECM/PCM Power Relay Control Circuit/Open","P0686":"ECM/PCM Power Relay Control Circuit Low","P0687":"ECM/PCM Power Relay Control Circuit High","P0689":"ECM/PCM Power Relay Sense Circuit Low","P0690":"ECM/PCM Power Relay Sense Circuit High","P0691":"Fan 1 Control Circuit Low","P0692":"Fan 1 Control Circuit High","P0693":"Fan 2 Control Circuit Low","P0694":"Fan 2 Control Circuit High",
+// ── P07xx–P08xx — Transmission ──
+"P0700":"Transmission Control System (MIL Request)","P0701":"Transmission Control System Range/Performance","P0702":"Transmission Control System Electrical","P0703":"Torque Converter/Brake Switch B Circuit","P0704":"Clutch Switch Input Circuit","P0705":"Transmission Range Sensor Circuit (PRNDL Input)","P0706":"Transmission Range Sensor Circuit Range/Performance","P0707":"Transmission Range Sensor Circuit Low","P0708":"Transmission Range Sensor Circuit High","P0709":"Transmission Range Sensor Circuit Intermittent","P0710":"Transmission Fluid Temperature Sensor A Circuit","P0711":"Transmission Fluid Temperature Sensor A Range/Performance","P0712":"Transmission Fluid Temperature Sensor A Circuit Low","P0713":"Transmission Fluid Temperature Sensor A Circuit High","P0714":"Transmission Fluid Temperature Sensor A Circuit Intermittent","P0715":"Input/Turbine Speed Sensor A Circuit","P0716":"Input/Turbine Speed Sensor A Range/Performance","P0717":"Input/Turbine Speed Sensor A Circuit No Signal","P0718":"Input/Turbine Speed Sensor A Circuit Intermittent","P0719":"Torque Converter/Brake Switch B Circuit Low",
+"P0720":"Output Speed Sensor Circuit","P0721":"Output Speed Sensor Circuit Range/Performance","P0722":"Output Speed Sensor Circuit No Signal","P0723":"Output Speed Sensor Circuit Intermittent","P0724":"Torque Converter/Brake Switch B Circuit High","P0725":"Engine Speed Input Circuit","P0726":"Engine Speed Input Circuit Range/Performance","P0727":"Engine Speed Input Circuit No Signal","P0728":"Engine Speed Input Circuit Intermittent","P0729":"Gear 6 Incorrect Ratio","P0730":"Incorrect Gear Ratio","P0731":"Gear 1 Incorrect Ratio","P0732":"Gear 2 Incorrect Ratio","P0733":"Gear 3 Incorrect Ratio","P0734":"Gear 4 Incorrect Ratio","P0735":"Gear 5 Incorrect Ratio","P0736":"Reverse Incorrect Ratio","P0740":"Torque Converter Clutch Circuit/Open","P0741":"Torque Converter Clutch Circuit Performance or Stuck Off","P0742":"Torque Converter Clutch Circuit Stuck On","P0743":"Torque Converter Clutch Circuit Electrical","P0744":"Torque Converter Clutch Circuit Intermittent","P0745":"Pressure Control Solenoid A","P0746":"Pressure Control Solenoid A Performance or Stuck Off","P0747":"Pressure Control Solenoid A Stuck On","P0748":"Pressure Control Solenoid A Electrical","P0749":"Pressure Control Solenoid A Intermittent",
+"P0750":"Shift Solenoid A","P0751":"Shift Solenoid A Performance or Stuck Off","P0752":"Shift Solenoid A Stuck On","P0753":"Shift Solenoid A Electrical","P0754":"Shift Solenoid A Intermittent","P0755":"Shift Solenoid B","P0756":"Shift Solenoid B Performance or Stuck Off","P0757":"Shift Solenoid B Stuck On","P0758":"Shift Solenoid B Electrical","P0759":"Shift Solenoid B Intermittent","P0760":"Shift Solenoid C","P0761":"Shift Solenoid C Performance or Stuck Off","P0762":"Shift Solenoid C Stuck On","P0763":"Shift Solenoid C Electrical","P0764":"Shift Solenoid C Intermittent","P0765":"Shift Solenoid D","P0766":"Shift Solenoid D Performance or Stuck Off","P0767":"Shift Solenoid D Stuck On","P0768":"Shift Solenoid D Electrical","P0769":"Shift Solenoid D Intermittent","P0770":"Shift Solenoid E","P0780":"Shift Error","P0781":"1-2 Shift Error","P0782":"2-3 Shift Error","P0783":"3-4 Shift Error","P0784":"4-5 Shift Error","P0791":"Intermediate Shaft Speed Sensor A Circuit","P0795":"Pressure Control Solenoid C","P0796":"Pressure Control Solenoid C Performance or Stuck Off","P0797":"Pressure Control Solenoid C Stuck On","P0798":"Pressure Control Solenoid C Electrical",
+"P0801":"Reverse Inhibit Control Circuit","P0810":"Clutch Position Control Error","P0811":"Excessive Clutch Slippage","P0812":"Reverse Input Circuit","P0815":"Upshift Switch Circuit","P0816":"Downshift Switch Circuit","P0820":"Gear Lever X-Y Position Sensor Circuit","P0830":"Clutch Pedal Switch A Circuit","P0840":"Transmission Fluid Pressure Sensor/Switch A Circuit","P0841":"Transmission Fluid Pressure Sensor/Switch A Range/Performance","P0850":"Park/Neutral Switch Input Circuit","P0851":"Park/Neutral Switch Input Circuit Low","P0852":"Park/Neutral Switch Input Circuit High",
+// ── P09xx — Transmission (extended) ──
+"P0900":"Clutch Actuator Circuit/Open","P0901":"Clutch Actuator Circuit Range/Performance","P0902":"Clutch Actuator Circuit Low","P0903":"Clutch Actuator Circuit High","P0904":"Gate Select Position Circuit","P0907":"Gate Select Direction Circuit","P0910":"Gate Select Actuator Circuit/Open","P0914":"Gear Shift Position Circuit","P0919":"Gear Shift Position Control Error","P0928":"Gear Shift Lock Solenoid Control Circuit/Open","P0960":"Pressure Control Solenoid A Control Circuit/Open","P0961":"Pressure Control Solenoid A Control Circuit Range/Performance","P0962":"Pressure Control Solenoid A Control Circuit Low","P0963":"Pressure Control Solenoid A Control Circuit High","P0973":"Shift Solenoid A Control Circuit Low","P0974":"Shift Solenoid A Control Circuit High","P0985":"Shift Solenoid E Control Circuit Low","P0986":"Shift Solenoid E Control Circuit High",
+// ── P0Axx — Hybrid propulsion ──
+"P0A00":"Motor Electronics Coolant Temperature Sensor Circuit","P0A01":"Motor Electronics Coolant Temperature Sensor Range/Performance","P0A02":"Motor Electronics Coolant Temperature Sensor Circuit Low","P0A03":"Motor Electronics Coolant Temperature Sensor Circuit High","P0A06":"DC/DC Converter Status Circuit","P0A09":"DC/DC Converter Status Circuit Low Input","P0A0A":"High Voltage System Interlock Circuit","P0A0C":"High Voltage System Interlock Circuit High","P0A0D":"High Voltage System Interlock Circuit Low","P0A0F":"Engine Failed to Start","P0A10":"Drive Motor A Inverter Power Supply","P0A1B":"Drive Motor A Control Module","P0A1F":"Battery Energy Control Module","P0A22":"Generator Torque Control Circuit","P0A2A":"Drive Motor A Temperature Sensor Circuit","P0A3C":"Drive Motor A Inverter Temperature Sensor Circuit","P0A3F":"Drive Motor A Position Sensor Circuit","P0A7F":"Hybrid Battery Pack Deterioration","P0A80":"Replace Hybrid Battery Pack","P0A81":"Hybrid Battery Pack Cooling Fan 1","P0A84":"Hybrid Battery Pack Air Inlet Temperature Sensor Circuit","P0A94":"DC/DC Converter Performance","P0A95":"High Voltage Fuse","P0AA6":"Hybrid/EV Battery Voltage System Isolation Fault","P0AC4":"Hybrid Battery Pack Voltage Sense Open Circuit",
+// ── U0xxx — Network / vehicle communication (curated generics) ──
+"U0001":"High Speed CAN Communication Bus","U0010":"Medium Speed CAN Communication Bus","U0100":"Lost Communication With ECM/PCM A","U0101":"Lost Communication With TCM","U0102":"Lost Communication With Transfer Case Control Module","U0103":"Lost Communication With Gear Shift Module","U0104":"Lost Communication With Cruise Control Module","U0105":"Lost Communication With Fuel Injector Control Module","U0106":"Lost Communication With Glow Plug Control Module","U0107":"Lost Communication With Throttle Actuator Control Module","U0109":"Lost Communication With Fuel Pump Control Module","U0110":"Lost Communication With Drive Motor Control Module","U0111":"Lost Communication With Battery Energy Control Module A","U0114":"Lost Communication With Four-Wheel Drive Clutch Control Module","U0121":"Lost Communication With Anti-Lock Brake System (ABS) Module","U0122":"Lost Communication With Vehicle Dynamics Control Module","U0123":"Lost Communication With Yaw Rate Sensor Module","U0124":"Lost Communication With Lateral Acceleration Sensor Module","U0125":"Lost Communication With Multi-Axis Acceleration Sensor Module","U0126":"Lost Communication With Steering Angle Sensor Module","U0128":"Lost Communication With Park Brake Control Module","U0129":"Lost Communication With Brake System Control Module","U0131":"Lost Communication With Power Steering Control Module","U0132":"Lost Communication With Ride Level Control Module","U0140":"Lost Communication With Body Control Module","U0151":"Lost Communication With Restraints Control Module","U0155":"Lost Communication With Instrument Panel Cluster (IPC) Control Module","U0164":"Lost Communication With HVAC Control Module","U0184":"Lost Communication With Radio","U0199":"Lost Communication With Door Control Module A","U0200":"Lost Communication With Door Control Module A","U0214":"Lost Communication With Remote Function Actuation","U0300":"Internal Control Module Software Incompatibility","U0301":"Software Incompatibility With ECM/PCM","U0401":"Invalid Data Received From ECM/PCM A","U0402":"Invalid Data Received From TCM","U0415":"Invalid Data Received From Anti-Lock Brake System Control Module","U0418":"Invalid Data Received From Brake System Control Module","U0422":"Invalid Data Received From Body Control Module","U0500":"Invalid Data Received From External Device","U0600":"Other Module CAN Bus Off",
+// ── C0xxx — Chassis (curated common) ──
+"C0035":"Left Front Wheel Speed Sensor Circuit","C0040":"Right Front Wheel Speed Sensor Circuit","C0045":"Left Rear Wheel Speed Sensor Circuit","C0050":"Right Rear Wheel Speed Sensor Circuit","C0051":"Steering Wheel Angle Sensor","C0110":"Pump Motor Circuit Malfunction","C0121":"Valve Relay Circuit Malfunction","C0128":"Low Brake Fluid Circuit Low","C0131":"ABS/TCS Pressure Circuit","C0161":"ABS/TCS Brake Switch Circuit","C0200":"Right Front Wheel Speed Circuit Malfunction","C0265":"EBCM Motor Circuit","C0561":"System Disabled Information Stored",
+// ── B0xxx — Body (curated common) ──
+"B0001":"PAD Deployment Control (Subfault)","B0010":"Driver Frontal Stage 1 Deployment Control","B0012":"Driver Frontal Stage 2 Deployment Control","B0020":"Passenger Frontal Stage 1 Deployment Control","B0022":"Passenger Frontal Stage 2 Deployment Control","B0028":"Right Side Deployment Loop","B0051":"Driver Seatbelt Pretensioner Deployment Control","B0053":"Passenger Seatbelt Pretensioner Deployment Control","B0081":"Driver Seatbelt Tension Sensor","B0100":"Electronic Front End Sensor 1","B1000":"ECU Malfunction","B1318":"Battery Voltage Low","B1342":"ECU Is Defective","B2960":"Security Key Not Programmed",
+};
+
+// ── Decoders (inlined, faithful to sloppycan.js / j1939.js) ───────────────────
+const OBD_LETTERS = ['P','C','B','U'];
+const OBD_LETTER_NAME = { P:'Powertrain', C:'Chassis', B:'Body', U:'Network / communication' };
+const UDS_STATUS_BITS = ['testFailed','testFailedThisMonitoringCycle','pendingDTC','confirmedDTC',
+  'testNotCompletedSinceLastClear','testFailedSinceLastClear',
+  'testNotCompletedThisMonitoringCycle','warningIndicatorRequested'];
+
+function hx(n, w=2){ return n.toString(16).toUpperCase().padStart(w,'0'); }
+
+// Look up a generic description by the assembled 5-char code (e.g. "P0301").
+function lookupDesc(code) { return DTC_DB[code] || null; }
+
+// Common shape: build the result card data for an OBD-style code string.
+function obdCodeInfo(code) {
+  const letter = code[0];
+  const firstDigit = parseInt(code[1], 10);   // 0-3
+  const mfr = firstDigit === 1;
+  return {
+    code,
+    letterName: OBD_LETTER_NAME[letter] || '?',
+    firstDigit,
+    mfr,
+    desc: lookupDesc(code),
+  };
+}
+
+// 1) OBD-II / SAE J2012 — 2 bytes → code.  word=(B0<<8)|B1
+function decodeObdBytes(b0, b1) {
+  const w = (b0 << 8) | b1;
+  const code = OBD_LETTERS[(w >> 14) & 3]
+    + ((w >> 12) & 3).toString()
+    + ((w >> 8) & 0xF).toString(16).toUpperCase()
+    + ((w >> 4) & 0xF).toString(16).toUpperCase()
+    + (w & 0xF).toString(16).toUpperCase();
+  return { kind: 'obd', bytes: [b0, b1], ...obdCodeInfo(code) };
+}
+
+// OBD code string (e.g. "P0301") → reconstruct the 2 raw bytes for the breakdown.
+function decodeObdCodeStr(code) {
+  const letterIdx = OBD_LETTERS.indexOf(code[0]);
+  const w = (letterIdx << 14)
+    | (parseInt(code[1], 10) << 12)
+    | (parseInt(code[2], 16) << 8)
+    | (parseInt(code[3], 16) << 4)
+    | parseInt(code[4], 16);
+  return { kind: 'obd', bytes: [(w >> 8) & 0xFF, w & 0xFF], ...obdCodeInfo(code) };
+}
+
+// 2) UDS / ISO 14229 — 3 DTC bytes (+ optional status). Faithful to udsDTC/udsDTCStatus.
+function decodeUds(a, b, c, status) {
+  // 6-nibble display form: letter + first/second digit + byte2 nibbles + byte3 (failure type)
+  const letter = OBD_LETTERS[(a >> 6) & 3];
+  const nibbles = [((a >> 4) & 3), (a & 0xF), (b >> 4), (b & 0xF), (c >> 4), (c & 0xF)]
+    .map(n => n.toString(16).toUpperCase());
+  const fullCode = letter + nibbles.join('');          // e.g. P019012
+  const code4 = letter + nibbles.slice(0, 4).join(''); // OBD-style P0190 (for DB lookup)
+  const firstDigit = (a >> 4) & 3;
+  return {
+    kind: 'uds',
+    bytes: [a, b, c],
+    fullCode,
+    code: code4,
+    letterName: OBD_LETTER_NAME[letter] || '?',
+    firstDigit,
+    mfr: firstDigit === 1,
+    failureType: c,
+    desc: lookupDesc(code4),
+    status: (typeof status === 'number') ? status : null,
+    statusList: (typeof status === 'number')
+      ? UDS_STATUS_BITS.map((name, i) => ({ name, on: !!(status & (1 << i)) }))
+      : null,
+  };
+}
+
+// 3) J1939 SPN+FMI — 4-byte DM record. Faithful to j1939DecodeDTCs.
+function decodeJ1939(b0, b1, b2, b3) {
+  const spn = b0 | (b1 << 8) | ((b2 >> 5) << 16);
+  const fmi = b2 & 0x1F;
+  const oc = b3 & 0x7F;
+  const cm = (b3 >> 7) & 1;
+  return {
+    kind: 'j1939',
+    bytes: [b0, b1, b2, b3],
+    spn, fmi, oc, cm,
+    fmiDesc: J1939_FMI[fmi] || ('FMI ' + fmi),
+    spnName: J1939_SPN_NAMES[spn] || null,
+  };
+}
+
+// ── Input parsing & format sniffing ───────────────────────────────────────────
+const OBD_CODE_RE = /^[PCBU][0-3][0-9A-F]{3}$/i;
+
+function parseHexBytes(s) {
+  const cleaned = s.replace(/0x/gi, ' ').replace(/[,]/g, ' ').trim();
+  if (!cleaned) return null;
+  // Accept "0301" (contiguous) or "03 01" (spaced).
+  let toks;
+  if (/\s/.test(cleaned)) toks = cleaned.split(/\s+/);
+  else if (/^[0-9A-F]+$/i.test(cleaned) && cleaned.length % 2 === 0) toks = cleaned.match(/.{2}/g);
+  else toks = cleaned.split(/\s+/);
+  const out = [];
+  for (const t of toks) {
+    if (!/^[0-9A-F]{1,2}$/i.test(t)) return null;
+    out.push(parseInt(t, 16));
+  }
+  return out;
+}
+
+// Decode one token under an explicit or auto format. Returns array of result objects.
+function decodeToken(token, fmt) {
+  const t = token.trim();
+  if (!t) return [];
+
+  if (fmt === 'obdcode' || (fmt === 'auto' && OBD_CODE_RE.test(t))) {
+    if (!OBD_CODE_RE.test(t)) return [{ error: `"${t}" is not a valid OBD code (expected e.g. P0301).` }];
+    return [decodeObdCodeStr(t.toUpperCase())];
+  }
+
+  const bytes = parseHexBytes(t);
+  if (!bytes) return [{ error: `Could not parse "${t}" as a code or hex bytes.` }];
+
+  if (fmt === 'obd') {
+    if (bytes.length !== 2) return [{ error: `OBD bytes format needs exactly 2 bytes (got ${bytes.length}).` }];
+    return [decodeObdBytes(bytes[0], bytes[1])];
+  }
+  if (fmt === 'uds') {
+    if (bytes.length < 3) return [{ error: `UDS DTC needs 3 bytes (+ optional status).` }];
+    return [decodeUds(bytes[0], bytes[1], bytes[2], bytes.length >= 4 ? bytes[3] : undefined)];
+  }
+  if (fmt === 'j1939') {
+    if (bytes.length !== 4) return [{ error: `J1939 record needs exactly 4 bytes (got ${bytes.length}).` }];
+    return [decodeJ1939(bytes[0], bytes[1], bytes[2], bytes[3])];
+  }
+
+  // ── Auto-detect by byte count ──
+  if (bytes.length === 2) return [decodeObdBytes(bytes[0], bytes[1])];
+  if (bytes.length === 3) return [decodeUds(bytes[0], bytes[1], bytes[2])];
+  if (bytes.length === 4) {
+    // Ambiguous: UDS DTC + status  OR  J1939 record. Show both.
+    return [
+      decodeUds(bytes[0], bytes[1], bytes[2], bytes[3]),
+      decodeJ1939(bytes[0], bytes[1], bytes[2], bytes[3]),
+    ];
+  }
+  if (bytes.length >= 4 && bytes.length % 4 === 0) {
+    // A run of J1939 DM records.
+    const out = [];
+    for (let i = 0; i + 3 < bytes.length; i += 4) out.push(decodeJ1939(bytes[i], bytes[i+1], bytes[i+2], bytes[i+3]));
+    return out;
+  }
+  return [{ error: `Auto-detect: ${bytes.length} bytes is ambiguous. Pick a format explicitly.` }];
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function fieldRow(k, v, isNote) {
+  return `<div class="field-row"><span class="k">${esc(k)}</span><span class="v${isNote?' note':''}">${v}</span></div>`;
+}
+
+function descBlock(r) {
+  if (r.desc) return `<div class="desc">${esc(r.desc)}</div>`;
+  if (r.mfr) return `<div class="desc missing">Manufacturer-specific code — no generic SAE description. Structural decode shown below.</div>`;
+  return `<div class="desc missing">No description on file — structural decode shown below.</div>`;
+}
+
+function badge(r) {
+  if (r.mfr) return `<span class="badge mfr">Manufacturer-specific</span>`;
+  return `<span class="badge generic">Generic (SAE)</span>`;
+}
+
+function cardObd(r) {
+  return `<div class="card">
+    <div class="card-tag">OBD-II · SAE J2012 (2-byte)</div>
+    <div class="bigcode">${esc(r.code)}${badge(r)}</div>
+    ${descBlock(r)}
+    <div class="fields">
+      ${fieldRow('Raw bytes', r.bytes.map(b=>hx(b)).join(' '))}
+      ${fieldRow('System', `${r.code[0]} — ${esc(r.letterName)}`)}
+      ${fieldRow('First digit', `${r.firstDigit} — ${r.mfr ? 'manufacturer-specific' : 'generic (SAE/ISO controlled)'}`)}
+      ${fieldRow('Fault number', r.code.slice(2))}
+    </div>
+  </div>`;
+}
+
+function cardUds(r) {
+  const a = r.bytes[0];
+  let statusHtml = '';
+  if (r.statusList) {
+    const bits = r.statusList.map((s, i) =>
+      `<span class="bit ${s.on?'on':''}" title="${esc(s.name)}">b${i}</span>`).reverse().join('');
+    const onNames = r.statusList.filter(s=>s.on).map(s=>s.name);
+    statusHtml = `<div class="fields">
+      ${fieldRow('Status byte', hx(r.status))}
+      <div class="bits">${bits}</div>
+      <div class="statuslist">${
+        r.statusList.map(s=>`<span class="${s.on?'on':''}">${s.on?'✓':'·'} ${esc(s.name)}</span>`).join('<br>')
+      }</div>
+      ${onNames.length===0 ? '<div class="statuslist">No status bits set.</div>' : ''}
+    </div>`;
+  }
+  return `<div class="card">
+    <div class="card-tag">UDS · ISO 14229 (3-byte DTC${r.status!==null?' + status':''})</div>
+    <div class="bigcode">${esc(r.code)}${badge(r)}</div>
+    <div class="desc" style="font-family:var(--mono);font-size:13px;color:var(--text2)">Full DTC: ${esc(r.fullCode)}</div>
+    ${descBlock(r)}
+    <div class="fields">
+      ${fieldRow('DTC bytes', r.bytes.map(b=>hx(b)).join(' '))}
+      ${fieldRow('System', `${r.fullCode[0]} — ${esc(r.letterName)}`)}
+      ${fieldRow('OBD-style code', esc(r.code))}
+      ${fieldRow('Failure type (byte 3)', hx(r.failureType))}
+    </div>
+    ${statusHtml}
+  </div>`;
+}
+
+function cardJ1939(r) {
+  return `<div class="card">
+    <div class="card-tag">J1939 · DM1/DM2 record (4-byte SPN+FMI)</div>
+    <div class="bigcode j1939">SPN ${r.spn} · FMI ${r.fmi}</div>
+    <div class="desc">${esc(r.fmiDesc)}${r.spnName ? ` — <span style="color:var(--text2)">${esc(r.spnName)}</span>` : ''}</div>
+    <div class="fields">
+      ${fieldRow('Record bytes', r.bytes.map(b=>hx(b)).join(' '))}
+      ${fieldRow('SPN (Suspect Parameter)', `${r.spn}${r.spnName ? '' : '  (name proprietary — not in DB)'}`, !r.spnName)}
+      ${fieldRow('FMI (Failure Mode)', `${r.fmi} — ${esc(r.fmiDesc)}`)}
+      ${fieldRow('Occurrence count', String(r.oc))}
+      ${fieldRow('Conversion method (CM)', String(r.cm))}
+    </div>
+  </div>`;
+}
+
+function renderResult(r, dual) {
+  if (r.error) return `<div class="err">${esc(r.error)}</div>`;
+  let html;
+  if (r.kind === 'obd') html = cardObd(r);
+  else if (r.kind === 'uds') html = cardUds(r);
+  else if (r.kind === 'j1939') html = cardJ1939(r);
+  else return '';
+  if (dual) html = html.replace('<div class="card">', '<div class="card dual">');
+  return html;
+}
+
+function decode() {
+  const raw = document.getElementById('dtcInput').value;
+  const fmt = document.getElementById('fmtSel').value;
+  const out = document.getElementById('results');
+  const tokens = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (!tokens.length) { out.innerHTML = ''; return; }
+
+  let html = '';
+  for (const tok of tokens) {
+    const results = decodeToken(tok, fmt);
+    const dual = results.length > 1 && !results.some(r => r.error);
+    if (dual) html += `<div class="card-tag" style="margin-top:6px">"${esc(tok)}" — 4 bytes is ambiguous; both interpretations:</div>`;
+    for (const r of results) html += renderResult(r, dual);
+  }
+  out.innerHTML = html;
+}
+
+// ── URL prefill (?q=P0301  ·  ?bytes=01+90+12+2F&fmt=uds) ─────────────────────
+(function prefill() {
+  const p = new URLSearchParams(location.search);
+  const q = p.get('q');
+  const bytes = p.get('bytes');
+  const fmt = p.get('fmt');
+  if (fmt) {
+    const sel = document.getElementById('fmtSel');
+    if ([...sel.options].some(o => o.value === fmt)) sel.value = fmt;
+  }
+  const val = q || bytes;
+  if (val) {
+    document.getElementById('dtcInput').value = val;
+    decode();
+  }
+})();
+
+document.getElementById('dtcInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') decode();
+});
+</script>
+</body>
+</html>

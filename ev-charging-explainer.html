@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Charging Explainer — J1772, ISO 15118, CHAdeMO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose h3 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+.warn strong { color: var(--amber); }
+
+/* Frame byte strips */
+.frame { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-family: var(--mono); }
+.cell { min-width: 38px; text-align: center; padding: 6px 4px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.cell small { display: block; font-size: 9px; color: var(--text3); margin-top: 2px; }
+.cell.id   { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.cell.proto{ background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.cell.data { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.cell.flag { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.lane { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+
+/* bus badge */
+.bus { display:inline-block; padding:2px 8px; border-radius:5px; font-size:11px; font-weight:600; font-family:var(--sans); }
+.bus.can { background: var(--green-dim); color: var(--green); }
+.bus.nocan { background: var(--red-dim); color: var(--red); }
+
+/* PWM diagram */
+.pwm { display:flex; align-items:flex-end; height:60px; gap:0; margin:8px 0; }
+.pwm .hi { background: var(--green); width:34px; height:60px; }
+.pwm .lo { background: var(--bg3); width:14px; height:60px; align-self:flex-start; }
+
+/* state pills */
+.states { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.pill { padding:5px 11px; border-radius:14px; font-size:12px; background:var(--bg2); border:1px solid var(--border); }
+.pill .k { color: var(--blue); font-weight:600; font-family:var(--mono); }
+.arrow { color: var(--text3); align-self:center; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 1L3 9h4l-1 6 7-9H9l1-5z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">EV Charging Explainer</div>
+      <div class="logo-sub">J1772 · ISO 15118 · CHAdeMO</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>How EV charging talks — and what's on CAN</h1>
+  <p class="lede">
+    People lump "EV charging protocols" together, but they live on completely different
+    wires. Only <strong>one of the three</strong> — CHAdeMO — puts decodable traffic on a
+    CAN bus. This page explains all three so you know why a CAN adapter sees CHAdeMO and
+    nothing else.
+  </p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Protocol</th><th>What it is</th><th>Physical layer</th><th>On CAN?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>SAE J1772</strong></td><td>AC connector + pilot signaling</td><td>Analog PWM on Control Pilot</td><td><span class="bus nocan">No</span></td></tr>
+        <tr><td><strong>ISO 15118</strong></td><td>"V2G" smart / Plug &amp; Charge</td><td>PLC (HomePlug GP) over CP line</td><td><span class="bus nocan">No</span></td></tr>
+        <tr><td><strong>CHAdeMO</strong></td><td>DC fast charging</td><td>Dedicated 500 kbit/s CAN</td><td><span class="bus can">Yes</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ─────────────────────────── J1772 ─────────────────────────── -->
+  <h2>SAE J1772 — analog pilot signaling <span class="bus nocan">not CAN</span></h2>
+  <p>
+    J1772 (the "J-plug") is the North-American AC connector. The charging conversation
+    isn't digital messaging at all — it's two <strong>analog</strong> wires:
+  </p>
+  <ul>
+    <li><strong>Control Pilot (CP)</strong> — a <strong>1 kHz square wave</strong> from the
+      charger (EVSE). Its <strong>duty cycle encodes the available current</strong>, and the
+      car pulls the CP voltage down through a diode + resistor to announce its state.</li>
+    <li><strong>Proximity Pilot (PP)</strong> — a resistor ladder that tells the car a plug
+      is seated and, on portable cords, the cable's current rating.</li>
+  </ul>
+
+  <h3>Control Pilot duty cycle → amps</h3>
+  <p>For most of the range the rule is linear: <code>available A = duty% × 0.6</code>.
+    Above 85% it switches to a stepped high-power encoding.</p>
+  <div class="lane">CP — 1 kHz, ~50% duty ≈ 30 A available</div>
+  <div class="pwm">
+    <div class="hi"></div><div class="lo"></div>
+    <div class="hi"></div><div class="lo"></div>
+    <div class="hi"></div><div class="lo"></div>
+    <div class="hi"></div><div class="lo"></div>
+  </div>
+  <table>
+    <thead><tr><th>Duty cycle</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">10% – 85%</td><td>Available current = duty × 0.6 A (e.g. 50% → 30 A)</td></tr>
+      <tr><td class="mono">5%</td><td>Digital communication required (ISO 15118 / DIN handshake)</td></tr>
+      <tr><td class="mono">100% (steady +12 V)</td><td>No charging allowed / not ready</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Pilot states (CP voltage set by the car)</h3>
+  <div class="states">
+    <span class="pill"><span class="k">A</span> 12 V — not connected</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">B</span> 9 V — connected, not ready</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">C</span> 6 V — charging</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">D</span> 3 V — charging, ventilation</span>
+  </div>
+  <p class="note warn"><strong>Why a CAN tap sees nothing:</strong> the entire J1772
+    handshake is voltage levels and a PWM duty cycle on two analog pins. There are no CAN
+    frames — you'd need an oscilloscope on CP/PP, not a CAN adapter.</p>
+
+  <!-- ─────────────────────────── ISO 15118 ─────────────────────────── -->
+  <h2>ISO 15118 — "V2G" smart charging <span class="bus nocan">not CAN</span></h2>
+  <p>
+    ISO 15118 is the digital layer behind <strong>Plug &amp; Charge</strong> (the car
+    authenticates and bills automatically) and high-power DC under CCS. It reuses J1772's
+    CP wire, but instead of a simple PWM it runs a full networking stack <em>through</em>
+    that wire:
+  </p>
+  <ul>
+    <li><strong>SLAC</strong> — Signal-Level Attenuation Characterization pairs the car to
+      the right charger over the CP line.</li>
+    <li><strong>HomePlug Green PHY (PLC)</strong> — power-line communication modulates a
+      high-frequency carrier onto CP. This is the physical layer — <em>not</em> CAN.</li>
+    <li><strong>IPv6 / TCP / TLS</strong> — a real IP stack rides the PLC link.</li>
+    <li><strong>EXI-encoded XML</strong> — the application messages (SessionSetup,
+      ServiceDiscovery, charge loop, certificates) are XML, binary-packed with EXI.</li>
+  </ul>
+  <div class="card">
+    <div class="lane">ISO 15118 stack — top to bottom</div>
+    <div class="frame">
+      <div class="cell data" style="min-width:120px">EXI XML app msgs<small>SessionSetup…</small></div>
+      <div class="cell flag" style="min-width:90px">TLS / TCP<small>Plug &amp; Charge certs</small></div>
+      <div class="cell id" style="min-width:80px">IPv6<small>link-local</small></div>
+      <div class="cell proto" style="min-width:130px">HomePlug Green PHY<small>PLC over CP wire</small></div>
+    </div>
+  </div>
+  <p class="note warn"><strong>Why a CAN tap sees nothing:</strong> ISO 15118 is Ethernet-
+    over-powerline with IPv6 and TLS on top. It never touches the vehicle CAN bus, so a CAN
+    adapter can't decode it. Sniffing it needs a Green PHY / HomePlug interface.</p>
+
+  <!-- ─────────────────────────── CHAdeMO ─────────────────────────── -->
+  <h2>CHAdeMO — DC fast charging <span class="bus can">on CAN</span></h2>
+  <p>
+    CHAdeMO is the one that puts real, decodable traffic on a CAN bus. The DC charge
+    connector carries its <strong>own dedicated CAN at 500 kbit/s</strong>, separate from
+    the vehicle's main bus, using fixed <strong>11-bit</strong> IDs. The car and charger
+    negotiate limits, then trade dynamic status every <strong>~100 ms</strong> while
+    current flows.
+  </p>
+
+  <div class="card">
+    <div class="lane">Vehicle → Charger 0x102 (sent ~10×/s during charging)</div>
+    <div class="frame">
+      <div class="cell proto">02<small>proto#</small></div>
+      <div class="cell data">3D 01<small>target V (LE)</small></div>
+      <div class="cell data">78<small>req A</small></div>
+      <div class="cell flag">00<small>faults</small></div>
+      <div class="cell flag">01<small>status</small></div>
+      <div class="cell data">32<small>SoC %</small></div>
+      <div class="cell">00<small>—</small></div>
+    </div>
+    <div class="lane">Charger → Vehicle 0x109 (sent ~10×/s during charging)</div>
+    <div class="frame">
+      <div class="cell proto">02<small>proto#</small></div>
+      <div class="cell data">3B 01<small>present V (LE)</small></div>
+      <div class="cell data">77<small>present A</small></div>
+      <div class="cell">00<small>—</small></div>
+      <div class="cell flag">05<small>status</small></div>
+      <div class="cell data">00<small>rem 10s</small></div>
+      <div class="cell data">14<small>rem min</small></div>
+    </div>
+  </div>
+
+  <h3>The message set</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Dir</th><th>Message</th><th>Key fields</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">0x100</td><td>V→C</td><td>Capability</td><td>max battery voltage, charged-rate reference</td></tr>
+      <tr><td class="mono">0x101</td><td>V→C</td><td>Charging time</td><td>max / estimated time, battery capacity</td></tr>
+      <tr><td class="mono">0x102</td><td>V→C</td><td>Session (dynamic)</td><td>proto#, target V, requested A, faults, status, SoC</td></tr>
+      <tr><td class="mono">0x108</td><td>C→V</td><td>Available output</td><td>available V / A, threshold V</td></tr>
+      <tr><td class="mono">0x109</td><td>C→V</td><td>Status (dynamic)</td><td>proto#, present V / A, status, remaining time</td></tr>
+      <tr><td class="mono">0x118, 0x200–0x209</td><td>both</td><td>Discharge / V2X (v2.0)</td><td>bidirectional — name + raw only here</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The exchange</h3>
+  <div class="states">
+    <span class="pill"><span class="k">1</span> Capability (0x100/0x101 ↔ 0x108)</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">2</span> Charging loop (0x102/0x109 @ 100 ms)</span>
+    <span class="arrow">→</span>
+    <span class="pill"><span class="k">3</span> Stop (normal-stop / stop-control bit)</span>
+  </div>
+
+  <h3>Fault &amp; status bitfields</h3>
+  <p>The dynamic messages each carry a status byte the tab renders as labeled chips:</p>
+  <ul>
+    <li><strong>0x102 byte 4 — vehicle faults:</strong> battery over/under-voltage, current
+      deviation, over-temperature, voltage deviation.</li>
+    <li><strong>0x102 byte 5 — vehicle status:</strong> charging-enabled, shift position,
+      vehicle fault, contactor open, normal-stop request.</li>
+    <li><strong>0x109 byte 5 — charger status:</strong> charging, charger malfunction,
+      connector locked, battery incompatible, charging-system malfunction, stop control.</li>
+  </ul>
+  <p class="note"><strong>Revision drift:</strong> CHAdeMO 0.9 / 1.0 / 2.0 shuffle a few
+    bytes. The <strong>CHAdeMO tab</strong> decodes the stable fields, always surfaces the
+    protocol-number byte so you know which revision you're watching, and shows the rest raw.
+    Tap the charge connector's dedicated bus (500k) — not the vehicle's main bus — and click
+    <strong>Demo session</strong> to replay a full handshake + charging ramp with no hardware.</p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('isotp-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

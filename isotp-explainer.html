@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISO-TP Interactive Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #141720;
+  --bg3:       #1c2030;
+  --border:    #2a2f3f;
+  --border2:   #3a4060;
+  --text:      #e2e8f0;
+  --text2:     #8892a4;
+  --text3:     #4a5568;
+  --green:     #00e87a;
+  --green-dim: #00e87a22;
+  --amber:     #f59e0b;
+  --amber-dim: #f59e0b22;
+  --red:       #f87171;
+  --red-dim:   #f8717122;
+  --blue:      #60a5fa;
+  --blue-dim:  #60a5fa18;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f5f5f5;
+  --bg2:       #ffffff;
+  --bg3:       #ebebeb;
+  --border:    #d4d4d4;
+  --border2:   #b5b5b5;
+  --text:      #1a1a1a;
+  --text2:     #444444;
+  --text3:     #888888;
+  --green:     #1d8c3e;
+  --green-dim: #1d8c3e14;
+  --amber:     #b45309;
+  --amber-dim: #b4530912;
+  --red:       #b91c1c;
+  --red-dim:   #b91c1c14;
+  --blue:      #1d4ed8;
+  --blue-dim:  #1d4ed810;
+  --purple:    #7c3aed;
+  --purple-dim:#7c3aed12;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+.toolbar-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.fc-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+input[type=text], input[type=number], select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+  transition: border-color .15s;
+}
+input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--border2); }
+input.invalid { border-color: var(--red) !important; background: var(--red-dim); }
+select { padding: 4px 6px; cursor: pointer; }
+input[type=text] { padding: 4px 7px; }
+input[type=number] { padding: 4px 6px; }
+textarea {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  padding: 8px 10px;
+  line-height: 1.6;
+  transition: border-color .15s;
+  min-height: calc(1.6em * 2 + 16px);
+  overflow: hidden;
+  width: 100%;
+  display: block;
+}
+textarea:focus { border-color: var(--border2); }
+.trim-warn {
+  display: none;
+  font-size: 12px;
+  color: var(--amber);
+  margin-top: 3px;
+}
+.sep { width: 1px; background: var(--border); align-self: stretch; flex-shrink: 0; }
+
+/* ── Layout ── */
+main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.config-strip {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.config-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.config-group { display: flex; align-items: center; gap: 6px; }
+.payload-row {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  gap: 16px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.payload-block { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 200px; }
+.payload-block label { font-size: 12px; color: var(--text2); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
+.payload-block .hint { font-size: 12px; color: var(--text3); }
+.diagram-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  display: flex;
+  justify-content: center;
+}
+.diagram-wrap {
+  width: 100%;
+  max-width: 1200px;
+}
+
+/* ── Ladder diagram ── */
+.ladder {
+  position: relative;
+  width: 100%;
+}
+.ladder-lanes {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+.lane-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  padding: 6px 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.lane-label span { font-family: var(--mono); color: var(--text); font-size: 12px; font-weight: 400; margin-left: 6px; }
+.ladder-body {
+  position: relative;
+  margin-top: 0;
+}
+.lane-line {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.lane-line.left  { left: 70px; }
+.lane-line.right { right: 70px; }
+.ladder-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 4px 0;
+  z-index: 1;
+}
+.ts-col {
+  width: 90px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  text-align: right;
+  padding-right: 10px;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+.arrow-area {
+  flex: 1;
+  position: relative;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.arrow-line {
+  position: absolute;
+  height: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.arrow-line.req  { background: var(--green); }
+.arrow-line.resp { background: var(--blue); }
+.arrow-line.fc   { background: var(--amber); }
+.arrow-line::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+.arrow-line.req::after      { right: -1px; border-left: 8px solid var(--green); }
+.arrow-line.resp::after     { left: -1px;  border-right: 8px solid var(--blue); }
+.arrow-line.fc::after       { left: -1px;  border-right: 8px solid var(--amber); }
+.arrow-line.fc.right::after { left: auto; right: -1px; border-right: none; border-left: 8px solid var(--amber); }
+
+.arrow-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -2px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--mono);
+}
+.arrow-label.req  { color: var(--green);  background: var(--green-dim); }
+.arrow-label.resp { color: var(--blue);   background: var(--blue-dim); }
+.arrow-label.fc   { color: var(--amber);  background: var(--amber-dim); }
+
+.frame-bytes {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text3);
+  white-space: nowrap;
+  letter-spacing: .04em;
+}
+
+/* ── Frame table ── */
+.frame-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 28px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.frame-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text3);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  font-family: var(--sans);
+}
+.frame-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+  vertical-align: top;
+}
+.frame-table tr:last-child td { border-bottom: none; }
+.frame-table td.ts   { color: var(--text3); font-size: 11px; white-space: nowrap; }
+.frame-table td.id   { color: var(--text); }
+.frame-table td.data { color: var(--text); letter-spacing: .06em; white-space: nowrap; }
+.frame-table td.type { font-weight: 500; white-space: nowrap; }
+.frame-table td.note { font-family: var(--sans); font-size: 12px; color: var(--text2); }
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.badge.req  { color: var(--green);  background: var(--green-dim); }
+.badge.resp { color: var(--blue);   background: var(--blue-dim); }
+.badge.fc   { color: var(--amber);  background: var(--amber-dim); }
+
+/* byte highlight in data column */
+.b-pci   { color: var(--amber); cursor: help; }
+.b-len   { color: var(--purple); cursor: help; }
+.b-data  { color: var(--text); cursor: help; }
+.b-pad   { color: var(--text3); cursor: help; }
+.b-addr  { color: var(--red); cursor: help; }
+
+/* hoverable byte highlight */
+[data-tip]:hover { text-decoration: underline dotted; }
+
+.empty-state {
+  text-align: center;
+  color: var(--text3);
+  font-size: 14px;
+  padding: 60px 0;
+  line-height: 2;
+}
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text3);
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.error-msg {
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  color: var(--red);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+/* ── Tooltip ── */
+#tip {
+  position: fixed;
+  z-index: 9999;
+  display: none;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--sans);
+  color: var(--text);
+  max-width: 340px;
+  line-height: 1.65;
+  pointer-events: none;
+  box-shadow: 0 8px 28px #0009;
+}
+#tip .tip-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+#tip .tip-row {
+  color: var(--text2);
+  font-size: 12px;
+}
+#tip .tip-mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+#tip .tip-dim { color: var(--text3); font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div id="tip"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <rect x="11" y="5" width="4" height="6" rx="1" fill="#000" opacity="0.8"/>
+        <path d="M5 8h6" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="8" r="1.5" fill="#000"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">ISO-TP Explainer</div>
+      <div class="logo-sub">Interactive Simulator</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-2016.html" target="_blank" class="btn" style="font-size:12px;white-space:nowrap">Learn about ISO 15765-2:2016 — extended frame sizes ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+  <!-- Config strip -->
+  <div class="config-strip">
+    <!-- Row 1: IDs + CAN + Addressing -->
+    <div class="config-row">
+      <div class="config-group">
+        <span class="toolbar-label">Tester Tx ID</span>
+        <input type="text" id="txId" value="7E1" maxlength="8" style="width:74px;font-family:var(--mono)" oninput="simulate()">
+      </div>
+      <div class="config-group">
+        <span class="toolbar-label">ECU Tx ID</span>
+        <input type="text" id="rxId" value="7E9" maxlength="8" style="width:74px;font-family:var(--mono)" oninput="simulate()">
+      </div>
+      <div class="config-group">
+        <span class="toolbar-label">CAN</span>
+        <select id="canType" onchange="simulate()">
+          <option value="std">STD (11-bit)</option>
+          <option value="ext">EXT (29-bit)</option>
+        </select>
+      </div>
+      <div class="config-group">
+        <span class="toolbar-label">Addressing</span>
+        <select id="addrMode" onchange="addrModeChanged()">
+          <option value="normal">Normal</option>
+          <option value="extended">Extended</option>
+        </select>
+      </div>
+      <div id="addrByteWrap" style="display:none" class="config-group">
+        <span class="toolbar-label">Addr byte</span>
+        <input type="text" id="addrByte" value="F1" maxlength="2" style="width:42px;font-family:var(--mono)" oninput="simulate()" title="Address byte prepended to each frame (Extended addressing)">
+      </div>
+    </div>
+
+    <!-- Row 2: FC params — Tester and ECU side by side -->
+    <div class="config-row" style="gap:16px">
+      <!-- Tester FC -->
+      <div style="display:flex;align-items:center;gap:10px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg3)">
+        <div style="border-right:1px solid var(--border);padding-right:10px;display:flex;flex-direction:column;gap:2px">
+          <span class="fc-section-label" style="color:var(--green)">Tester FC</span>
+          <span style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:.04em">hex, 00–FF</span>
+        </div>
+        <div class="config-group">
+          <span class="toolbar-label">Block size</span>
+          <input type="text" id="testerBlockSize" value="00" maxlength="2" style="width:42px;font-family:var(--mono)" title="Tester FC block size (hex) — how many CFs the ECU may send before waiting for another FC (00 = unlimited)" oninput="validateBlockSize('testerBlockSize');simulate()">
+        </div>
+        <div class="config-group">
+          <span class="toolbar-label">STmin</span>
+          <input type="text" id="testerStmin" value="00" maxlength="2" style="width:42px;font-family:var(--mono)" oninput="updateStminLabel('testerStmin','testerStminLabel');simulate()" title="ISO 15765-2: 00–7F = 0–127 ms, F1–F9 = 100–900 µs">
+          <span id="testerStminLabel" style="font-size:12px;color:var(--text2);white-space:nowrap">0 ms</span>
+        </div>
+        <div class="config-group">
+          <span class="toolbar-label">Padding</span>
+          <input type="text" id="testerPadding" placeholder="none" maxlength="2" style="width:50px;font-family:var(--mono)" title="Hex byte to pad Tester frames to 8 bytes (e.g. AA). Empty = no padding." oninput="simulate()">
+        </div>
+      </div>
+
+      <!-- ECU FC -->
+      <div style="display:flex;align-items:center;gap:10px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg3)">
+        <div style="border-right:1px solid var(--border);padding-right:10px;display:flex;flex-direction:column;gap:2px">
+          <span class="fc-section-label" style="color:var(--blue)">ECU FC</span>
+          <span style="font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:.04em">hex, 00–FF</span>
+        </div>
+        <div class="config-group">
+          <span class="toolbar-label">Block size</span>
+          <input type="text" id="ecuBlockSize" value="00" maxlength="2" style="width:42px;font-family:var(--mono)" title="ECU FC block size (hex) — how many CFs the Tester may send before waiting for another FC (00 = unlimited)" oninput="validateBlockSize('ecuBlockSize');simulate()">
+        </div>
+        <div class="config-group">
+          <span class="toolbar-label">STmin</span>
+          <input type="text" id="ecuStmin" value="00" maxlength="2" style="width:42px;font-family:var(--mono)" oninput="updateStminLabel('ecuStmin','ecuStminLabel');simulate()" title="ISO 15765-2: 00–7F = 0–127 ms, F1–F9 = 100–900 µs">
+          <span id="ecuStminLabel" style="font-size:12px;color:var(--text2);white-space:nowrap">0 ms</span>
+        </div>
+        <div class="config-group">
+          <span class="toolbar-label">Padding</span>
+          <input type="text" id="ecuPadding" placeholder="none" maxlength="2" style="width:50px;font-family:var(--mono)" title="Hex byte to pad ECU frames to 8 bytes (e.g. AA). Empty = no padding." oninput="simulate()">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payload inputs -->
+  <div class="payload-row">
+    <div class="payload-block">
+      <label>Request payload (Tester → ECU)</label>
+      <textarea id="reqPayload" placeholder="e.g.  22 F1 90  or  2E F1 90 AB CD EF 01 02 03 04 05 06 07 08" oninput="onPayloadInput(this,'reqLen','reqWarn');simulate()" onblur="fmtHexField(this);simulate()"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="hint" id="reqLen">0 bytes</span>
+        <span class="trim-warn" id="reqWarn"></span>
+      </div>
+    </div>
+    <div class="config-group" style="align-self:flex-start;padding-top:calc(1.6em * 4 + 8px + 16px)">
+      <span style="font-size:20px;color:var(--text3)">⇄</span>
+    </div>
+    <div class="payload-block">
+      <label>Response payload (ECU → Tester) <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+      <textarea id="respPayload" placeholder="e.g.  62 F1 90 31 32 33" oninput="onPayloadInput(this,'respLen','respWarn');simulate()" onblur="fmtHexField(this);simulate()"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="hint" id="respLen">0 bytes</span>
+        <span class="trim-warn" id="respWarn"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diagram area -->
+  <div class="diagram-area">
+    <div class="diagram-wrap">
+      <div id="output"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('isotp-explainer-theme', t);
+  applyTheme(t);
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const US_PER_BIT = 2;
+
+const DEFAULT_REQ  = '23 44 08 00 00 00 00 00 00 15';
+// ECU response: 63 followed by 01 02 03 ... 15
+const DEFAULT_RESP = (() => {
+  const b = ['63'];
+  for (let i = 1; i <= 0x15; i++) b.push(i.toString(16).toUpperCase().padStart(2, '0'));
+  return b.join(' ');
+})();
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(function init() {
+  const p = new URLSearchParams(location.search);
+  if (p.has('txId'))            document.getElementById('txId').value            = p.get('txId');
+  if (p.has('rxId'))            document.getElementById('rxId').value            = p.get('rxId');
+  if (p.has('canType'))         document.getElementById('canType').value         = p.get('canType');
+  if (p.has('addrMode'))        document.getElementById('addrMode').value        = p.get('addrMode');
+  if (p.has('addrByte'))        document.getElementById('addrByte').value        = p.get('addrByte');
+  if (p.has('testerBlockSize')) document.getElementById('testerBlockSize').value = p.get('testerBlockSize');
+  if (p.has('testerStmin'))     document.getElementById('testerStmin').value     = p.get('testerStmin');
+  if (p.has('testerPadding'))   document.getElementById('testerPadding').value   = p.get('testerPadding');
+  if (p.has('ecuBlockSize'))    document.getElementById('ecuBlockSize').value    = p.get('ecuBlockSize');
+  if (p.has('ecuStmin'))        document.getElementById('ecuStmin').value        = p.get('ecuStmin');
+  if (p.has('ecuPadding'))      document.getElementById('ecuPadding').value      = p.get('ecuPadding');
+  document.getElementById('reqPayload').value  = p.has('reqPayload')  ? p.get('reqPayload')  : DEFAULT_REQ;
+  document.getElementById('respPayload').value = p.has('respPayload') ? p.get('respPayload') : DEFAULT_RESP;
+  updateStminLabel('testerStmin', 'testerStminLabel');
+  updateStminLabel('ecuStmin', 'ecuStminLabel');
+  addrModeChanged();
+  // autoResize needs the DOM to be laid out; defer one frame
+  requestAnimationFrame(() => {
+    autoResize(document.getElementById('reqPayload'));
+    autoResize(document.getElementById('respPayload'));
+  });
+  const theme = p.get('theme') || localStorage.getItem('isotp-explainer-theme') || 'dark';
+  applyTheme(theme);
+  simulate();
+})();
+
+function addrModeChanged() {
+  const ext = document.getElementById('addrMode').value === 'extended';
+  document.getElementById('addrByteWrap').style.display = ext ? 'flex' : 'none';
+  simulate();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function parseHex(str) {
+  if (!str.trim()) return null;
+  const tokens = str.trim().split(/[\s,]+/).filter(Boolean);
+  const bytes = [];
+  for (const t of tokens) {
+    if (!/^[0-9a-fA-F]{1,2}$/.test(t)) return null;
+    bytes.push(parseInt(t, 16));
+  }
+  return bytes.length ? bytes : null;
+}
+
+function isValidHex2(str) {
+  if (!str.trim()) return true;
+  return /^[0-9a-fA-F]{1,2}$/.test(str.trim());
+}
+
+function isReservedStmin(val) {
+  return val >= 0x80 && val <= 0xF0;
+}
+
+// ISO 15765-2 STmin: 0x00–0x7F = 0–127 ms, 0xF1–0xF9 = 100–900 µs, others reserved
+function decodeStmin(hexStr) {
+  if (!isValidHex2(hexStr)) return { raw: 0, us: 0, label: 'invalid', invalid: true };
+  const v = parseInt(hexStr || '00', 16) & 0xFF;
+  if (v <= 0x7F) return { raw: v, us: v * 1000, label: v + ' ms' };
+  if (v >= 0xF1 && v <= 0xF9) { const us = (v - 0xF0) * 100; return { raw: v, us, label: us + ' µs' }; }
+  return { raw: v, us: 0, label: 'reserved (→ 0 ms)', reserved: true };
+}
+
+function updateStminLabel(inputId, labelId) {
+  const el = document.getElementById(inputId);
+  const labelEl = document.getElementById(labelId);
+  const val = el.value.trim();
+  const valid = isValidHex2(val);
+  el.classList.toggle('invalid', !valid);
+  if (!valid) {
+    labelEl.textContent = 'invalid';
+    labelEl.style.color = 'var(--red)';
+    return;
+  }
+  const d = decodeStmin(val || '00');
+  labelEl.textContent = d.label + (d.reserved ? ' ⚠' : '');
+  labelEl.style.color = d.reserved ? 'var(--amber)' : 'var(--text2)';
+}
+
+function validatePadding(inputId) {
+  const el = document.getElementById(inputId);
+  const valid = isValidHex2(el.value);
+  el.classList.toggle('invalid', !valid);
+  return valid;
+}
+
+function h2(v) { return v.toString(16).toUpperCase().padStart(2, '0'); }
+function h3(v) { return v.toString(16).toUpperCase().padStart(3, '0'); }
+function h8(v) { return v.toString(16).toUpperCase().padStart(8, '0'); }
+function fmtId(id, isExt) { return isExt ? h8(id) : h3(id); }
+
+function frameDurationUs(dlc, isExt) {
+  const overhead = isExt ? 67 : 55;
+  return (overhead + 8 * dlc) * US_PER_BIT;
+}
+
+function fmtTs(us) {
+  if (us < 1000) return us.toFixed(0) + ' µs';
+  if (us < 1000000) return (us / 1000).toFixed(3) + ' ms';
+  return (us / 1000000).toFixed(3) + ' s';
+}
+
+function padFrame(bytes, padByte, isExt) {
+  if (padByte === null || bytes.length >= 8) return bytes;
+  const out = [...bytes];
+  while (out.length < 8) out.push(padByte);
+  return out.slice(0, 8);
+}
+
+function validateBlockSize(inputId) {
+  const el = document.getElementById(inputId);
+  const valid = isValidHex2(el.value);
+  el.classList.toggle('invalid', !valid);
+  return valid;
+}
+
+function parseFcCfg(bsId, stminId, padId) {
+  const bsStr = document.getElementById(bsId).value.trim();
+  const bs = (isValidHex2(bsStr) && bsStr.length) ? (parseInt(bsStr, 16) & 0xFF) : 0;
+  const stminVal = document.getElementById(stminId).value.trim();
+  const stminDec = decodeStmin(stminVal || '00');
+  const padStr = document.getElementById(padId).value.trim();
+  const padByte = (padStr.length && isValidHex2(padStr)) ? (parseInt(padStr, 16) & 0xFF) : null;
+  return { bs, stmin: stminDec.raw, stminUs: stminDec.us, stminLabel: stminDec.label, padByte };
+}
+
+function cfg() {
+  const isExt   = document.getElementById('canType').value === 'ext';
+  const extAddr = document.getElementById('addrMode').value === 'extended';
+  const ab      = extAddr ? (parseInt(document.getElementById('addrByte').value || 'F1', 16) & 0xFF) : null;
+  const pfx     = extAddr ? [ab] : [];
+  const maxPl   = 8 - pfx.length;
+  const txId    = parseInt(document.getElementById('txId').value || '7E1', 16);
+  const rxId    = parseInt(document.getElementById('rxId').value || '7E9', 16);
+  const tester  = parseFcCfg('testerBlockSize', 'testerStmin', 'testerPadding');
+  const ecu     = parseFcCfg('ecuBlockSize', 'ecuStmin', 'ecuPadding');
+  return { isExt, extAddr, ab, pfx, maxPl, txId, rxId, tester, ecu };
+}
+
+// ── Build ISO-TP frame sequences ──────────────────────────────────────────────
+// padByte: this side's padding  |  receiverBS: the other side's FC block size
+function buildFrames(payload, dir, c, padByte, receiverBS) {
+  const { isExt, pfx, maxPl } = c;
+  const bs = receiverBS;
+  const frames = [];
+  const maxSF = maxPl - 1;
+  const maxFF = maxPl - 2;
+
+  function mkFrame(rawBytes, type, note, label, ctx) {
+    return { dir, type, data: padFrame(rawBytes, padByte, isExt),
+             note, label, raw: rawBytes, ctx: ctx || {} };
+  }
+
+  if (payload.length <= maxSF) {
+    frames.push(mkFrame(
+      [...pfx, payload.length, ...payload], 'SF',
+      `Single Frame — all ${payload.length} byte${payload.length !== 1 ? 's' : ''} fit in one CAN frame.`,
+      'SF',
+      { totalLen: payload.length, payloadOffset: 0 }
+    ));
+  } else {
+    const ffData = payload.slice(0, maxPl - 2);
+    frames.push(mkFrame(
+      [...pfx, 0x10 | ((payload.length >> 8) & 0x0F), payload.length & 0xFF, ...ffData],
+      'FF',
+      `First Frame — signals total length ${payload.length} bytes (0x${payload.length.toString(16).toUpperCase().padStart(3,'0')}).`,
+      'FF',
+      { totalLen: payload.length, payloadOffset: 0 }
+    ));
+
+    let seq = 1;
+    let offset = ffData.length;
+    let cfInBlock = 0;
+    const maxCF = maxPl - 1;
+
+    while (offset < payload.length) {
+      if (bs > 0 && cfInBlock === bs) {
+        frames.push({ dir: dir === 'req' ? 'fc' : 'fc', type: 'FC_NEEDED',
+                      data: [], note: '', label: '', _fcFor: dir });
+        cfInBlock = 0;
+      }
+      const chunk = payload.slice(offset, offset + maxCF);
+      frames.push(mkFrame(
+        [...pfx, 0x20 | (seq & 0x0F), ...chunk],
+        `CF${seq}`,
+        `Consecutive Frame #${seq} (SN=${seq & 0x0F})`,
+        `CF #${seq}`,
+        { totalLen: payload.length, payloadOffset: offset, seqNum: seq }
+      ));
+      offset += chunk.length;
+      seq++;
+      cfInBlock++;
+    }
+  }
+  return frames;
+}
+
+// ── Compute timestamps for full exchange ──────────────────────────────────────
+function computeTimeline(reqFrames, respFrames, c) {
+  const { isExt } = c;
+
+  function mkFC(id, isTesterSending) {
+    const fc = isTesterSending ? c.tester : c.ecu;
+    const { bs, stmin, stminLabel, padByte } = fc;
+    const rawBytes = [...(c.pfx.length ? [c.ab] : []), 0x30, bs, stmin];
+    const data = padFrame(rawBytes, padByte, isExt);
+    const who = isTesterSending ? 'Tester' : 'ECU';
+    return {
+      dir: 'fc', type: 'FC',
+      data, raw: rawBytes,
+      note: `Flow Control (ContinueToSend) from ${who} — Block Size=${bs}, STmin=0x${h2(stmin)} (${stminLabel})`,
+      label: isTesterSending ? 'FC (Tester)' : 'FC (ECU)',
+      id,
+      _testerFC: isTesterSending,
+      ctx: { fcBS: bs, fcStmin: stmin, fcStminLabel: stminLabel, fcSender: who }
+    };
+  }
+
+  const events = [];
+  let t = 0;
+
+  // ── Request frames ──
+  let reqIdx = 0;
+  let firstFF = true;
+  while (reqIdx < reqFrames.length) {
+    const f = reqFrames[reqIdx];
+    if (f.type === 'FC_NEEDED') {
+      const ev = { ...mkFC(c.rxId, false), ts: t };
+      events.push(ev);
+      t += frameDurationUs(ev.data.length, isExt) + 500;
+      reqIdx++;
+      continue;
+    }
+    events.push({ ...f, ts: t, id: c.txId });
+    t += frameDurationUs(f.data.length || f.raw.length, isExt);
+    if (f.type === 'FF' && firstFF) {
+      firstFF = false;
+      t += 600;
+      const ev = { ...mkFC(c.rxId, false), ts: t };
+      events.push(ev);
+      t += frameDurationUs(ev.data.length, isExt) + 300;
+    }
+    if (f.type !== 'SF' && f.type !== 'FF' && c.ecu.stminUs > 0) t += c.ecu.stminUs;
+    t += 200;
+    reqIdx++;
+  }
+
+  if (respFrames.length === 0) return events;
+
+  t += 2000;
+
+  // ── Response frames ──
+  let needInitFC = respFrames.some(f => f.type === 'FF');
+  for (let i = 0; i < respFrames.length; i++) {
+    const f = respFrames[i];
+    if (f.type === 'FC_NEEDED') {
+      const ev = { ...mkFC(c.txId, true), ts: t };
+      events.push(ev);
+      t += frameDurationUs(ev.data.length, isExt) + 500;
+      continue;
+    }
+    if (needInitFC && f.type === 'FF') {
+      events.push({ ...f, ts: t, id: c.rxId });
+      t += frameDurationUs(f.data.length, isExt) + 600;
+      const ev = { ...mkFC(c.txId, true), ts: t };
+      events.push(ev);
+      t += frameDurationUs(ev.data.length, isExt) + 300;
+      needInitFC = false;
+      continue;
+    }
+    events.push({ ...f, ts: t, id: c.rxId });
+    t += frameDurationUs(f.data.length, isExt);
+    if (f.type !== 'SF' && f.type !== 'FF' && c.tester.stminUs > 0) t += c.tester.stminUs;
+    t += 200;
+  }
+
+  return events;
+}
+
+// ── Tooltip helpers ───────────────────────────────────────────────────────────
+function escAttr(s) { return s.replace(/"/g, '&quot;'); }
+
+function tipSpan(cls, val, tipHtml) {
+  return `<span class="${cls}" data-tip="${escAttr(tipHtml)}">${h2(val)}</span>`;
+}
+
+function tipAddrByte(val) {
+  return `<div class="tip-title" style="color:var(--red)">Extended Address Byte</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row" style="margin-top:4px">Prepended to every CAN frame in Extended Addressing mode. Identifies the target node — useful when multiple ECUs share the same CAN ID.</div>`;
+}
+
+function tipSfPci(val) {
+  const dl = val & 0x0F;
+  return `<div class="tip-title" style="color:var(--amber)">Single Frame PCI byte (header)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row">Upper nibble <span class="tip-mono">0x0</span> → frame type: <b>Single Frame</b></div>` +
+    `<div class="tip-row">Lower nibble <span class="tip-mono">0x${dl.toString(16).toUpperCase()}</span> → payload length: <b>${dl} byte${dl !== 1 ? 's' : ''}</b></div>` +
+    `<div class="tip-row" style="margin-top:4px;color:var(--text3)">The complete message fits in this one CAN frame. No further frames needed.</div>`;
+}
+
+function tipFfPci1(val, totalLen) {
+  const hi = val & 0x0F;
+  return `<div class="tip-title" style="color:var(--amber)">First Frame PCI byte 1 (header)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row">Upper nibble <span class="tip-mono">0x1</span> → frame type: <b>First Frame</b></div>` +
+    `<div class="tip-row">Lower nibble <span class="tip-mono">0x${hi.toString(16).toUpperCase()}</span> → high bits of total length</div>` +
+    `<div class="tip-row">Total message length: <b>${totalLen} bytes</b> (0x${totalLen.toString(16).toUpperCase().padStart(3,'0')})</div>` +
+    `<div class="tip-row" style="margin-top:4px;color:var(--text3)">The receiver must reply with a Flow Control frame before Consecutive Frames may arrive.</div>`;
+}
+
+function tipFfPci2(val, totalLen) {
+  return `<div class="tip-title" style="color:var(--amber)">First Frame PCI byte 2 (header)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row">Low byte of total message length</div>` +
+    `<div class="tip-row">Together with the previous byte: total length = <b>${totalLen} bytes</b></div>`;
+}
+
+function tipCfPci(val, seqNum, payloadOffset, chunkLen, totalLen) {
+  const sn = val & 0x0F;
+  const end = payloadOffset + chunkLen - 1;
+  return `<div class="tip-title" style="color:var(--amber)">Consecutive Frame PCI byte (header)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row">Upper nibble <span class="tip-mono">0x2</span> → frame type: <b>Consecutive Frame</b></div>` +
+    `<div class="tip-row">Lower nibble <span class="tip-mono">0x${sn.toString(16).toUpperCase()}</span> → Sequence Number <b>SN=${sn}</b> (wraps 0–15)</div>` +
+    `<div class="tip-row">This is CF #${seqNum}, carrying message bytes [${payloadOffset}–${end}] of ${totalLen}</div>`;
+}
+
+function tipFcPci(val) {
+  const fs = val & 0x0F;
+  const fsNames = { 0: 'ContinueToSend', 1: 'Wait', 2: 'Overflow/Abort' };
+  return `<div class="tip-title" style="color:var(--amber)">Flow Control PCI byte (header)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row">Upper nibble <span class="tip-mono">0x3</span> → frame type: <b>Flow Control</b></div>` +
+    `<div class="tip-row">Lower nibble <span class="tip-mono">0x${fs}</span> → Flow Status: <b>${fsNames[fs] || 'unknown'}</b></div>` +
+    `<div class="tip-row" style="margin-top:4px;color:var(--text3)">Tells the sender whether it may continue (0), must wait (1), or abort (2).</div>`;
+}
+
+function tipFcBS(val, ctx) {
+  const none = val === 0;
+  return `<div class="tip-title" style="color:var(--purple)">Block Size (BS)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span> = ${val} decimal</div>` +
+    `<div class="tip-row" style="margin-top:4px">${none
+      ? 'BS = 0x00 means the sender may transmit <b>all remaining Consecutive Frames without stopping</b> for another FC.'
+      : `The sender must send at most <b>${val} (0x${h2(val)}) Consecutive Frame${val !== 1 ? 's' : ''}</b>, then wait for another Flow Control before continuing.`}</div>`;
+}
+
+function tipFcStmin(val, ctx) {
+  const d = decodeStmin(h2(val));
+  return `<div class="tip-title" style="color:var(--purple)">Separation Time minimum (STmin)</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span> → <b>${d.label}</b></div>` +
+    `<div class="tip-row" style="margin-top:4px">The sender must wait <b>at least ${d.label}</b> between sending Consecutive Frames.</div>` +
+    `<div class="tip-row" style="margin-top:4px;color:var(--text3)">0x00–0x7F = 0–127 ms &nbsp;|&nbsp; 0xF1–0xF9 = 100–900 µs &nbsp;|&nbsp; 0x80–0xF0 = reserved</div>`;
+}
+
+function tipDataByte(val, offset) {
+  return `<div class="tip-title">Payload data byte</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span> &nbsp;(${val} decimal, '${val >= 32 && val < 127 ? String.fromCharCode(val) : '·'}')</div>` +
+    `<div class="tip-row">Offset in message: byte <b>${offset}</b></div>`;
+}
+
+function tipPadByte(val) {
+  return `<div class="tip-title" style="color:var(--text3)">Padding byte</div>` +
+    `<div class="tip-row">Value: <span class="tip-mono">0x${h2(val)}</span></div>` +
+    `<div class="tip-row" style="margin-top:4px">Fills unused space in the CAN frame to reach 8 bytes. <b>Not part of the ISO-TP payload.</b></div>`;
+}
+
+// ── Render byte sequence with colour-coding and tooltips ──────────────────────
+// rawLen: number of significant (non-padding) bytes in the frame
+function fmtDataBytes(bytes, rawLen, extAddr, addrByte, ctx) {
+  let out = '';
+  let i = 0;
+  ctx = ctx || {};
+
+  if (extAddr && addrByte !== null) {
+    out += tipSpan('b-addr', bytes[i], tipAddrByte(bytes[i]));
+    i++;
+  }
+
+  if (i >= bytes.length) return out;
+
+  const pci = bytes[i];
+  const pciNibble = (pci >> 4) & 0x0F;
+
+  if (pciNibble === 0) {
+    // Single Frame
+    const dl = pci & 0x0F;
+    out += ' ' + tipSpan('b-pci', pci, tipSfPci(pci));
+    i++;
+    for (let j = 0; j < dl && i < rawLen; j++, i++)
+      out += ' ' + tipSpan('b-data', bytes[i], tipDataByte(bytes[i], (ctx.payloadOffset || 0) + j));
+  } else if (pciNibble === 1) {
+    // First Frame
+    const totalLen = ((pci & 0x0F) << 8) | bytes[i + 1];
+    out += ' ' + tipSpan('b-pci', pci, tipFfPci1(pci, totalLen));
+    i++;
+    out += ' ' + tipSpan('b-pci', bytes[i], tipFfPci2(bytes[i], totalLen));
+    i++;
+    let j = 0;
+    while (i < rawLen) {
+      out += ' ' + tipSpan('b-data', bytes[i], tipDataByte(bytes[i], (ctx.payloadOffset || 0) + j));
+      i++; j++;
+    }
+  } else if (pciNibble === 2) {
+    // Consecutive Frame
+    const sn = pci & 0x0F;
+    const chunkLen = rawLen - i - 1;
+    out += ' ' + tipSpan('b-pci', pci, tipCfPci(pci, ctx.seqNum || sn, ctx.payloadOffset || 0, chunkLen, ctx.totalLen || '?'));
+    i++;
+    let j = 0;
+    while (i < rawLen) {
+      out += ' ' + tipSpan('b-data', bytes[i], tipDataByte(bytes[i], (ctx.payloadOffset || 0) + j));
+      i++; j++;
+    }
+  } else if (pciNibble === 3) {
+    // Flow Control
+    out += ' ' + tipSpan('b-pci', bytes[i], tipFcPci(bytes[i])); i++;
+    if (i < rawLen) { out += ' ' + tipSpan('b-len', bytes[i], tipFcBS(bytes[i], ctx)); i++; }
+    if (i < rawLen) { out += ' ' + tipSpan('b-len', bytes[i], tipFcStmin(bytes[i], ctx)); i++; }
+  }
+
+  // Padding bytes (after rawLen)
+  while (i < bytes.length)
+    out += ' ' + tipSpan('b-pad', bytes[i], tipPadByte(bytes[i++]));
+
+  return out.trimStart();
+}
+
+// ── Payload auto-resize + trim ────────────────────────────────────────────────
+const ISOTP_MAX_BYTES = 4095;
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  const lineH = parseFloat(getComputedStyle(el).lineHeight) || 20.8;
+  const padV  = parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
+  const maxH  = lineH * 8 + padV;
+  el.style.height = Math.min(el.scrollHeight, maxH) + 'px';
+}
+
+function onPayloadInput(el, lenId, warnId) {
+  const warn = document.getElementById(warnId);
+  // Strip all whitespace then extract every run of hex chars as 2-char chunks.
+  // This correctly handles both space-separated ("AA BB CC") and packed ("AABBCC") input.
+  const raw    = el.value.replace(/\s+/g, '');
+  const chunks = raw.match(/[0-9a-fA-F]{2}/gi) || [];
+  if (chunks.length > ISOTP_MAX_BYTES) {
+    el.value = chunks.slice(0, ISOTP_MAX_BYTES).map(t => t.toUpperCase()).join(' ');
+    warn.textContent = `⚠ Trimmed to ${ISOTP_MAX_BYTES} bytes (ISO-TP classic CAN limit)`;
+    warn.style.display = 'inline';
+  } else {
+    warn.style.display = 'none';
+  }
+  autoResize(el);
+}
+
+// ── Main simulate ─────────────────────────────────────────────────────────────
+function fmtHexField(el) {
+  const clean = el.value.replace(/\s+/g, '');
+  if (!clean) return;
+  el.value = clean.match(/.{1,2}/g).join(' ').toUpperCase();
+  autoResize(el);
+}
+
+function simulate() {
+  // Validate inputs
+  validateBlockSize('testerBlockSize');
+  validateBlockSize('ecuBlockSize');
+  updateStminLabel('testerStmin', 'testerStminLabel');
+  updateStminLabel('ecuStmin', 'ecuStminLabel');
+  validatePadding('testerPadding');
+  validatePadding('ecuPadding');
+
+  const c = cfg();
+  const reqRaw  = parseHex(document.getElementById('reqPayload').value);
+  const respRaw = parseHex(document.getElementById('respPayload').value);
+
+  const reqLen  = reqRaw  ? reqRaw.length  : 0;
+  const respLen = respRaw ? respRaw.length : 0;
+  document.getElementById('reqLen').textContent  = reqLen  + (reqLen  === 1 ? ' byte' : ' bytes');
+  document.getElementById('respLen').textContent = respLen + (respLen === 1 ? ' byte' : ' bytes');
+
+  const out = document.getElementById('output');
+
+  if (!reqRaw && !respRaw) {
+    out.innerHTML = `<div class="empty-state">Enter a request payload above to see the ISO-TP frame breakdown.<br><span style="font-size:12px">Example: <code style="font-family:var(--mono);color:var(--text2)">22 F1 90</code> (3-byte request) or <code style="font-family:var(--mono);color:var(--text2)">2E F1 90 01 02 03 04 05 06 07 08 09 0A</code> (multi-frame)</span></div>`;
+    return;
+  }
+  if (reqRaw === null || (document.getElementById('respPayload').value.trim() && respRaw === null)) {
+    out.innerHTML = `<div class="error-msg">Invalid hex — use space-separated hex bytes like <code>22 F1 90</code></div>`;
+    return;
+  }
+
+  const reqFrames  = reqRaw  ? buildFrames(reqRaw,  'req',  c, c.tester.padByte, c.ecu.bs)    : [];
+  const respFrames = respRaw ? buildFrames(respRaw, 'resp', c, c.ecu.padByte,    c.tester.bs) : [];
+  const events = computeTimeline(reqFrames, respFrames, c);
+
+  // ── Ladder diagram ──
+  const txIdStr = fmtId(c.txId, c.isExt);
+  const rxIdStr = fmtId(c.rxId, c.isExt);
+
+  let ladder = `
+<div class="ladder">
+  <div class="ladder-lanes">
+    <div class="lane-label">Tester<span>${txIdStr}</span></div>
+    <div class="lane-label" style="text-align:right">ECU<span>${rxIdStr}</span></div>
+  </div>
+  <div class="ladder-body" style="padding-top:8px;padding-bottom:8px">
+    <div class="lane-line left"></div>
+    <div class="lane-line right"></div>`;
+
+  for (const ev of events) {
+    const isTesterFC = ev._testerFC;
+    const arrowCls   = ev.dir === 'fc' ? 'fc' : (ev.dir === 'req' ? 'req' : 'resp');
+    const finalCls   = isTesterFC ? 'fc' : arrowCls;
+    const rawLen     = ev.raw ? ev.raw.length : ev.data.length;
+    const bytesHtml  = ev.data.length ? fmtDataBytes(ev.data, rawLen, c.extAddr, c.ab, ev.ctx) : '';
+    const isReqDir   = ev.dir === 'req' || isTesterFC;
+
+    ladder += `
+    <div class="ladder-row">
+      <div class="ts-col">${fmtTs(ev.ts)}</div>
+      <div class="arrow-area">
+        <div class="arrow-line ${finalCls}${isTesterFC ? ' right' : ''}" style="left:4px;right:4px"></div>
+        <div class="arrow-label ${finalCls}">${ev.label}</div>
+        <div class="frame-bytes">${bytesHtml}</div>
+      </div>
+      <div style="width:90px;font-size:11px;padding-left:10px;color:var(--text3);font-family:var(--mono);line-height:1.3">${isReqDir ? '→ ECU' : '← Tester'}</div>
+    </div>`;
+  }
+
+  ladder += `
+  </div>
+</div>`;
+
+  // ── Frame table ──
+  let table = `
+<div class="section-title">CAN Frame Details</div>
+<table class="frame-table">
+  <thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>ID</th>
+      <th>DLC</th>
+      <th>Data</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>`;
+
+  for (const ev of events) {
+    const isTesterFC = ev._testerFC;
+    const badgeCls   = ev.dir === 'fc' ? 'fc' : (ev.dir === 'req' ? 'req' : 'resp');
+    const finalCls   = isTesterFC ? 'fc' : badgeCls;
+    const id         = ev.id !== undefined ? fmtId(ev.id, c.isExt) : '???';
+    const dlc        = ev.data.length;
+    const rawLen     = ev.raw ? ev.raw.length : ev.data.length;
+    const bytesHtml  = ev.data.length ? fmtDataBytes(ev.data, rawLen, c.extAddr, c.ab, ev.ctx) : '—';
+    table += `
+    <tr>
+      <td class="ts">${fmtTs(ev.ts)}</td>
+      <td class="id"><span style="font-family:var(--mono)">${id}</span></td>
+      <td class="ts">${dlc}</td>
+      <td class="data">${bytesHtml}</td>
+      <td class="type"><span class="badge ${finalCls}">${ev.label}</span></td>
+      <td class="note">${ev.note}</td>
+    </tr>`;
+  }
+
+  table += `</tbody></table>`;
+
+  // ── Legend ──
+  const legend = `
+<div style="margin-top:20px;display:flex;gap:16px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">
+    <span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--amber)"></span>PCI byte (header)
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">
+    <span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--purple)"></span>Length / control bytes
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">
+    <span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--text)"></span>Payload data
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">
+    <span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--red)"></span>Extended address byte
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">
+    <span style="display:inline-block;width:11px;height:11px;border-radius:2px;background:var(--text3)"></span>Padding
+  </div>
+  <div style="font-size:12px;color:var(--text3);margin-left:auto;align-self:center">Hover over any byte for details</div>
+</div>
+<div style="margin-top:8px;font-size:12px;color:var(--text3)">
+  <span>Timestamps are simulated at 500 kbps. STmin gaps are shown between Consecutive Frames when STmin &gt; 0.</span>
+</div>`;
+
+  out.innerHTML = ladder + table + legend;
+}
+
+// ── Tooltip event handling ────────────────────────────────────────────────────
+(function setupTooltip() {
+  const tip = document.getElementById('tip');
+  document.addEventListener('mousemove', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el) {
+      tip.innerHTML = el.getAttribute('data-tip');
+      tip.style.display = 'block';
+      // Position: to the right by default, flip left if near right edge
+      const x = e.clientX + 18;
+      const y = e.clientY + 12;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+      // After render, check if it overflows right
+      const rect = tip.getBoundingClientRect();
+      if (rect.right > window.innerWidth - 8) {
+        tip.style.left = (e.clientX - rect.width - 10) + 'px';
+      }
+      if (rect.bottom > window.innerHeight - 8) {
+        tip.style.top = (e.clientY - rect.height - 10) + 'px';
+      }
+    } else {
+      tip.style.display = 'none';
+    }
+  });
+})();
+</script>
+</body>
+</html>
