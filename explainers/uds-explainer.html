@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UDS / ISO 14229 Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 16px 0; }
+.node { flex: 1; min-width: 150px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; }
+.node .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); }
+.node .id { font-family: var(--mono); font-size: 16px; font-weight: 500; margin: 4px 0; }
+.node.req .id { color: var(--amber); }
+.node.rsp .id { color: var(--green); }
+.node .desc { font-size: 12px; color: var(--text2); }
+.arrow { display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 22px; }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+</style>
+</head>
+<body>
+<!-- remove from here -->
+<div style="background:#b00020;color:#fff;text-align:center;padding:10px;font-family:sans-serif;font-size:14px;font-weight:bold;">AI-generated text still pending human review/editing.</div>
+<!-- remove until here -->
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">UDS Explainer</div>
+      <div class="logo-sub">Unified Diagnostic Services · ISO 14229</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>UDS &amp; ISO 14229</h1>
+  <p class="lede">
+    Unified Diagnostic Services is the <strong>standard diagnostic language of modern
+    vehicles</strong>. It's what a dealer scan tool, a flashing tool, or an end-of-line
+    tester speaks to read fault codes, log data, run actuator tests, unlock security, and
+    reprogram ECUs. On CAN it rides the same <strong>ISO-TP</strong> (ISO 15765-2) transport
+    sloppyCAN already speaks. UDS just defines the application layer on top.
+  </p>
+
+  <h2>Request / response grammar</h2>
+  <p>
+    Every exchange follows the same convention. Learn it once and every service reads the same way:
+  </p>
+  <ul style="line-height:1.8;color:var(--text);margin:0 0 12px 22px">
+    <li>A <strong>request</strong> starts with a Service ID (SID) byte, e.g. <code>22 F1 90</code>.</li>
+    <li>A <strong>positive response</strong> echoes the SID <strong>+ 0x40</strong>, e.g. <code>62 F1 90 …</code>.</li>
+    <li>A <strong>negative response</strong> is always <code>7F &lt;sid&gt; &lt;nrc&gt;</code>.</li>
+    <li>NRC <code>0x78</code> "responsePending" means "still working, wait for the real answer." Handled automatically.</li>
+    <li>Many services take a <strong>sub-function</strong> byte; its top bit (<code>0x80</code>) is "suppress positive response".</li>
+  </ul>
+  <div class="flow">
+    <div class="node req">
+      <div class="tag">Tester → ECU</div>
+      <div class="id">22 F1 90</div>
+      <div class="desc">ReadDataByIdentifier, DID <code>0xF190</code> (VIN)</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node rsp">
+      <div class="tag">ECU → tester</div>
+      <div class="id">62 F1 90 …</div>
+      <div class="desc">positive response (<code>0x22 + 0x40</code>), DID echoed, then data</div>
+    </div>
+  </div>
+  <p class="note">
+    For the transport mechanics, how a long response splits into First Frame + Flow
+    Control + Consecutive Frames, see the
+    <a href="isotp-explainer.html" target="_blank" style="color:var(--blue)">ISO-TP Explainer</a>.
+  </p>
+
+  <h2>Services you'll actually use</h2>
+  <p>
+    There are dozens of services in ISO 14229, but a handful cover most day-to-day work. These
+    are exactly the buttons in sloppyCAN's UDS palette:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">SID</th><th>Service</th><th>What it does</th></tr>
+      <tr><td class="mono">10</td><td>DiagnosticSessionControl</td><td>Switch session: default / programming / <strong>extended</strong>. Unlocks the rest.</td></tr>
+      <tr><td class="mono">11</td><td>ECUReset</td><td>hardReset / keyOffOn / softReset.</td></tr>
+      <tr><td class="mono">19</td><td>ReadDTCInformation</td><td>Read fault codes by a sub-function + status mask.</td></tr>
+      <tr><td class="mono">22</td><td>ReadDataByIdentifier</td><td>Read a value by 16-bit DID (e.g. <code>F190</code> VIN).</td></tr>
+      <tr><td class="mono">14</td><td>ClearDiagnosticInformation</td><td>Clear DTCs for a group (<code>FFFFFF</code> = all).</td></tr>
+      <tr><td class="mono">27</td><td>SecurityAccess</td><td>Seed/key challenge to unlock protected services.</td></tr>
+      <tr><td class="mono">28</td><td>CommunicationControl</td><td>Enable/disable normal Rx/Tx messaging.</td></tr>
+      <tr><td class="mono">2E</td><td>WriteDataByIdentifier</td><td>Write a value by DID.</td></tr>
+      <tr><td class="mono">31</td><td>RoutineControl</td><td>Start / stop / get results of an on-ECU routine.</td></tr>
+      <tr><td class="mono">3E</td><td>TesterPresent</td><td>Heartbeat that keeps a non-default session alive.</td></tr>
+      <tr><td class="mono">85</td><td>ControlDTCSetting</td><td>Turn DTC logging on/off during a test.</td></tr>
+    </table>
+  </div>
+
+  <h2>Sessions &amp; security</h2>
+  <p>
+    At power-up an ECU is in the <strong>default session</strong>, where it answers only safe,
+    read-only requests. Anything intrusive, writing data, running actuators, flashing, first
+    needs an <strong>extended</strong> or <strong>programming</strong> session
+    (<code>10 03</code> / <code>10 02</code>), and usually a <strong>SecurityAccess</strong>
+    unlock (<code>27</code>). You request a seed, compute a key with the manufacturer's secret
+    algorithm, and send it back.
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">Step</th><th class="mono">Request</th><th>Meaning</th></tr>
+      <tr><td>1</td><td class="mono">10 03</td><td>Enter extended diagnostic session</td></tr>
+      <tr><td>2</td><td class="mono">27 01</td><td>SecurityAccess, request seed (response: <code>67 01 &lt;seed&gt;</code>)</td></tr>
+      <tr><td>3</td><td class="mono">27 02 &lt;key&gt;</td><td>Send computed key (response: <code>67 02</code> = unlocked)</td></tr>
+      <tr><td>4</td><td class="mono">2E F1 90 …</td><td>Now a protected WriteDataByIdentifier is accepted</td></tr>
+      <tr><td>5</td><td class="mono">3E 00</td><td>TesterPresent, keep the session alive while you work</td></tr>
+    </table>
+  </div>
+  <p class="note warn">
+    <strong>TesterPresent matters.</strong> If the tester goes quiet for the session timeout
+    (typically ~5 s), the ECU drops back to the default session and you lose your unlock, so
+    tools send <code>3E 00</code> on a heartbeat.
+  </p>
+
+  <h2>Negative response codes (NRCs)</h2>
+  <p>
+    When an ECU rejects a request it replies <code>7F &lt;sid&gt; &lt;nrc&gt;</code>. The most
+    common NRCs you'll meet:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">NRC</th><th>Name</th><th>Usually means</th></tr>
+      <tr><td class="mono">11</td><td>serviceNotSupported</td><td>This ECU doesn't implement that service</td></tr>
+      <tr><td class="mono">12</td><td>subFunctionNotSupported</td><td>Service exists, that sub-function doesn't</td></tr>
+      <tr><td class="mono">22</td><td>conditionsNotCorrect</td><td>Wrong session/state for this request</td></tr>
+      <tr><td class="mono">31</td><td>requestOutOfRange</td><td>Bad DID / parameter value</td></tr>
+      <tr><td class="mono">33</td><td>securityAccessDenied</td><td>Need a SecurityAccess unlock first</td></tr>
+      <tr><td class="mono">7E / 7F</td><td>…InActiveSession</td><td>Service/sub-function not allowed in the current session</td></tr>
+    </table>
+  </div>
+
+  <h2>Common diagnostic IDs</h2>
+  <p>
+    Most ECUs use a fixed pair of CAN IDs for diagnostics: one the tester transmits requests on, one the
+    ECU replies on. The exact numbers vary by OEM, but these are the conventions you'll see most often:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">Request ID</th><th class="mono">Response ID</th><th>Convention</th></tr>
+      <tr><td class="mono">7E0</td><td class="mono">7E8</td><td>OBD-II / UDS, ECU #1 (engine), classic "7E0-7E7 / 7E8-7EF" physical addressing range</td></tr>
+      <tr><td class="mono">7E1</td><td class="mono">7E9</td><td>ECU #2 (often transmission)</td></tr>
+      <tr><td class="mono">7DF</td><td class="mono">- (multiple)</td><td>OBD-II functional request, every ECU that supports the PID may answer</td></tr>
+      <tr><td class="mono">18DA xx F1</td><td class="mono">18DA F1 xx</td><td>Extended (29-bit) UDS addressing, <code>xx</code> is the ECU's source address</td></tr>
+    </table>
+  </div>
+  <p class="note">
+    These pairs are just convention, not part of the UDS standard itself. The actual IDs are configured per
+    ECU and per OEM. sloppyCAN's UDS palette defaults to <code>7E0</code>/<code>7E8</code>, but you can change
+    them to match the bus you're on.
+  </p>
+
+  <h2>Broadcast IDs and their limits</h2>
+  <p>
+    A few IDs are deliberately heard by every node on the bus instead of one. They're useful, but they come
+    with a catch: there's no single device to talk back to you.
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">ID</th><th>Standard</th><th>What it does</th><th>Limitation</th></tr>
+      <tr><td class="mono">7DF</td><td>OBD-II</td><td>Functional request, "whoever supports this PID, answer"</td><td>Multiple ECUs may all reply, staggered by the stack. Fine for polling, unusable for anything needing a single deterministic response</td></tr>
+      <tr><td class="mono">18DB33F1</td><td>UDS (extended)</td><td>Functional addressing equivalent of 7DF for 29-bit UDS</td><td>Same multi-responder problem; also can't carry a SecurityAccess-gated unlock meant for one ECU</td></tr>
+      <tr><td class="mono">0x00 / NM frames</td><td>J1939</td><td>Global destination address <code>0xFF</code> in the PDU, "all nodes," used for things like time/date broadcasts</td><td>No node can target an ACK back to the sender for a destination-specific reply; J1939 has no frame-level ACK at all, only application-level confirmations on point-to-point PGNs</td></tr>
+    </table>
+  </div>
+  <p class="note warn">
+    <strong>Broadcast isn't acknowledged.</strong> Both UDS functional requests and J1939 global PGNs are
+    fire-and-forget from the bus's point of view. There's no wired-AND ACK slot meaning "everyone got it,"
+    because a functional/global frame's whole point is that the sender doesn't know, or care, exactly who's
+    listening. If you need confirmation a specific ECU received something, address it physically
+    (UDS request ID, or a J1939 destination-specific PGN) and wait for its actual reply, not the CAN ACK bit.
+  </p>
+
+  <h2>UDS vs OBD-II vs KWP2000</h2>
+  <p>
+    All three ride ISO-TP on CAN. <strong>OBD-II</strong> (SAE J1979) is the legally-mandated,
+    emissions-only subset: fixed PIDs, no sessions, no security. <strong>KWP2000</strong>
+    (ISO 14230) is UDS's older cousin; same grammar, a few service IDs collide and mean
+    different things. <strong>UDS</strong> is the full modern toolbox. sloppyCAN switches
+    between all three from the protocol toggle on the ISO-TP tab.
+  </p>
+
+  <h2>Try it</h2>
+  <p>
+    On the ISO-TP tab select <strong>UDS</strong> and turn on <strong>Demo</strong>. The palette
+    buttons each transmit a real request. The ones with a <code>▾</code> caret open a small
+    panel where you pick a sub-function (e.g. session type) or type a hex argument (e.g. a DID),
+    then Send. A simulated ECU answers, and unknown services come back as
+    <code>7F &lt;sid&gt; 11</code> (serviceNotSupported). You can also type any hex into the
+    input directly, e.g. <code>22 F1 90</code> or <code>10 03</code>.
+  </p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+</script>
+</body>
+</html>
