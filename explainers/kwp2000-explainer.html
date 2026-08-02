@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KWP2000 / ISO 14230 Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 16px 0; }
+.node { flex: 1; min-width: 150px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; }
+.node .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); }
+.node .id { font-family: var(--mono); font-size: 16px; font-weight: 500; margin: 4px 0; }
+.node.req .id { color: var(--amber); }
+.node.rsp .id { color: var(--green); }
+.node .desc { font-size: 12px; color: var(--text2); }
+.arrow { display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 22px; }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+</style>
+</head>
+<body>
+<!-- remove from here -->
+<div style="background:#b00020;color:#fff;text-align:center;padding:10px;font-family:sans-serif;font-size:14px;font-weight:bold;">AI-generated text still pending human review/editing.</div>
+<!-- remove until here -->
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">KWP2000 Explainer</div>
+      <div class="logo-sub">Keyword Protocol 2000 · ISO 14230</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>KWP2000 &amp; ISO 14230</h1>
+  <p class="lede">
+    Keyword Protocol 2000 is <strong>UDS's direct ancestor</strong>, the diagnostic
+    language that ran on older ECUs (roughly mid-1990s to late-2000s) before ISO 14229
+    (UDS) standardised everything. On modern CAN vehicles you meet it as
+    <strong>KWP2000-on-CAN (ISO 15765-3)</strong>: the same ISO-TP transport sloppyCAN
+    already speaks, with a different set of service IDs and error codes on top.
+  </p>
+
+  <h2>Same ISO-TP Carrier</h2>
+  <p>
+    Originally KWP2000 ran over a K-line (ISO 14230 on ISO 9141 wiring). When the industry
+    moved to CAN, the application layer was re-hosted on <strong>ISO-TP</strong>
+    (ISO 15765-2), the same Single-Frame / First-Frame / Flow-Control / Consecutive-Frame
+    transport UDS uses. That is why sloppyCAN implements KWP2000 as a <em>mode of the
+    ISO-TP / UDS tab</em>, not a new transport: only the decode tables change.
+  </p>
+  <p class="note">
+    For the transport mechanics, how a long response splits into First Frame + Flow
+    Control + Consecutive Frames, see the
+    <a href="isotp-explainer.html" target="_blank" style="color:var(--blue)">ISO-TP Explainer</a>.
+  </p>
+
+  <h2>Same Conventions as UDS</h2>
+  <p>
+    The request/response grammar is identical to UDS, so if you know one you know the other:
+  </p>
+  <ul style="line-height:1.8;color:var(--text);margin:0 0 12px 22px">
+    <li>A <strong>request</strong> starts with a Service ID (SID) byte, e.g. <code>21 F0</code>.</li>
+    <li>A <strong>positive response</strong> echoes the SID <strong>+ 0x40</strong>, e.g. <code>61 F0 …</code>.</li>
+    <li>A <strong>negative response</strong> is always <code>7F &lt;sid&gt; &lt;nrc&gt;</code>.</li>
+    <li>NRC <code>0x78</code> "responsePending" means "still working, wait for the real answer," handled automatically.</li>
+  </ul>
+  <div class="flow">
+    <div class="node req">
+      <div class="tag">Tester → ECU</div>
+      <div class="id">21 F0</div>
+      <div class="desc">ReadDataByLocalIdentifier, RLI <code>0xF0</code></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node rsp">
+      <div class="tag">ECU → tester</div>
+      <div class="id">61 F0 …</div>
+      <div class="desc">positive response (<code>0x21 + 0x40</code>), RLI echoed, then data</div>
+    </div>
+  </div>
+
+  <h2>Where It Differs From UDS</h2>
+  <p>
+    Several KWP service IDs <strong>share a number with UDS but mean something different</strong>.
+    sloppyCAN keeps separate KWP tables instead of patching the UDS ones, since
+    decoding <code>21</code> as a UDS service would be wrong.
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">SID</th><th>In KWP2000</th><th>In UDS</th></tr>
+      <tr><td class="mono">21</td><td>ReadDataByLocalIdentifier</td><td>Does not exist</td></tr>
+      <tr><td class="mono">1A</td><td>ReadECUIdentification</td><td>Does not exist</td></tr>
+      <tr><td class="mono">81</td><td>StartCommunication</td><td>KWP-only</td></tr>
+      <tr><td class="mono">82</td><td>StopCommunication</td><td>KWP-only</td></tr>
+      <tr><td class="mono">83</td><td>AccessTimingParameters</td><td>AccessTimingParameter</td></tr>
+      <tr><td class="mono">3B</td><td>WriteDataByLocalIdentifier</td><td>Uses 2E by DID</td></tr>
+    </table>
+  </div>
+  <p>
+    The negative-response-code list also differs in spots: KWP has block-transfer codes
+    (<code>0x71</code>-<code>0x79</code>) and <code>0xA0 ecuNotResponding</code> /
+    <code>0xA1 ecuAddressUnknown</code>, which UDS doesn't define. sloppyCAN's KWP mode names
+    these from the ISO 14230 table.
+  </p>
+
+  <h2>A Typical Session</h2>
+  <p>
+    Unlike OBD-II, where you can fire a request at a broadcast address, a KWP session is
+    explicitly opened and closed:
+  </p>
+  <div class="card">
+    <table>
+      <tr><th class="mono">Step</th><th class="mono">Request</th><th>Meaning</th></tr>
+      <tr><td>1</td><td class="mono">81</td><td>StartCommunication, wakes the ECU, gets key bytes back (<code>C1 …</code>)</td></tr>
+      <tr><td>2</td><td class="mono">10 81</td><td>StartDiagnosticSession, mode <code>0x81</code> default (others: <code>85</code> programming, <code>89</code> standby, <code>92</code> EOL)</td></tr>
+      <tr><td>3</td><td class="mono">1A 9A</td><td>ReadECUIdentification, option <code>0x9A</code>, response is mostly ASCII</td></tr>
+      <tr><td>4</td><td class="mono">21 F0</td><td>ReadDataByLocalIdentifier, RLI <code>0xF0</code></td></tr>
+      <tr><td>5</td><td class="mono">3E</td><td>TesterPresent, keeps the session alive, sent periodically</td></tr>
+      <tr><td>6</td><td class="mono">82</td><td>StopCommunication, closes the session cleanly</td></tr>
+    </table>
+  </div>
+  <p class="note">
+    <strong>TesterPresent matters here.</strong> If the tester goes quiet for the session's
+    timeout (typically a few seconds, negotiable via <code>0x83</code>), the ECU drops back to
+    its default session, so diagnostic tools send <code>3E</code> on a heartbeat.
+  </p>
+
+  <h2>Try it</h2>
+  <p>
+    Switch the ISO-TP / UDS tab to <strong>KWP2000</strong> and turn on <strong>Demo</strong>.
+    The palette buttons (StartComms, StartSession, TesterPresent, ReadECUIdent, ReadByLocalId,
+    StopComms) each transmit a real request, and a simulated ECU answers: positive responses
+    decoded with KWP service names, unknown services answered with
+    <code>7F &lt;sid&gt; 11</code> (serviceNotSupported). You can also type any hex into the
+    input, e.g. <code>21 F0</code> or <code>1A 9A</code>.
+  </p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

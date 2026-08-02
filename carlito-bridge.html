@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carlito ↔ RAMN bridge</title>
+<!--
+  Standalone Carlito↔RAMN bridge. Connects to a CAN adapter (gs_usb or SLCAN), decodes
+  the RAMN control frames straight into the embedded Carlito game, and forwards Carlito's
+  telemetry (CAN 0x520–0x528) back onto the wire. No dashboards, no controls - meant to sit
+  alongside your own CAN tooling. NOT part of SloppyCAN: it only reuses the shared transport
+  (can-link.js) + the RAMN decoder (ramn.js) + the Carlito link (carlito.js).
+-->
+<style>
+:root {
+  --bg: #000204; --bg2: #06090d; --bg3: #0a1015;
+  --border: #11181f; --border2: #1b2630;
+  --text: #cdd6df; --text2: #5d6b78; --text3: #37424c;
+  --green: #37e07a; --green-dim: #37e07a22;
+  --amber: #ffb000; --amber-dim: #ffb00022;
+  --red: #ff4d4d;
+  --mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text); font-family: var(--sans);
+  display: flex; flex-direction: column;
+}
+.bar {
+  display: flex; align-items: center; gap: 9px; flex-wrap: nowrap;
+  height: 34px; padding: 0 12px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.bar .title { font-weight: 700; letter-spacing: .03em; color: var(--amber); margin-right: 4px; }
+.bar label { display: flex; align-items: center; gap: 5px; color: var(--text2); }
+.bar select, .bar button {
+  background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+  border-radius: 5px; padding: 3px 8px; font-size: 12px; font-family: var(--sans); cursor: pointer;
+}
+.bar button:hover { background: var(--bg3); }
+.bar button:disabled { opacity: .4; cursor: not-allowed; }
+.bar button.primary { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+.bar #status { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text2); }
+.bar #status.ok { color: var(--green); }
+.bar #status.err { color: var(--red); }
+.bar #stats { font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
+.stage { flex: 1; position: relative; }
+/* The Carlito window (built by carlito.js) floats fixed - fill the area below the bar so the
+   game gets the full available width/height. !important beats carlito.js's default sizing. */
+.carlito-window {
+  top: 35px !important; left: 0 !important; width: 100vw !important;
+  height: calc(100vh - 35px) !important; border: 0 !important; border-radius: 0 !important;
+}
+.carlito-window .carlito-resize { display: none !important; }
+/* Zen / fullscreen: hide the page header AND Carlito's own chrome, leaving only the game.
+   Refresh the page to exit (the toggle button lives in the now-hidden header). */
+body.zen .bar { display: none !important; }
+body.zen .carlito-window { top: 0 !important; height: 100vh !important; }
+body.zen .carlito-window .carlito-header,
+body.zen .carlito-window .carlito-bar,
+body.zen .carlito-window .carlito-io { display: none !important; }
+.hidden { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="title">CARLITO ↔ RAMN</span>
+    <label>Adapter
+      <select id="adapterType">
+        <option value="serial">SLCAN (Web Serial)</option>
+        <option value="gsusb">gs_usb (WebUSB)</option>
+      </select>
+    </label>
+    <button id="connectBtn" class="primary">Connect</button>
+    <button id="disconnectBtn" style="display:none">Disconnect</button>
+    <button id="zenBtn" title="Hide all UI and show only the game - refresh the page to exit" disabled>⛶ Fullscreen</button>
+    <span id="status">Not connected</span>
+    <span id="stats"></span>
+  </div>
+  <div class="stage"></div>
+  <!-- Fixed page settings (no UI - kept off-screen so bad combos can't be picked):
+       500k bitrate, active mode (not listen-only). Plus the DOM ids the transport writes into. -->
+  <select id="baudRate" class="hidden"><option value="S6" selected>500k</option></select>
+  <input type="checkbox" id="listenOnly" class="hidden">
+  <span id="statBytes" class="hidden"></span>
+  <span id="deviceInfo" class="hidden"></span>
+
+  <!-- Shared CAN transport - must load before the host shims that reference it. -->
+  <script src="can-link.js"></script>
+  <!-- Bridge host: provides log/ingestFrame/connect/canForward etc. for can-link.js + carlito.js. -->
+  <script src="carlito-bridge.js"></script>
+  <!-- RAMN decoder (ramnGetState / ramnIngestFrame) and the Carlito link, reused unchanged. -->
+  <script src="ramn.js" defer></script>
+  <script src="carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
+  <script src="carlito.js" defer></script>
+</body>
+</html>

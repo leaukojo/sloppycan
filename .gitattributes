@@ -1,0 +1,3 @@
+# Authored on Windows, run by bash on the CI runner: CRLF in a shell script makes
+# bash fail on the shebang line with a confusing "bad interpreter" / "\r" error.
+*.sh text eol=lf

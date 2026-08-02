@@ -1,0 +1,91 @@
+# Syntax gate on every push/PR; publish the dev channel on a push to dev.
+#
+# There is no build step and no test suite here (see CLAUDE.md: verify by opening
+# index.html in Demo mode). `node --check` is the one gate that can run
+# unattended - these are classic non-module scripts sharing a global lexical
+# scope, so a stray syntax error takes the whole page down, not just one file.
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax-check every script
+        run: |
+          fail=0
+          for f in *.js explainers/*.js; do
+            [ -e "$f" ] || continue
+            node --check "$f" || fail=1
+          done
+          exit $fail
+
+      # carlito_contract.js is generated (tools/gen_js_contract.mjs in the carlito
+      # repo) and must set window.CARLITO_CONTRACT with a version - a truncated or
+      # half-pasted copy would otherwise only surface as a runtime warning.
+      - name: Contract copy sanity
+        run: |
+          node -e '
+            const vm = require("vm");
+            const fs = require("fs");
+            const ctx = { window: {} };
+            vm.createContext(ctx);
+            vm.runInContext(fs.readFileSync("carlito_contract.js", "utf8"), ctx);
+            const c = ctx.window.CARLITO_CONTRACT;
+            if (!c) throw new Error("carlito_contract.js did not set window.CARLITO_CONTRACT");
+            if (!(c.version > 0)) throw new Error("contract has no usable version: " + c.version);
+            if (!Array.isArray(c.signals) || !c.signals.length) throw new Error("contract carries no signals");
+            console.log("contract v" + c.version + ", " + c.signals.length + " signals");
+          '
+
+  publish-dev:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Shared with promote.yml: both force-push gh-pages, and a race would
+    # silently drop one channel's update.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      # The site IS the checkout, minus the things that only matter to the repo.
+      - name: Stage the site
+        run: |
+          mkdir -p ../site
+          rsync -a ./ ../site/ \
+            --exclude .git --exclude .github --exclude .claude \
+            --exclude .gitattributes --exclude CLAUDE.md --exclude CONTRIBUTING.md
+
+      - name: Publish to gh-pages:/dev/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_SHA: ${{ github.sha }}
+        # Invoked via `bash` rather than executed directly: the repo is authored on
+        # Windows, where git does not track the exec bit.
+        run: bash .github/scripts/publish-pages.sh dev ../site
+
+      - name: Summary
+        run: |
+          {
+            echo "### Published dev"
+            echo ""
+            echo "- <https://leaukojo.github.io/sloppycan/dev/> now serves \`${{ github.sha }}\`"
+            echo ""
+            echo "Stable is unchanged. Promote with Actions -> \"Promote dev -> stable\"."
+          } >> "$GITHUB_STEP_SUMMARY"

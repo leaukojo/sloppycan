@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISO 15765-2:2016: Large Payload Extensions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 12px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .15s, color .15s;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+/* ── Content ── */
+.content {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+h2 { font-size: 18px; font-weight: 600; margin: 40px 0 12px; color: var(--text); }
+h3 { font-size: 15px; font-weight: 600; margin: 28px 0 10px; color: var(--text2); }
+p  { color: var(--text2); margin-bottom: 12px; }
+p strong { color: var(--text); }
+a  { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--text);
+}
+.subtitle {
+  font-size: 15px;
+  color: var(--text3);
+  margin-bottom: 32px;
+}
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 36px 0;
+}
+.callout {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 13px;
+  color: var(--text2);
+}
+.callout.amber { border-left-color: var(--amber); }
+.callout.green { border-left-color: var(--green); }
+.callout strong { color: var(--text); }
+
+/* ── Byte grid diagrams ── */
+.byte-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 14px 0;
+  align-items: flex-end;
+}
+.bb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 48px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg3);
+  font-family: var(--mono);
+}
+.bb .bb-bar  { height: 5px; width: 100%; }
+.bb .bb-val  { padding: 5px 4px 3px; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.bb .bb-lbl  { padding: 2px 4px 5px; font-size: 10px; color: var(--text3); font-family: var(--sans); text-align: center; line-height: 1.3; }
+.bb.pci  .bb-bar { background: var(--amber); }
+.bb.pci  .bb-val { color: var(--amber); }
+.bb.len  .bb-bar { background: var(--purple); }
+.bb.len  .bb-val { color: var(--purple); }
+.bb.data .bb-bar { background: var(--text2); }
+.bb.pad  .bb-bar { background: var(--text3); }
+.bb.pad  .bb-val { color: var(--text3); }
+.bb.new  .bb-bar { background: var(--green); }
+.bb.new  .bb-val { color: var(--green); }
+.bb.dots { border: none; background: transparent; color: var(--text3); font-size: 18px; padding: 0 4px; align-self: center; }
+
+/* ── Frame label above byte rows ── */
+.frame-wrap { margin: 20px 0; }
+.frame-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text3);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.frame-label .badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.badge.req  { color: var(--green);  background: var(--green-dim); }
+.badge.resp { color: var(--blue);   background: var(--blue-dim);  }
+.badge.fc   { color: var(--amber);  background: var(--amber-dim); }
+.badge.new  { color: var(--green);  background: var(--green-dim); font-family: var(--sans); }
+.badge.classic { color: var(--text3); background: var(--bg3); border: 1px solid var(--border); font-family: var(--sans); }
+
+/* ── Comparison table ── */
+table.cmp {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 16px 0;
+}
+table.cmp th {
+  background: var(--bg2);
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--sans);
+}
+table.cmp td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+  vertical-align: top;
+}
+table.cmp tr:last-child td { border-bottom: none; }
+table.cmp td:first-child { color: var(--text); font-weight: 500; }
+table.cmp td.yes { color: var(--green); }
+table.cmp td.no  { color: var(--text3); }
+
+/* ── Static ladder ── */
+.ladder-wrap { margin: 24px 0; }
+.ladder-lanes {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+.lane-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  padding: 5px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.lane-label span { font-family: var(--mono); color: var(--text); font-size: 11px; font-weight: 400; margin-left: 5px; }
+.ladder-body { position: relative; padding: 8px 0; }
+.lane-line {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.lane-line.left  { left: 60px; }
+.lane-line.right { right: 60px; }
+.ladder-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  padding: 3px 0;
+}
+.ts { width: 80px; font-family: var(--mono); font-size: 11px; color: var(--text3); text-align: right; padding-right: 8px; flex-shrink: 0; }
+.arrow-area { flex: 1; position: relative; height: 50px; display: flex; align-items: center; }
+.arrow-line { position: absolute; height: 2px; top: 50%; transform: translateY(-50%); left: 4px; right: 4px; }
+.arrow-line.req  { background: var(--green); }
+.arrow-line.resp { background: var(--blue); }
+.arrow-line.fc   { background: var(--amber); }
+.arrow-line::after {
+  content: ''; position: absolute; top: 50%; transform: translateY(-50%);
+  border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+}
+.arrow-line.req::after  { right: -1px; border-left: 8px solid var(--green); }
+.arrow-line.resp::after { left: -1px;  border-right: 8px solid var(--blue); }
+.arrow-line.fc::after   { left: auto; right: -1px; border-right: none; border-left: 8px solid var(--amber); }
+.arrow-label {
+  position: absolute; left: 50%; transform: translateX(-50%); top: 0;
+  font-size: 11px; font-weight: 600; white-space: nowrap; padding: 1px 5px;
+  border-radius: 3px; font-family: var(--mono);
+}
+.arrow-label.req  { color: var(--green);  background: var(--green-dim); }
+.arrow-label.resp { color: var(--blue);   background: var(--blue-dim);  }
+.arrow-label.fc   { color: var(--amber);  background: var(--amber-dim); }
+.arrow-bytes {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 1px;
+  font-family: var(--mono); font-size: 11px; color: var(--text3); white-space: nowrap;
+}
+.b-pci  { color: var(--amber); }
+.b-len  { color: var(--purple); }
+.b-data { color: var(--text); }
+.b-pad  { color: var(--text3); }
+.b-new  { color: var(--green); }
+.dir-col { width: 80px; font-size: 11px; padding-left: 8px; color: var(--text3); font-family: var(--mono); }
+.ladder-gap { height: 10px; position: relative; }
+.ladder-gap-label {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  font-size: 11px; color: var(--text3); white-space: nowrap; top: -2px;
+  background: var(--bg); padding: 0 8px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">ISO 15765-2:2016</div>
+      <div class="logo-sub">Large Payload Extensions</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" class="btn">
+    ← Back to ISO-TP Explainer
+  </a>
+  <button class="btn" onclick="toggleTheme()" title="Toggle theme" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<div class="content">
+
+  <h1>ISO 15765-2:2016: Large Payload Extensions</h1>
+  <p class="subtitle">Two escape sequences that push classic ISO-TP past its original limits</p>
+
+  <div class="callout">
+    <strong>What's on this page?</strong> Classic ISO-TP (ISO 15765-2, published 2003) tops out at
+    <strong>4 095 bytes</strong> per message and <strong>7 bytes</strong> per single frame. The 2016
+    revision adds two escape sequences for bigger payloads, mostly to keep up with
+    <strong>CAN FD</strong> (Flexible Data-Rate), which lets a single CAN frame carry up to 64 bytes.
+    Neither escape touches the FC/CF handshake. They only change how the first frame's header is encoded.
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── 1. Classic recap ─────────────────────────────────────────────── -->
+  <h2>Quick recap: classic ISO-TP frame headers</h2>
+  <p>Before the extensions, a quick reminder of the four classic frame types and how their first
+  byte(s) encode the frame type and length.</p>
+
+  <h3>Single Frame (SF) - up to 7 data bytes</h3>
+  <div class="frame-wrap">
+    <div class="frame-label"><span class="badge classic">Classic SF</span> Normal addressing, 3-byte payload example</div>
+    <div class="byte-row">
+      <div class="bb pci"><div class="bb-bar"></div><div class="bb-val">03</div><div class="bb-lbl">PCI<br>SF, len=3</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">22</div><div class="bb-lbl">data[0]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">F1</div><div class="bb-lbl">data[1]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">90</div><div class="bb-lbl">data[2]</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:4px">
+      Upper nibble <code>0</code> = SF, lower nibble = payload length. Max <code>7</code> on classic CAN, <code>6</code> with extended addressing.
+    </p>
+  </div>
+
+  <h3>First Frame (FF): 12-bit length, up to 4 095 bytes total</h3>
+  <div class="frame-wrap">
+    <div class="frame-label"><span class="badge classic">Classic FF</span> Normal addressing, total length = 200 bytes (0x0C8)</div>
+    <div class="byte-row">
+      <div class="bb pci"><div class="bb-bar"></div><div class="bb-val">10</div><div class="bb-lbl">PCI hi<br>FF, len hi</div></div>
+      <div class="bb pci"><div class="bb-bar"></div><div class="bb-val">C8</div><div class="bb-lbl">PCI lo<br>len lo</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D0</div><div class="bb-lbl">data[0]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D1</div><div class="bb-lbl">data[1]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D2</div><div class="bb-lbl">data[2]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D3</div><div class="bb-lbl">data[3]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D4</div><div class="bb-lbl">data[4]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D5</div><div class="bb-lbl">data[5]</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:4px">
+      Two-byte header: <code>0x1</code> (FF) plus a 12-bit length, max <code>0xFFF</code> = 4 095.
+      Six data bytes ride along in the FF itself, the rest follows in Consecutive Frames.
+    </p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── 2. CAN FD SF escape ───────────────────────────────────────────── -->
+  <h2>Extension 1: CAN FD Single Frame escape (SF_DL = 0)</h2>
+
+  <p>Classic SF stores its length in the lower nibble of the PCI byte, which caps it at
+  <strong>15</strong>, but only <strong>7</strong> bytes are ever valid on classic CAN since the rest
+  of the byte has to be data. CAN FD frames can carry up to 64 bytes, so a single frame needed a way
+  to carry more than 7 bytes of payload.</p>
+
+  <p>The fix: when the lower nibble is <strong><code>0</code></strong>, the <em>next</em> byte
+  carries the real length instead. That's the <strong>SF escape sequence</strong>.</p>
+
+  <div class="callout amber">
+    <strong>Classic CAN only matters here in theory.</strong> The SF escape is meaningless on
+    classic 8-byte CAN: a payload over 7 bytes can't fit in one frame regardless of how the length
+    is encoded. This extension only does anything on <strong>CAN FD hardware</strong>.
+  </div>
+
+  <h3>SF escape frame format</h3>
+  <div class="frame-wrap">
+    <div class="frame-label"><span class="badge new">New in 2016</span> SF escape - 12-byte payload on CAN FD (frame size = 16 bytes)</div>
+    <div class="byte-row">
+      <div class="bb pci"><div class="bb-bar"></div><div class="bb-val">00</div><div class="bb-lbl">PCI<br>SF escape</div></div>
+      <div class="bb new"><div class="bb-bar"></div><div class="bb-val">0C</div><div class="bb-lbl">SF_DL<br>length=12</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D0</div><div class="bb-lbl">data[0]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D1</div><div class="bb-lbl">data[1]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D2</div><div class="bb-lbl">data[2]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D3</div><div class="bb-lbl">data[3]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D4</div><div class="bb-lbl">data[4]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D5</div><div class="bb-lbl">data[5]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D6</div><div class="bb-lbl">data[6]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D7</div><div class="bb-lbl">data[7]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D8</div><div class="bb-lbl">data[8]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D9</div><div class="bb-lbl">data[9]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">DA</div><div class="bb-lbl">data[10]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">DB</div><div class="bb-lbl">data[11]</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+      <div class="bb pad"><div class="bb-bar"></div><div class="bb-val">CC</div><div class="bb-lbl">pad</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:4px">
+      Byte 0 (<code>0x00</code>) signals the SF escape, byte 1 (<code>0x0C</code> = 12) gives the
+      actual payload length. The remaining 12 bytes are data, padded out to the next CAN FD frame
+      size (16 bytes here).
+      <strong style="color:var(--text)">Still a single frame, so no FC exchange needed.</strong>
+    </p>
+  </div>
+
+  <h3>Classic SF vs FD SF escape, same 12-byte payload</h3>
+
+  <div class="ladder-wrap">
+    <div class="ladder-lanes">
+      <div class="lane-label">Tester<span>7E1</span></div>
+      <div class="lane-label" style="text-align:right">ECU<span>7E9</span></div>
+    </div>
+    <div class="ladder-body">
+      <div class="lane-line left"></div>
+      <div class="lane-line right"></div>
+
+      <!-- Classic path: FF + FC + CF -->
+      <div style="font-size:11px;color:var(--text3);padding:8px 0 2px 88px;font-family:var(--sans)">
+        Classic CAN: the 12-byte request needs 3 frames (FF, FC, CF):
+      </div>
+      <div class="ladder-row">
+        <div class="ts">0 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">FF</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">10</span> <span class="b-pci">0C</span>
+            <span class="b-data"> D0 D1 D2 D3 D4 D5</span>
+          </div>
+        </div>
+        <div class="dir-col">→ ECU</div>
+      </div>
+      <div class="ladder-row">
+        <div class="ts">310 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line fc" style="left:auto;right:4px;width:calc(100% - 8px)"></div>
+          <div class="arrow-label fc">FC</div>
+          <div class="arrow-bytes"><span class="b-pci">30</span> <span class="b-len">00 00</span></div>
+        </div>
+        <div class="dir-col">← Tester</div>
+      </div>
+      <div class="ladder-row">
+        <div class="ts">620 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">CF #1</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">21</span>
+            <span class="b-data"> D6 D7 D8 D9 DA DB</span>
+            <span class="b-pad"> CC</span>
+          </div>
+        </div>
+        <div class="dir-col">→ ECU</div>
+      </div>
+
+      <div class="ladder-gap" style="margin:4px 0">
+        <div class="ladder-gap-label" style="background:var(--bg)">vs.</div>
+      </div>
+
+      <!-- FD SF escape path -->
+      <div style="font-size:11px;color:var(--text3);padding:8px 0 2px 88px;font-family:var(--sans)">
+        CAN FD: the same 12-byte request fits in <strong style="color:var(--green)">one single frame</strong>, no FC needed:
+      </div>
+      <div class="ladder-row">
+        <div class="ts">0 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">SF (FD)</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">00</span> <span class="b-new">0C</span>
+            <span class="b-data"> D0 D1 D2 D3 D4 D5 D6 D7 D8 D9 DA DB</span>
+            <span class="b-pad"> CC CC CC</span>
+          </div>
+        </div>
+        <div class="dir-col">→ ECU</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── 3. 32-bit FF escape ───────────────────────────────────────────── -->
+  <h2>Extension 2: 32-bit First Frame escape (FF_DL = 0)</h2>
+
+  <p>The classic FF header stores total message length in a 12-bit field, capping it at
+  <strong>4 095 bytes</strong>. The 2016 revision repurposes <code>0x000</code> as an escape: when
+  that 12-bit field reads zero, the <em>next four bytes</em> carry the real length as a
+  <strong>32-bit big-endian integer</strong>, pushing the limit out to roughly
+  <strong>4 GB</strong> (4 294 967 295 bytes).</p>
+
+  <div class="callout green">
+    <strong>This one works on classic CAN too.</strong> Unlike the SF escape, it isn't tied to CAN
+    FD. An 8-byte classic CAN frame can fit the 6-byte header (<code>10 00</code> plus 4 length
+    bytes) and still carry 2 data bytes, with the rest following in normal Consecutive Frames.
+    Handy for <strong>large firmware transfers</strong> over classic CAN.
+  </div>
+
+  <h3>32-bit FF escape frame format</h3>
+  <div class="frame-wrap">
+    <div class="frame-label"><span class="badge new">New in 2016</span> FF escape - total length = 5 000 bytes (0x00001388), classic CAN</div>
+    <div class="byte-row">
+      <div class="bb pci"><div class="bb-bar"></div><div class="bb-val">10</div><div class="bb-lbl">PCI hi<br>FF type</div></div>
+      <div class="bb pci"><div class="bb-bar"></div><div class="bb-val">00</div><div class="bb-lbl">PCI lo<br>escape=0</div></div>
+      <div class="bb new"><div class="bb-bar"></div><div class="bb-val">00</div><div class="bb-lbl">len[3]<br>MSB</div></div>
+      <div class="bb new"><div class="bb-bar"></div><div class="bb-val">00</div><div class="bb-lbl">len[2]<br>&nbsp;</div></div>
+      <div class="bb new"><div class="bb-bar"></div><div class="bb-val">13</div><div class="bb-lbl">len[1]<br>&nbsp;</div></div>
+      <div class="bb new"><div class="bb-bar"></div><div class="bb-val">88</div><div class="bb-lbl">len[0]<br>LSB</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D0</div><div class="bb-lbl">data[0]</div></div>
+      <div class="bb data"><div class="bb-bar"></div><div class="bb-val">D1</div><div class="bb-lbl">data[1]</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin-top:4px">
+      <code>10 00</code> is an FF with a 12-bit length of zero, so it's escape mode. The next 4
+      bytes give the total length, big-endian: <code>0x00001388</code> = 5 000. Only 2 data bytes
+      fit in the classic CAN FF itself; the remaining 4 998 bytes follow in 714 Consecutive Frames
+      of 7 bytes each.
+    </p>
+  </div>
+
+  <h3>Full exchange: 5 000-byte transfer, classic CAN (BS=0, STmin=0)</h3>
+
+  <div class="ladder-wrap">
+    <div class="ladder-lanes">
+      <div class="lane-label">Sender<span>7E1</span></div>
+      <div class="lane-label" style="text-align:right">Receiver<span>7E9</span></div>
+    </div>
+    <div class="ladder-body">
+      <div class="lane-line left"></div>
+      <div class="lane-line right"></div>
+
+      <div class="ladder-row">
+        <div class="ts">0 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">FF (escape)</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">10 00</span>
+            <span class="b-new"> 00 00 13 88</span>
+            <span class="b-data"> D0 D1</span>
+          </div>
+        </div>
+        <div class="dir-col">→ Receiver</div>
+      </div>
+
+      <div class="ladder-row">
+        <div class="ts">310 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line fc" style="left:auto;right:4px;width:calc(100% - 8px)"></div>
+          <div class="arrow-label fc">FC (CTS)</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">30</span>
+            <span class="b-len"> 00</span>
+            <span class="b-len"> 00</span>
+          </div>
+        </div>
+        <div class="dir-col">← Receiver</div>
+      </div>
+
+      <div class="ladder-row">
+        <div class="ts">620 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">CF #1</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">21</span>
+            <span class="b-data"> D2 D3 D4 D5 D6 D7 D8</span>
+          </div>
+        </div>
+        <div class="dir-col">→ Receiver</div>
+      </div>
+
+      <div class="ladder-row">
+        <div class="ts">930 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">CF #2</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">22</span>
+            <span class="b-data"> D9 DA DB DC DD DE DF</span>
+          </div>
+        </div>
+        <div class="dir-col">→ Receiver</div>
+      </div>
+
+      <div class="ladder-row">
+        <div class="ts">1 240 µs</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">CF #3</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">23</span>
+            <span class="b-data"> E0 E1 E2 E3 E4 E5 E6</span>
+          </div>
+        </div>
+        <div class="dir-col">→ Receiver</div>
+      </div>
+
+      <div class="ladder-gap">
+        <div class="ladder-gap-label" style="background:var(--bg)">… CF #4 through CF #713 (same pattern, SN wraps 0–F) …</div>
+      </div>
+
+      <div class="ladder-row">
+        <div class="ts">222 ms</div>
+        <div class="arrow-area">
+          <div class="arrow-line req"></div>
+          <div class="arrow-label req">CF #714 (last)</div>
+          <div class="arrow-bytes">
+            <span class="b-pci">2A</span>
+            <span class="b-data"> F6 F7 F8 F9 FA FB FC</span>
+          </div>
+        </div>
+        <div class="dir-col">→ Receiver</div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:var(--text3);margin-top:8px">
+    SN=<code>0xA</code> on the last CF because 714 mod 16 = 10 = <code>0xA</code>. Timing assumes
+    500 kbps and no STmin delay. Everything else, FC, CF structure, SN wrap-around, works exactly
+    like classic multi-frame.
+  </p>
+
+  <h3>How a receiver tells the two FF types apart</h3>
+  <p>It just reads the first two bytes of the FF:</p>
+  <ol style="color:var(--text2);padding-left:24px;margin-bottom:12px">
+    <li>Upper nibble <code>0x1</code> with the lower 12 bits <strong>non-zero</strong>: classic FF,
+        length is those 12 bits.</li>
+    <li>Bytes 0-1 exactly <code>10 00</code>: escape FF, read the next 4 bytes as a 32-bit
+        big-endian length. Data starts at byte 6.</li>
+  </ol>
+
+  <hr class="divider">
+
+  <!-- ── 4. Comparison table ──────────────────────────────────────────── -->
+  <h2>Summary comparison</h2>
+
+  <table class="cmp">
+    <thead>
+      <tr>
+        <th>Property</th>
+        <th>Classic SF</th>
+        <th>FD SF escape</th>
+        <th>Classic FF/CF</th>
+        <th>32-bit FF escape</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Defined in</td>
+        <td>ISO 15765-2:2003</td>
+        <td>ISO 15765-2:2016</td>
+        <td>ISO 15765-2:2003</td>
+        <td>ISO 15765-2:2016</td>
+      </tr>
+      <tr>
+        <td>PCI trigger</td>
+        <td><code>0x01</code>–<code>0x07</code></td>
+        <td><code>0x00</code> + length byte</td>
+        <td><code>0x10</code>–<code>0x1F</code> (≠ <code>0x10</code>)</td>
+        <td><code>0x10 0x00</code> + 4-byte length</td>
+      </tr>
+      <tr>
+        <td>Max payload</td>
+        <td>7 bytes</td>
+        <td>62 bytes (CAN FD)</td>
+        <td>4 095 bytes</td>
+        <td>4 294 967 295 bytes (~4 GB)</td>
+      </tr>
+      <tr>
+        <td>FC exchange needed</td>
+        <td class="no">No</td>
+        <td class="no">No</td>
+        <td class="yes">Yes</td>
+        <td class="yes">Yes</td>
+      </tr>
+      <tr>
+        <td>Works on classic CAN</td>
+        <td class="yes">Yes</td>
+        <td class="no">No (pointless)</td>
+        <td class="yes">Yes</td>
+        <td class="yes">Yes</td>
+      </tr>
+      <tr>
+        <td>Works on CAN FD</td>
+        <td class="yes">Yes</td>
+        <td class="yes">Yes</td>
+        <td class="yes">Yes</td>
+        <td class="yes">Yes</td>
+      </tr>
+      <tr>
+        <td>Typical use case</td>
+        <td>Short diagnostic requests/responses</td>
+        <td>Medium responses on CAN FD ECUs</td>
+        <td>Most multi-frame UDS services</td>
+        <td>Firmware transfers, large data uploads</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr class="divider">
+
+  <div class="callout">
+    <strong>Practical note:</strong> most automotive ECUs on classic CAN buses still only implement
+    the 2003 standard. You'll mainly find the 32-bit escape and FD SF escape on ECUs with CAN FD
+    hardware, newer body control modules, gateway ECUs, ADAS controllers and the like. Check the
+    ECU's communication spec before assuming either escape is supported.
+  </div>
+
+</div>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

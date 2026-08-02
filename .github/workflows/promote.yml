@@ -1,0 +1,58 @@
+# Promote dev -> stable. Manual button: Actions -> "Promote dev -> stable" -> Run workflow.
+#
+# Fast-forwards main to dev and copies the already-published gh-pages:/dev/ bytes
+# over the gh-pages ROOT, which is where stable lives here (no service worker, so
+# no scope nesting to design around - see .github/scripts/publish-pages.sh).
+#
+# A contract change is a PAIRED promote: carlito and sloppycan agree by contract
+# version, so promote both, or neither. Promoting one alone puts a live stable
+# pair on mismatched versions - the runtime warning fires and signals are misread.
+name: Promote dev -> stable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    # Shared with ci.yml's publish-dev: both force-push gh-pages.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      # Resolved from the checkout, not from github.sha: on a workflow_dispatch the
+      # latter is whatever ref the run was started from.
+      - name: Resolve dev tip
+        id: dev
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Before touching the live site: a non-fast-forward here means main has
+      # commits dev does not, and this promote would quietly rewrite them.
+      # Failing first leaves gh-pages untouched and the promote re-runnable.
+      - name: Fast-forward main to dev
+        run: git push origin "${{ steps.dev.outputs.sha }}:refs/heads/main"
+
+      - name: Copy gh-pages:/dev/ over the gh-pages root
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_SHA: ${{ steps.dev.outputs.sha }}
+        run: bash .github/scripts/publish-pages.sh promote
+
+      - name: Summary
+        run: |
+          {
+            echo "### Promoted"
+            echo ""
+            echo "- main is now \`${{ steps.dev.outputs.sha }}\`"
+            echo "- <https://leaukojo.github.io/sloppycan/> (stable) now serves the dev build"
+            echo ""
+            echo "If this promote carried a contract version bump, promote carlito too."
+          } >> "$GITHUB_STEP_SUMMARY"
