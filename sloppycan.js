@@ -1381,6 +1381,7 @@ async function disconnectSerial() {
   if (window.obdStop) window.obdStop();
   if (window.xcpStop) window.xcpStop();
   if (window.canopenStop) window.canopenStop();
+  if (window.dronecanStop) window.dronecanStop();
   if (window.ramnStop) window.ramnStop(); // ← RAMN dashboard hook
   bytesReceived = 0;
   document.getElementById('statBytes').textContent = '0';
@@ -1484,6 +1485,7 @@ function ingestFrameBody(frame, opts) {
   if (window.chademoIngestFrame) chademoIngestFrame(frame); // ← CHAdeMO hook
   if (window.xcpIngestFrame) xcpIngestFrame(frame); // ← XCP hook
   if (window.canopenIngestFrame) canopenIngestFrame(frame); // ← CANopen hook
+  if (window.dronecanIngestFrame) dronecanIngestFrame(frame); // ← DroneCAN hook
   if (window.graphIngestFrame) graphIngestFrame(frame); // ← Graph hook
   if (window.ramnIngestFrame) ramnIngestFrame(frame); // ← RAMN dashboard hook
 }
@@ -1798,6 +1800,7 @@ function switchViewTab(name) {
   document.getElementById('vtab-chademo').classList.toggle('active', name === 'chademo');
   document.getElementById('vtab-xcp').classList.toggle('active', name === 'xcp');
   document.getElementById('vtab-canopen').classList.toggle('active', name === 'canopen');
+  document.getElementById('vtab-dronecan').classList.toggle('active', name === 'dronecan');
   document.getElementById('vtab-graph').classList.toggle('active', name === 'graph');
   document.getElementById('vtab-fuzz').classList.toggle('active', name === 'fuzz');
   // Mirror the active state to aria-selected for screen readers, and keep a roving tabindex so only
@@ -1822,6 +1825,7 @@ function switchViewTab(name) {
   document.getElementById('chademoWrap').style.display  = name === 'chademo' ? 'flex' : 'none';
   document.getElementById('xcpWrap').style.display      = name === 'xcp'     ? 'flex' : 'none';
   document.getElementById('canopenWrap').style.display  = name === 'canopen' ? 'flex' : 'none';
+  document.getElementById('dronecanWrap').style.display = name === 'dronecan' ? 'flex' : 'none';
   document.getElementById('graphWrap').style.display    = name === 'graph'   ? 'flex' : 'none';
   document.getElementById('fuzzWrap').style.display     = name === 'fuzz'    ? 'flex' : 'none';
 
@@ -1833,12 +1837,14 @@ function switchViewTab(name) {
   }
   if (name === 'chademo' && window.demoMaybeSwitch) window.demoMaybeSwitch('chademo', 'CHAdeMO');
   if (name === 'canopen' && window.demoMaybeSwitch) window.demoMaybeSwitch('canopen', 'CANopen');
+  if (name === 'dronecan' && window.demoMaybeSwitch) window.demoMaybeSwitch('dronecan', 'DroneCAN');
 
   if (name === 'dump')  renderDump();
   if (name === 'graph' && window.graphOnShow) window.graphOnShow();
   if (name === 'fuzz'  && window.fuzzOnShow)  window.fuzzOnShow();
   if (name === 'xcp'   && window.xcpOnShow)   window.xcpOnShow();
   if (name === 'canopen' && window.canopenOnShow) window.canopenOnShow();
+  if (name === 'dronecan' && window.dronecanOnShow) window.dronecanOnShow();
   if (name === 'term')  { document.getElementById('termInput').focus(); updateTermTrafficWarn(); }
   if (name === 'isotp') { document.getElementById('isotpInput').focus(); obdOnShow(); }
   updateNotchBtn();
@@ -2463,6 +2469,7 @@ function clearFrames() {
   if (window.chademoClear) chademoClear(); // ← CHAdeMO hook
   if (window.xcpClear) xcpClear(); // ← XCP hook
   if (window.canopenClear) canopenClear(); // ← CANopen hook
+  if (window.dronecanClear) dronecanClear(); // ← DroneCAN hook
   if (window.ramnClear) ramnClear(); // ← RAMN dashboard hook
   totalFrames = 0;
   parseErrors = 0;
@@ -2675,9 +2682,9 @@ let demoMode = false;
 let demoTimers = [];
 let demoCounters = {};
 // Only one "base traffic" generator runs at a time. Starts on the traffic for the
-// active tab (RAMN by default); switching to the J1939/N2K, CHAdeMO, or CANopen tab
-// in demo mode prompts to change it. Returning to RAMN requires a page reload.
-// 'ramn' | 'j1939' | 'nmea2000' | 'iso11783' (drive demoInjectN2k) | 'chademo' | 'canopen'.
+// active tab (RAMN by default); switching to the J1939/N2K, CHAdeMO, CANopen, or DroneCAN
+// tab in demo mode prompts to change it. Returning to RAMN requires a page reload.
+// 'ramn' | 'j1939' | 'nmea2000' | 'iso11783' (drive demoInjectN2k) | 'chademo' | 'canopen' | 'dronecan'.
 let demoBaseTraffic = 'ramn';
 
 const DEMO_CONFIG = [
@@ -2745,6 +2752,7 @@ function demoStopBaseTimers() {
   demoTimers = [];
   if (window.chademoDemoLoopStop) window.chademoDemoLoopStop(); // safe no-ops if not running
   if (window.canopenDemoStop) window.canopenDemoStop();
+  if (window.dronecanDemoStop) window.dronecanDemoStop();
 }
 
 function demoStartBaseTimers() {
@@ -2757,19 +2765,22 @@ function demoStartBaseTimers() {
     if (window.chademoDemoLoopStart) window.chademoDemoLoopStart();
   } else if (demoBaseTraffic === 'canopen') {
     if (window.canopenDemoStart) window.canopenDemoStart();
+  } else if (demoBaseTraffic === 'dronecan') {
+    if (window.dronecanDemoStart) window.dronecanDemoStart();
   } else { // j1939 / nmea2000 / iso11783
     demoTimers.push(setInterval(demoInjectN2k, 100));
   }
 }
 
 // Pick the base traffic to start demo with, based on the tab the user is viewing -
-// pressing Demo while on the J1939/N2K, CHAdeMO, or CANopen tab starts that traffic
-// directly (no prompt). Defaults to RAMN.
+// pressing Demo while on the J1939/N2K, CHAdeMO, CANopen, or DroneCAN tab starts that
+// traffic directly (no prompt). Defaults to RAMN.
 function demoInitialBaseTraffic() {
   const active = document.querySelector('.view-tabs .view-tab.active')?.id || '';
   if (active === 'vtab-j1939')   return window.j1939GetProto ? window.j1939GetProto() : 'j1939';
   if (active === 'vtab-chademo') return 'chademo';
   if (active === 'vtab-canopen') return 'canopen';
+  if (active === 'vtab-dronecan') return 'dronecan';
   return 'ramn';
 }
 
@@ -4332,7 +4343,8 @@ function defaultWorkspaceData() {
     fuzz: null,
     j1939Proto: 'j1939',
     xcp: { cro: 0x552, dto: 0x553, isExt: false, byteOrder: 'auto' },
-    canopen: { node: 1, sdoTimeout: 1000, sdoReqId: null, sdoRspId: null }
+    canopen: { node: 1, sdoTimeout: 1000, sdoReqId: null, sdoRspId: null },
+    dronecan: { txEnabled: true, escBaseNode: 11, fcNode: 1 }
   };
 }
 
@@ -4346,7 +4358,7 @@ function sanitizeWorkspaceData(d) {
   const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
   for (const k of ['pins', 'colors', 'notes', 'tx', 'graphSignals'])
     if (!Array.isArray(out[k])) out[k] = def[k];
-  for (const k of ['filter', 'notch', 'isotp', 'xcp', 'canopen'])
+  for (const k of ['filter', 'notch', 'isotp', 'xcp', 'canopen', 'dronecan'])
     if (!isObj(out[k])) out[k] = def[k];
   if (out.fuzz !== null && !isObj(out.fuzz)) out.fuzz = null;
   if (!Array.isArray(out.isotp.obdWatch)) out.isotp.obdWatch = [];
@@ -4390,7 +4402,8 @@ function collectSettings() {
     fuzz: window.fuzzCollect ? window.fuzzCollect() : (window._fuzzPending || null),
     j1939Proto: window.j1939GetProto ? window.j1939GetProto() : (window._j1939ProtoPending || 'j1939'),
     xcp: window.xcpCollect ? window.xcpCollect() : (window._xcpPending || null),
-    canopen: window.canopenCollect ? window.canopenCollect() : (window._canopenPending || null)
+    canopen: window.canopenCollect ? window.canopenCollect() : (window._canopenPending || null),
+    dronecan: window.dronecanCollect ? window.dronecanCollect() : (window._dronecanPending || null)
   };
 }
 
@@ -4484,6 +4497,10 @@ function applySettings(d) {
   // CANopen config: stash for deferred canopen.js, apply now if loaded.
   window._canopenPending = d.canopen || null;
   if (window.canopenApply) window.canopenApply(window._canopenPending);
+
+  // DroneCAN config: stash for deferred dronecan.js, apply now if loaded.
+  window._dronecanPending = d.dronecan || null;
+  if (window.dronecanApply) window.dronecanApply(window._dronecanPending);
 
   changedIds.clear();
   dumpFilterDirty = true; dumpLastSize = -1; dumpRowElsDirty = true;
@@ -4812,6 +4829,7 @@ window.xcpScheduleSave   = scheduleSave; // let xcp.js persist CRO/DTO/byte-orde
 window.xcpDemoActive     = () => demoMode; // demo XCP slave answers only in Demo mode
 window.canopenScheduleSave = scheduleSave; // let canopen.js persist node/SDO config
 window.canopenDemoActive   = () => demoMode; // demo CANopen node answers only in Demo mode
+window.dronecanScheduleSave = scheduleSave; // let dronecan.js persist node-ID/publish config
 window.demoIsActive        = () => demoMode; // let modules gate demo-base-traffic switching
 
 applyPrefs(_prefs);

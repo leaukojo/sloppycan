@@ -56,16 +56,32 @@
 })();
 
 // ── Source Address name table ─────────────────────────────────────────────────
+// Preferred addresses, taken from the ISOBUS Data Dictionary's SourceAddress table
+// (isobus.net), which is the same list J1939-81 assigns. Most of what used to be here was
+// off by several places - 0x21/0x22/0x23 were labelled as the axles, where the real axle
+// addresses are 0x08/0x09/0x0A and 0x21/0x22/0x23 are the body controller, auxiliary valve
+// control and hitch control - so a decoded frame named the wrong ECU. Corrected against that
+// table when isobus.js needed 0xF0.
 const J1939_SA = {
   0x00:'Engine #1',       0x01:'Engine #2',       0x02:'Turbocharger',
   0x03:'Transmission #1', 0x04:'Transmission #2',
-  0x0B:'Brakes',          0x0C:'Retarder, Exhaust',
-  0x0F:'Instrument Cluster', 0x10:'Cruise Control', 0x11:'Fuel System',
-  0x17:'Suspension',      0x18:'Intake/Exhaust',   0x1C:'Power Takeoff',
-  0x21:'Axle, Steering',  0x22:'Axle, Drive #1',  0x23:'Axle, Drive #2',
-  0x27:'Instrument Cluster #1', 0x29:'Cab Display',
-  0x33:'Body Controller', 0x37:'Cab Controller',  0x38:'Cab Controller #2',
-  0x3D:'Tachograph',      0x47:'Lighting Controls',
+  0x07:'Power TakeOff (Main or Rear)',
+  0x08:'Axle - Steering', 0x09:'Axle - Drive #1', 0x0A:'Axle - Drive #2',
+  0x0B:'Brakes - System Controller', 0x0C:'Brakes - Steer Axle',
+  0x0F:'Retarder - Engine', 0x10:'Retarder - Driveline', 0x11:'Cruise Control',
+  0x17:'Instrument Cluster #1', 0x18:'Trip Recorder', 0x1C:'Vehicle Navigation',
+  0x21:'Body Controller',
+  0x22:'Auxiliary Valve Control', 0x23:'Hitch Control',
+  0x27:'Management Computer #1', 0x29:'Retarder, Exhaust, Engine #1',
+  0x33:'Tire Pressure Controller', 0x37:'Lighting - Operator Controls',
+  0x38:'Rear Axle Steering Controller #1',
+  0x3D:'Exhaust Emission Controller', 0x47:'Chassis Controller #1',
+  // 0xF9 is J1939-81's Off-Board Diagnostic-Service Tool #1 - the address the request client
+  // below claims, because a tool asking a vehicle for a PGN is exactly what that address is for.
+  0xF9:'Off-Board Diagnostic-Service Tool #1',
+  // 0xF0 is the ISO 11783-4 Tractor ECU, the gateway between the tractor and implement buses -
+  // and the source isobus.js publishes the tractor's ISO 11783-7 messages from.
+  0xF0:'Tractor ECU',
   0xFE:'Null',            0xFF:'Global/Broadcast',
 };
 
@@ -110,10 +126,53 @@ const J1939_INDUSTRY = ['Global','Highway','Agriculture','Construction','Marine'
 //   bits – (bit-level) number of bits
 //   map  – (bit-level) {raw → label}
 const J1939_DB = {
+  // EEC2 carries SPN 92, the engine load the carlito contract's `engine_load` borrows, and
+  // isobus.js publishes it here. Byte 3, 1 %/bit, no offset - a percent LOAD, not a percent
+  // torque, which is why it does not carry EEC1's -125 offset.
+  0xF003:{ name:'Electronic Engine Controller 2', abbr:'EEC2', spns:[
+    { spn:91,  name:'Accelerator Pedal Position 1',   b:1, n:1, f:0.4, o:0, u:'%', dp:0 },
+    { spn:92,  name:'Percent Load At Current Speed',  b:2, n:1, f:1,   o:0, u:'%', dp:0 },
+    { spn:974, name:'Remote Accelerator Pedal Position', b:3, n:1, f:0.4, o:0, u:'%', dp:0 },
+  ]},
+  // Bytes 2 and 3 are SPN 512 / 513 per J1939-71, not 91 / 92: those two are EEC2's accelerator
+  // pedal and percent load, one PGN below. The names were right, the SPN numbers were not.
   0xF004:{ name:'Electronic Engine Controller 1', abbr:'EEC1', spns:[
-    { spn:91,  name:'Driver Demand Torque', b:1, n:1, f:1, o:-125, u:'%', dp:0 },
-    { spn:92,  name:'Actual Engine Torque', b:2, n:1, f:1, o:-125, u:'%', dp:0 },
+    { spn:512, name:"Driver's Demand Engine - Percent Torque", b:1, n:1, f:1, o:-125, u:'%', dp:0 },
+    { spn:513, name:'Actual Engine - Percent Torque',          b:2, n:1, f:1, o:-125, u:'%', dp:0 },
     { spn:190, name:'Engine Speed',         b:3, n:2, f:0.125, o:0, u:'rpm', dp:1 },
+  ]},
+  // The differential locks, one 2-bit state each. isobus.js publishes the tractor's rear
+  // differential (SPN 569) here; the rest decode for anything else on the bus that sends them.
+  0xF006:{ name:'Electronic Axle Controller 1', abbr:'EAC1', spns:[
+    { spn:927, name:'Location', b:0, n:1, f:1, o:0, u:'', dp:0 },
+    { spn:567, name:'Diff Lock - Front Axle 1', b:1, n:0, bit:0, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+    { spn:568, name:'Diff Lock - Front Axle 2', b:1, n:0, bit:2, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+    { spn:569, name:'Diff Lock - Rear Axle 1',  b:1, n:0, bit:4, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+    { spn:570, name:'Diff Lock - Rear Axle 2',  b:1, n:0, bit:6, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+    { spn:564, name:'Diff Lock - Central',       b:2, n:0, bit:0, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+    { spn:565, name:'Diff Lock - Central Front', b:2, n:0, bit:2, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+    { spn:566, name:'Diff Lock - Central Rear',  b:2, n:0, bit:4, bits:2, map:{0:'Unlocked',1:'Locked',2:'Error',3:'N/A'} },
+  ]},
+  0xFDDF:{ name:'Front Wheel Drive Status', abbr:'FWD', spns:[
+    { spn:2612, name:'Front Wheel Drive Actuator Status', b:0, n:0, bit:0, bits:2, map:{0:'Not engaged',1:'Engaged',2:'Error',3:'N/A'} },
+  ]},
+  // ERC1 carries SPN 520, the retarder torque the carlito contract's `retarder_state` borrows,
+  // and j1939-flavor.js publishes it here. Byte 2, 1 %/bit, -125 offset: a retarder is a BRAKE, so
+  // the standard's operating range is -125..0 % and the game's 0..100 magnitude is negated on its
+  // way onto the wire. The mode names in byte 1 are TABLE SPN899_A, a figure in J1939-71 rather
+  // than text - so only 0000b, which the surrounding text does state, is named here.
+  0xF000:{ name:'Electronic Retarder Controller 1', abbr:'ERC1', spns:[
+    { spn:900,  name:'Retarder Torque Mode', b:0, n:0, bit:0, bits:4, map:{0:'No request',15:'N/A'} },
+    { spn:571,  name:'Retarder Enable - Brake Assist Switch', b:0, n:0, bit:4, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
+    { spn:572,  name:'Retarder Enable - Shift Assist Switch', b:0, n:0, bit:6, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
+    { spn:520,  name:'Actual Retarder - Percent Torque',   b:1, n:1, f:1, o:-125, u:'%', dp:0 },
+    { spn:1085, name:'Intended Retarder Percent Torque',   b:2, n:1, f:1, o:-125, u:'%', dp:0 },
+    { spn:1082, name:'Engine Coolant Load Increase',        b:3, n:0, bit:0, bits:2, map:{0:'No increase',1:'Increase possible',3:'N/A'} },
+    { spn:1667, name:'Retarder Requesting Brake Light',     b:3, n:0, bit:2, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
+    { spn:1480, name:'Source Address of Controlling Device for Retarder Control', b:4, n:1, f:1, o:0, u:'', dp:0 },
+    { spn:1715, name:'Drivers Demand Retarder - Percent Torque', b:5, n:1, f:1,   o:-125, u:'%', dp:0 },
+    { spn:1716, name:'Retarder Selection, non-engine',           b:6, n:1, f:0.4, o:0,    u:'%', dp:0 },
+    { spn:1717, name:'Actual Maximum Available Retarder - Percent Torque', b:7, n:1, f:1, o:-125, u:'%', dp:0 },
   ]},
   0xF005:{ name:'Electronic Transmission Controller 2', abbr:'ETC2', spns:[
     { spn:524, name:'Selected Gear', b:3, n:1, f:1, o:-125, u:'', dp:0 },
@@ -125,6 +184,15 @@ const J1939_DB = {
     { spn:595, name:'CC Active',           b:3, n:0, bit:0, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
     { spn:597, name:'Brake Switch',        b:3, n:0, bit:2, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
     { spn:598, name:'Clutch Switch',       b:3, n:0, bit:4, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
+  ]},
+  // CCSS carries the CONFIGURED speed limits, not measured speed - SPN 74 is what a road-speed
+  // governor is set to, and the game publishes it as the carlito contract's 'speed_limit'. The
+  // PGN is sent ON REQUEST rather than periodically, so nothing here generates it; this entry
+  // exists so a requested one decodes with its SPNs named.
+  0xFEED:{ name:'Cruise Control/Vehicle Speed Setup', abbr:'CCSS', spns:[
+    { spn:74, name:'Max Vehicle Speed Limit',  b:0, n:1, f:1, o:0, u:'km/h', dp:0 },
+    { spn:87, name:'CC High Set Limit Speed',  b:1, n:1, f:1, o:0, u:'km/h', dp:0 },
+    { spn:88, name:'CC Low Set Limit Speed',   b:2, n:1, f:1, o:0, u:'km/h', dp:0 },
   ]},
   0xFEEE:{ name:'Engine Temperature 1', abbr:'ET1', spns:[
     { spn:110, name:'Coolant Temp', b:0, n:1, f:1,       o:-40,  u:'°C', dp:0 },
@@ -154,6 +222,26 @@ const J1939_DB = {
     { spn:108, name:'Baro Pressure', b:0, n:2, f:0.0005,  o:0,   u:'kPa', dp:2 },
     { spn:171, name:'Ambient Temp',  b:4, n:2, f:0.03125, o:-273, u:'°C', dp:1 },
   ]},
+  // AIR1 is the truck's air-brake reservoirs, and the pair the carlito contract's `air_primary` /
+  // `air_secondary` borrow (SPN 1087 / 1088). Every pressure in the group is 8 kPa/bit, 0 offset.
+  0xFEAE:{ name:'Air Supply Pressure', abbr:'AIR1', spns:[
+    { spn:46,   name:'Pneumatic Supply Pressure',              b:0, n:1, f:8, o:0, u:'kPa', dp:0 },
+    { spn:1086, name:'Parking and/or Trailer Air Pressure',    b:1, n:1, f:8, o:0, u:'kPa', dp:0 },
+    { spn:1087, name:'Service Brake Air Pressure Circuit #1',  b:2, n:1, f:8, o:0, u:'kPa', dp:0 },
+    { spn:1088, name:'Service Brake Air Pressure Circuit #2',  b:3, n:1, f:8, o:0, u:'kPa', dp:0 },
+    { spn:1089, name:'Auxiliary Equipment Supply Pressure',    b:4, n:1, f:8, o:0, u:'kPa', dp:0 },
+    { spn:1090, name:'Air Suspension Supply Pressure',         b:5, n:1, f:8, o:0, u:'kPa', dp:0 },
+  ]},
+  // VW carries SPN 582, the axle weight the contract's `axle_load` borrows - but its transmission
+  // repetition rate is ON REQUEST, so nothing generates it periodically; the request server below
+  // answers a 59904 for it. SPN 928 Axle Location is what says WHICH axle a given VW is about,
+  // which is why the group can be answered "with as many messages as necessary".
+  0xFEEA:{ name:'Vehicle Weight', abbr:'VW', spns:[
+    { spn:928, name:'Axle Location',  b:0, n:1, f:1,   o:0, u:'',   dp:0 },
+    { spn:582, name:'Axle Weight',    b:1, n:2, f:0.5, o:0, u:'kg', dp:0 },
+    { spn:180, name:'Trailer Weight', b:3, n:2, f:2,   o:0, u:'kg', dp:0 },
+    { spn:181, name:'Cargo Weight',   b:5, n:2, f:2,   o:0, u:'kg', dp:0 },
+  ]},
   0xFEE0:{ name:'Vehicle Distance', abbr:'VD', spns:[
     { spn:244, name:'Total Distance', b:0, n:4, f:0.005, o:0, u:'km', dp:1 },
   ]},
@@ -161,6 +249,17 @@ const J1939_DB = {
     { spn:80, name:'Washer Fluid',  b:0, n:1, f:0.4, o:0, u:'%', dp:0 },
     { spn:98, name:'Engine Oil Level', b:2, n:1, f:0.4, o:0, u:'%', dp:0 },
   ]},
+  // ── The J1939-21 request pair ────────────────────────────────────────────────
+  // Both carry a 24-bit PGN in the payload, which the byte-scaled SPN model cannot render as
+  // anything but a decimal number - so both get a custom `decode`, the escape hatch the ISOBUS
+  // TC/VT entries already use. Layouts and the priority-6 default are J1939-21's.
+  0xEA00:{ name:'Request', abbr:'RQST', decode:(d) => d.length < 3 ? [] : [
+    { name:'Requested PGN', display: j1939PgnLabel((d[0] | (d[1] << 8) | (d[2] << 16)) >>> 0), valid:true } ]},
+  0xE800:{ name:'Acknowledgment', abbr:'ACKM', decode:(d) => d.length < 8 ? [] : [
+    { name:'Control byte', display: J1939_ACK_CTRL[d[0]] || String(d[0]), valid:true },
+    { name:'Group function', display: d[1] === 0xFF ? 'N/A' : String(d[1]), valid:true },
+    { name:'Address', display: d[4] === 0xFF ? 'N/A' : '0x' + j1939H(d[4]), valid:true },
+    { name:'Requested PGN', display: j1939PgnLabel((d[5] | (d[6] << 8) | (d[7] << 16)) >>> 0), valid:true } ]},
   // DM1/DM2 handled separately; entries here provide name lookup only
   0xFECA:{ name:'Active DTCs (DM1)',           abbr:'DM1', spns:[] },
   0xFECB:{ name:'Previously Active DTCs (DM2)', abbr:'DM2', spns:[] },
@@ -436,33 +535,57 @@ function isoVtDecode(data) {
 // ISOBUS = all J1939 PGNs (tractors speak standard engine/CCVS too) + the ag set.
 const ISOBUS_DB = {
   ...J1939_DB,
-  0xFE48:{ name:'Wheel-Based Speed & Distance', abbr:'WBSD', spns:[
-    { name:'Wheel Speed',    b:0, n:2, f:0.001, o:0, u:'m/s', dp:3 },
-    { name:'Wheel Distance', b:2, n:4, f:0.001, o:0, u:'m',   dp:0 },
-    { name:'Direction', b:7, n:0, bit:6, bits:2, map:{0:'Reverse',1:'Forward',2:'Error',3:'N/A'} },
+  // ── The ag PGNs, as the ISOBUS Data Dictionary defines them ─────────────────
+  // THE PTO AND HITCH PAIRS USED TO BE THE WRONG WAY ROUND HERE: 0xFE43 (65091) is the rear
+  // PTO and 0xFE45 (65093) is the rear hitch, not the reverse, so a real tractor's frames
+  // decoded under each other's names with plausible-looking numbers. Field positions, SPN
+  // numbers and scalings below all come off isobus.net; the direction bits in particular sat
+  // at 8.7 (which is SPN 5244, "operator direction reversed") rather than 8.1.
+  0xFE48:{ name:'Wheel-based Speed and Distance', abbr:'WBSD', spns:[
+    { spn:1862, name:'Wheel-based machine speed',    b:0, n:2, f:0.001, o:0, u:'m/s', dp:3 },
+    { spn:1863, name:'Wheel-based machine distance', b:2, n:4, f:0.001, o:0, u:'m',   dp:0 },
+    { spn:1866, name:'Maximum Time of Tractor Power', b:6, n:1, f:1, o:0, u:'min', dp:0 },
+    { spn:1864, name:'Wheel-based machine direction', b:7, n:0, bit:0, bits:2, map:{0:'Reverse',1:'Forward',2:'Error',3:'N/A'} },
+    { spn:1865, name:'Key switch state', b:7, n:0, bit:2, bits:2, map:{0:'Off',1:'Not off',2:'Error',3:'N/A'} },
+    { spn:5203, name:'Implement Start/Stop operations', b:7, n:0, bit:4, bits:2, map:{0:'Stop',1:'Permit',2:'Error',3:'N/A'} },
+    { spn:5244, name:'Operator direction reversed', b:7, n:0, bit:6, bits:2, map:{0:'Not reversed',1:'Reversed',2:'Error',3:'N/A'} },
   ]},
-  0xFE49:{ name:'Ground-Based Speed & Distance', abbr:'GBSD', spns:[
-    { name:'Ground Speed',    b:0, n:2, f:0.001, o:0, u:'m/s', dp:3 },
-    { name:'Ground Distance', b:2, n:4, f:0.001, o:0, u:'m',   dp:0 },
-    { name:'Direction', b:7, n:0, bit:6, bits:2, map:{0:'Reverse',1:'Forward',2:'Error',3:'N/A'} },
+  0xFE49:{ name:'Ground-based Speed and Distance', abbr:'GBSD', spns:[
+    { spn:1859, name:'Ground-based machine speed',    b:0, n:2, f:0.001, o:0, u:'m/s', dp:3 },
+    { spn:1860, name:'Ground-based machine distance', b:2, n:4, f:0.001, o:0, u:'m',   dp:0 },
+    { spn:1861, name:'Ground-based machine direction', b:7, n:0, bit:0, bits:2, map:{0:'Reverse',1:'Forward',2:'Error',3:'N/A'} },
   ]},
-  0xFE45:{ name:'Rear PTO Drive', abbr:'RPTO', spns:[
-    { name:'Rear PTO Speed',    b:0, n:2, f:0.125, o:0, u:'rpm', dp:1 },
-    { name:'Rear PTO Setpoint', b:2, n:2, f:0.125, o:0, u:'rpm', dp:1 },
-    { name:'Rear PTO Engaged', b:4, n:0, bit:0, bits:2, map:{0:'Disengaged',1:'Engaged',2:'Error',3:'N/A'} },
+  0xFE43:{ name:'Primary or Rear Power Take off Output Shaft', abbr:'RPTO', spns:[
+    { spn:1883, name:'Rear PTO output shaft speed',     b:0, n:2, f:0.125, o:0, u:'rpm', dp:1 },
+    { spn:1885, name:'Rear PTO shaft speed set point',  b:2, n:2, f:0.125, o:0, u:'rpm', dp:1 },
+    { spn:5156, name:'Rear PTO engagement request status', b:4, n:0, bit:0, bits:2, map:{0:'Disengaged',1:'Engaged',2:'Error',3:'N/A'} },
+    { spn:1892, name:'Rear PTO economy mode',  b:4, n:0, bit:2, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
+    { spn:1890, name:'Rear PTO mode',          b:4, n:0, bit:4, bits:2, map:{0:'540',1:'1000',2:'Error',3:'N/A'} },
+    { spn:2408, name:'Rear PTO engagement',    b:4, n:0, bit:6, bits:2, map:{0:'Disengaged',1:'Engaged',2:'Error',3:'N/A'} },
   ]},
-  0xFE46:{ name:'Front PTO Drive', abbr:'FPTO', spns:[
-    { name:'Front PTO Speed',    b:0, n:2, f:0.125, o:0, u:'rpm', dp:1 },
-    { name:'Front PTO Setpoint', b:2, n:2, f:0.125, o:0, u:'rpm', dp:1 },
-    { name:'Front PTO Engaged', b:4, n:0, bit:0, bits:2, map:{0:'Disengaged',1:'Engaged',2:'Error',3:'N/A'} },
+  0xFE44:{ name:'Secondary or Front Power Take off Output Shaft', abbr:'FPTO', spns:[
+    { spn:1882, name:'Front PTO output shaft speed',    b:0, n:2, f:0.125, o:0, u:'rpm', dp:1 },
+    { spn:1884, name:'Front PTO shaft speed set point', b:2, n:2, f:0.125, o:0, u:'rpm', dp:1 },
+    { spn:5152, name:'Front PTO engagement request status', b:4, n:0, bit:0, bits:2, map:{0:'Disengaged',1:'Engaged',2:'Error',3:'N/A'} },
+    { spn:1891, name:'Front PTO economy mode', b:4, n:0, bit:2, bits:2, map:{0:'Off',1:'On',2:'Error',3:'N/A'} },
+    { spn:1889, name:'Front PTO mode',         b:4, n:0, bit:4, bits:2, map:{0:'540',1:'1000',2:'Error',3:'N/A'} },
+    { spn:1888, name:'Front PTO engagement',   b:4, n:0, bit:6, bits:2, map:{0:'Disengaged',1:'Engaged',2:'Error',3:'N/A'} },
   ]},
-  0xFE43:{ name:'Rear Hitch Position & State', abbr:'RHPS', spns:[
-    { name:'Rear Hitch Position', b:0, n:1, f:0.4, o:0, u:'%', dp:0 },
-    { name:'Rear Hitch In-Work', b:1, n:0, bit:0, bits:2, map:{0:'Out of Work',1:'In Work',2:'Error',3:'N/A'} },
+  0xFE45:{ name:'Primary or Rear Hitch Status', abbr:'RHS', spns:[
+    { spn:1873, name:'Rear Hitch Position', b:0, n:1, f:0.4, o:0, u:'%', dp:0 },
+    { spn:5151, name:'Rear Hitch Position Limit status', b:1, n:0, bit:3, bits:3 },
+    { spn:1877, name:'Rear Hitch In-work Indication', b:1, n:0, bit:6, bits:2, map:{0:'Out of Work',1:'In Work',2:'Error',3:'N/A'} },
+    // 0.8 %/bit over -100..+100 %, so it is a SIGNED reading in an unsigned byte - the field
+    // isobus.js puts the contract's `draft_force` in.
+    { spn:1881, name:'Rear Nominal Lower Link Force', b:2, n:1, f:0.8, o:-100, u:'%', dp:0 },
+    { spn:1879, name:'Rear Draft', b:3, n:2, f:10, o:-320000, u:'N', dp:0 },
   ]},
-  0xFE44:{ name:'Front Hitch Position & State', abbr:'FHPS', spns:[
-    { name:'Front Hitch Position', b:0, n:1, f:0.4, o:0, u:'%', dp:0 },
-    { name:'Front Hitch In-Work', b:1, n:0, bit:0, bits:2, map:{0:'Out of Work',1:'In Work',2:'Error',3:'N/A'} },
+  0xFE46:{ name:'Secondary or Front Hitch Status', abbr:'FHS', spns:[
+    { spn:1872, name:'Front Hitch Position', b:0, n:1, f:0.4, o:0, u:'%', dp:0 },
+    { spn:5150, name:'Front Hitch Position Limit status', b:1, n:0, bit:3, bits:3 },
+    { spn:1876, name:'Front Hitch In-work Indication', b:1, n:0, bit:6, bits:2, map:{0:'Out of Work',1:'In Work',2:'Error',3:'N/A'} },
+    { spn:1880, name:'Front Nominal Lower Link Force', b:2, n:1, f:0.8, o:-100, u:'%', dp:0 },
+    { spn:1878, name:'Front Draft', b:3, n:2, f:10, o:-320000, u:'N', dp:0 },
   ]},
   0xFEE8:{ name:'Vehicle Direction/Speed', abbr:'VDS', spns:[
     { name:'Compass Direction', b:0, n:2, f:1/128, o:0,     u:'°',    dp:1 },
@@ -475,10 +598,15 @@ const ISOBUS_DB = {
   0xE700:{ name:'ECU → VT', abbr:'ECU→VT', decode: isoVtDecode },
   0xEA00:{ name:'Request PGN', abbr:'RQST', fields:[ { name:'Requested PGN', bo:0, bl:24 } ]},
   0xFED8:{ name:'Commanded Address', abbr:'CA', fields:[ { name:'New Address', bo:64, bl:8 } ]},
-  // Auxiliary valve block - labelled (decode is application-specific / DDL-driven).
-  0xFE2F:{ name:'Auxiliary Valve 0 Estimated Flow', abbr:'AUX0', spns:[] },
-  0xFE2E:{ name:'Auxiliary Valve 1 Estimated Flow', abbr:'AUX1', spns:[] },
-  0xFE24:{ name:'Auxiliary Valve Command',          abbr:'AUXC', spns:[] },
+  // Auxiliary valve block - labelled (decode is application-specific / DDL-driven). The valves
+  // occupy three contiguous runs of sixteen PGNs, per isobus.net: 65040-65055 estimated flow,
+  // 65056-65071 measured flow, 65072-65087 command. The three entries that used to be here
+  // named 0xFE2F / 0xFE2E / 0xFE24 as valves 0 and 1 and "the" command PGN, which put all
+  // three in the measured-flow run under the wrong names.
+  0xFE10:{ name:'Auxiliary Valve 0 Estimated Flow', abbr:'AUX0E', spns:[] },
+  0xFE11:{ name:'Auxiliary Valve 1 Estimated Flow', abbr:'AUX1E', spns:[] },
+  0xFE20:{ name:'Auxiliary Valve 0 Measured Flow',  abbr:'AUX0M', spns:[] },
+  0xFE30:{ name:'Auxiliary Valve 0 Command',        abbr:'AUX0C', spns:[] },
 };
 
 // Returns the dictionary for the active protocol mode (J1939 stays unchanged).
@@ -708,28 +836,32 @@ function j1939DecodeDTCs(data) {
 
 // ── Address Claim (NAME) Decode ───────────────────────────────────────────────
 // The NAME is a 64-bit value transmitted little-endian (byte 0 = LSB).
-// Bit layout:
+// Bit layout, per SAE J1939-81:
 //   Bits  0-20: Identity Number   (21 bits)
 //   Bits 21-31: Manufacturer Code (11 bits)
 //   Bits 32-34: ECU Instance      ( 3 bits)
 //   Bits 35-39: Function Instance ( 5 bits)
 //   Bits 40-47: Function          ( 8 bits)
 //   Bit     48: Reserved
-//   Bits 49-52: Vehicle System    ( 4 bits)
-//   Bits 53-56: Vehicle Sys Inst  ( 4 bits)
-//   Bits 57-59: Industry Group    ( 3 bits)
-//   Bit     60: Arbitrary Addr Cap( 1 bit)
+//   Bits 49-55: Vehicle System    ( 7 bits) - the ISO 11783 / NMEA 2000 device class
+//   Bits 56-59: Vehicle Sys Inst  ( 4 bits)
+//   Bits 60-62: Industry Group    ( 3 bits)
+//   Bit     63: Arbitrary Addr Cap( 1 bit)
+// The last two used to be read at bits 57-59 and 60, which put the industry group three bits
+// low and the self-configurable flag three bits early - so every claim decoded with the wrong
+// industry (and therefore the wrong device-class table). Corrected against J1939-81 when
+// isobus.js needed to WRITE a NAME; the two synthesised claims in the demo below moved with it.
 function j1939DecodeName(data) {
   if (data.length < 8) return null;
   // Split into two 32-bit words (bits 0-31 and bits 32-63)
   const lo = (data[0] | (data[1]<<8) | (data[2]<<16) | (data[3]<<24)) >>> 0;
   const hi = (data[4] | (data[5]<<8) | (data[6]<<16) | (data[7]<<24)) >>> 0;
   const fn          = (hi >>> 8)  & 0xFF;
-  const industryGrp = (hi >>> 25) & 0x07;
+  const industryGrp = (hi >>> 28) & 0x07;
   const ecuInst     = hi          & 0x07;
   const mfrCode     = (lo >>> 21) & 0x7FF;
-  const arbitrary   = (hi >>> 28) & 0x01;
-  const devClass    = (hi >>> 17) & 0x7F; // NAME bits 49–55 (marine device class)
+  const arbitrary   = (hi >>> 31) & 0x01;
+  const devClass    = (hi >>> 17) & 0x7F; // NAME bits 49–55 (device class / vehicle system)
   return {
     fn, mfrCode, ecuInst, industryGrp, arbitrary, devClass,
     fnName:       J1939_FUNCTION[fn]     || `Function ${fn}`,
@@ -906,6 +1038,12 @@ function j1939IngestFrame(frame) {
     return;
   }
 
+  // A request (59904) is handed to the request server, which may answer it. Deliberately BEFORE
+  // the per-mode branches and deliberately not an early return: the Mode dropdown picks how
+  // frames are displayed and must not decide what is on the bus, and a request is itself a frame
+  // that belongs in the monitor and the log whether or not anything answers it.
+  if (pgn === J1939_REQ_PGN) j1939ServeRequest(parsed, data);
+
   // NMEA 2000: Fast Packet for multi-frame PGNs (no J1939 TP), else dispatch immediately.
   if (j1939ProtoMode === 'nmea2000') {
     const entry = NMEA2K_DB[pgn];
@@ -958,6 +1096,293 @@ function j1939SetProto(mode) {
   j1939Dirty = true;
   j1939Render();
 }
+// ── The DM1 LAMP STATES, driven into Carlito's cluster ────────────────────────
+// J1939-73's DM1 lamp status is TWO BITS per lamp: off, on, flash 1 Hz, flash 2 Hz - and the two
+// flashing states are how a real cluster separates a fault that is ACTIVE from one that is
+// PENDING. The contract carries the three lamps as plain bools (`red_stop` / `amber_warn` /
+// `protect_lamp`, mirrored verbatim like turnL), and THAT IS ENOUGH, because a flash rate is a
+// property of the SOURCE and not of the dashboard: this module holds the four-state lamp status
+// and sends the bit that is lit THIS INSTANT. The game has no blink timer for these or for
+// anything else.
+//
+// So the urgency really is on the wire, in the only form a mirrored bit can carry it - the rate.
+// A listener watching the bit over a second reads it exactly the way a cluster does.
+const J1939_LAMP_OFF = 0, J1939_LAMP_ON = 1, J1939_LAMP_FLASH_1HZ = 2, J1939_LAMP_FLASH_2HZ = 3;
+// Phase off the wall clock rather than an accumulator, so it never drifts and needs no timer of
+// its own; carlito.js samples these at the ~33 Hz uplink rate, which resolves 2 Hz comfortably.
+// Duty is a half-on square wave, which is what a flashing telltale looks like - unlike the
+// aircraft beacon's short pulse.
+function j1939LampBit(state) {
+  switch (state | 0) {
+    case J1939_LAMP_ON: return 1;
+    case J1939_LAMP_FLASH_1HZ: return (Date.now() % 1000) < 500 ? 1 : 0;
+    case J1939_LAMP_FLASH_2HZ: return (Date.now() % 500) < 250 ? 1 : 0;
+    default: return 0;
+  }
+}
+// The three lamps' STATES (not their bits). DM1's Malfunction Indicator Lamp is deliberately
+// absent: the contract's `checkEngine` already IS the MIL, so a fourth entry here would be the
+// same lamp under a second name.
+const j1939Lamps = { red_stop: 0, amber_warn: 0, protect_lamp: 0 };
+window.carlitoUplinkSources = window.carlitoUplinkSources || {};
+Object.assign(window.carlitoUplinkSources, {
+  red_stop:     () => j1939LampBit(j1939Lamps.red_stop),
+  amber_warn:   () => j1939LampBit(j1939Lamps.amber_warn),
+  protect_lamp: () => j1939LampBit(j1939Lamps.protect_lamp),
+});
+// Read the three selectors out of the bar. No latch and no command to flush: these are lamp
+// states sampled by the uplink, not messages sent on an edge.
+function j1939LampChange() {
+  for (const name of Object.keys(j1939Lamps)) {
+    const el = document.getElementById('j1939Lamp_' + name);
+    if (el) j1939Lamps[name] = parseInt(el.value, 10) || 0;
+  }
+}
+window.j1939LampChange = j1939LampChange;
+
+// ── THE REQUEST PATH (J1939-21) ───────────────────────────────────────────────
+// Most of J1939 is broadcast: an ECU decides a parameter group is worth sending and sends it,
+// on its own clock, forever. A handful of parameter groups are NOT sent that way - J1939-71
+// gives their transmission repetition rate as "On request", which means the frame does not
+// exist until somebody asks for it. PGN 59904 (0xEA00, RQST) is how you ask: three bytes, the
+// 24-bit PGN you want, little-endian, addressed to one ECU or to the global address 0xFF.
+//
+// THIS IS BOTH ENDS OF THAT EXCHANGE. The client half is the bar in the tab - a tool at
+// address 0xF9 asking the bus a question. The server half stands in for the vehicle's own
+// ECUs and answers out of the game's live telemetry, which is the mirror of the DM1 lamp
+// states above: those go INTO the game, these come OUT of it.
+//
+// It is what retired two coverage opt-outs at once, and carries a third signal that never needed
+// one. `speed_limit` (SPN 74, PGN 65261 CCSS) and `engine_hours` (SPN 247, PGN 65253 HOURS) were
+// both declared unpackable for the same stated reason - the parameter group carrying them is
+// request-only, so there was no periodic frame to put them in, and broadcasting them at 10 Hz
+// would have misstated both their rate and their identity. Neither signal was missing. The frame
+// that carries them was. `axle_load` (SPN 582, PGN 65258 VW) joined them from the other
+// direction: j1939-flavor.js declared it `onRequest` from the start, because this path already
+// existed by the time that packer was written.
+//
+// Sources: J1939-21 for the request/acknowledgment layouts and the priority-6 default (which
+// is what the familiar `18EA`/`18E8` id prefixes carry); J1939-71 for both parameter groups
+// (65261 CCSS: on request, priority 6, PDU2, SPN 74 in byte 1 at 1 km/h per bit, 0 offset;
+// 65253 HOURS: on request, priority 6, PDU2, SPN 247 in bytes 1-4 at 0.05 h per bit;
+// 65258 VW: on request, priority 6, PDU2, SPN 928 in byte 1 and SPN 582 in bytes 2-3 at
+// 0.5 kg per bit). The
+// isobus.js rule - a PGN/SPN number comes off a primary source, never off a plan document -
+// applies here too, and it is cheap to honour because the numbers were ALREADY in J1939_DB
+// above: this path encodes through the very table it decodes with.
+const J1939_REQ_PGN = 0xEA00;    // Request
+const J1939_ACK_PGN = 0xE800;    // Acknowledgment (ACKM)
+const J1939_PRIO_REQ = 6;        // J1939-21's default for the request, the ack and both answers
+// J1939-21 control byte. Only NACK is ever sent from here: a positive ACK belongs to commands,
+// and the positive answer to a request IS the requested parameter group.
+const J1939_ACK_CTRL = { 0:'ACK', 1:'NACK', 2:'Access Denied', 3:'Cannot Respond' };
+const J1939_ACK_NACK = 1;
+const J1939_SA_TOOL = 0xF9;      // the request client - Off-Board Diagnostic-Service Tool #1
+// Both parameter groups below are engine-ECU functions: the road-speed governor SPN 74 reports
+// is part of the engine controller, and so is the hour meter. isobus.js already sources EEC2
+// from this same address for the same reason.
+const J1939_SA_ENGINE = 0x00;
+
+// Build a 29-bit id for either PDU form. j1939BuildId below is PDU2-only (it was written for
+// the NMEA demo, where everything is broadcast); the request and the acknowledgment are both
+// PDU1 and carry a destination, so this is the general one - the exact inverse of j1939ParseId.
+function j1939BuildIdDa(pgn, sa, da, prio) {
+  const dp = (pgn >> 16) & 1, pf = (pgn >> 8) & 0xFF;
+  const ps = pf < 0xF0 ? ((da == null ? 0xFF : da) & 0xFF) : (pgn & 0xFF);
+  return ((((prio & 7) << 26) >>> 0) | (dp << 24) | (pf << 16) | (ps << 8) | (sa & 0xFF)) >>> 0;
+}
+
+// The exact inverse of j1939DecodeSPN, reading the SAME {b,n,f,o,bit,bits} descriptors out of
+// J1939_DB. That is the whole point of writing it this way rather than typing a second table:
+// a scale that is wrong here is wrong in the monitor too, and the self-test round-trips one
+// against the other. The top two raw codes are reserved (0xFF..FE error, 0xFF..FF not
+// available), so a real value clamps below them instead of colliding with one.
+function j1939EncodeSPN(def, data, value) {
+  const v = Number(value);
+  if (!def || !Number.isFinite(v)) return false;
+  if (def.n === 0) {
+    const mask = (((1 << def.bits) - 1) << def.bit) & 0xFF;
+    data[def.b] = ((data[def.b] & ~mask) | ((v << def.bit) & mask)) & 0xFF;
+    return true;
+  }
+  const max = Math.pow(2, def.n * 8) - 1;
+  let raw = Math.max(0, Math.min(max - 2, Math.round((v - (def.o || 0)) / def.f)));
+  for (let i = 0; i < def.n; i++) { data[def.b + i] = raw % 256; raw = Math.floor(raw / 256); }
+  return true;
+}
+// Look an SPN descriptor up in J1939_DB by (pgn, spn). Reading it rather than passing one in is
+// what keeps the request server from carrying a private copy of a number the decoder already has.
+function j1939SpnDef(pgn, spn) {
+  const e = J1939_DB[pgn];
+  return (e && e.spns && e.spns.find(d => d.spn === spn)) || null;
+}
+// A frame starts as eight 0xFF bytes and SPNs are written INTO it: in J1939 an all-ones field IS
+// "not available", so a byte this side never touches states "no source for this" rather than
+// claiming a zero. Same rule isobus.js's ibBlank follows.
+function j1939Blank() { return [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]; }
+
+// ── The answerable parameter groups ─────────────────────────────────────────
+// A module that can answer a request for a PGN registers here. `signals` is what carlito.js's
+// coverage check folds in - a signal SERVED ON REQUEST is covered, and reported on its own line,
+// because "carried by a frame that only exists when asked for" and "carried by a periodic frame"
+// are different statements and a check that cannot tell them apart hides the difference.
+// `build` is handed the game's live telemetry and returns the eight data bytes, or null if THIS
+// vehicle has nothing to say - a boat has no road-speed governor, and that gets a NACK.
+window.j1939RequestServers = window.j1939RequestServers || [];
+const J1939_REQ_SERVERS = window.j1939RequestServers;
+
+// The presence of the KEY is the question, never truthiness: the contract says a body with no
+// limiter publishes speed_limit 0 EVERY tick rather than omitting it, so a 0 must answer with a 0.
+const j1939Has = (t, k) => !!t && t[k] != null && Number.isFinite(Number(t[k]));
+
+J1939_REQ_SERVERS.push({
+  pgn: 0xFEED, abbr: 'CCSS', sa: J1939_SA_ENGINE, prio: J1939_PRIO_REQ,
+  signals: ['speed_limit'],
+  build(t) {
+    if (!j1939Has(t, 'speed_limit')) return null;
+    const d = j1939Blank();
+    // SPN 74 only. 87 and 88 are the cruise high/low set limits, which the game does not model -
+    // and 0xFF is how J1939 says exactly that, so they are left standing rather than zeroed.
+    j1939EncodeSPN(j1939SpnDef(0xFEED, 74), d, t.speed_limit);
+    return d;
+  },
+});
+J1939_REQ_SERVERS.push({
+  pgn: 0xFEE5, abbr: 'HOURS', sa: J1939_SA_ENGINE, prio: J1939_PRIO_REQ,
+  signals: ['engine_hours'],
+  build(t) {
+    if (!j1939Has(t, 'engine_hours')) return null;
+    const d = j1939Blank();
+    // SPN 247 only; 249 (total engine revolutions) has no counter behind it in the game, and an
+    // hour meter multiplied by a guessed idle speed would be a second model wearing its hat.
+    j1939EncodeSPN(j1939SpnDef(0xFEE5, 247), d, t.engine_hours);
+    return d;
+  },
+});
+// Vehicle Weight, for the carlito `j1939` flavor's `axle_load`. The other two servers here are
+// engine-ECU functions; THIS ONE IS NOT - a weight is a reading from the suspension, so it is
+// answered by Axle - Drive #1 (0x09), the same address isobus.js sources EAC1 from. That is the
+// whole reason the server carries its own `sa` rather than a shared constant.
+const J1939_SA_AXLE_DRV1 = 0x09;
+// SPN 928 Axle Location: low nibble = position left to right, high nibble = axle front to back,
+// both zero-based. 0x10 is "second axle, first position" - the drive axle of a two-axle tractor.
+// It is SET rather than left at 0xFF, which is the opposite of what isobus.js does with EAC1's
+// SPN 927, and the two cases really are different: there is one axle controller in that message
+// and no position to give, whereas VW's own note says a request is answered "with as many
+// messages as necessary to transmit all available information" - so which axle a weight belongs
+// to is carried by this byte and nowhere else, and omitting it would make the answer unreadable.
+const J1939_VW_DRIVE_AXLE = 0x10;
+J1939_REQ_SERVERS.push({
+  pgn: 0xFEEA, abbr: 'VW', sa: J1939_SA_AXLE_DRV1, prio: J1939_PRIO_REQ,
+  signals: ['axle_load'],
+  build(t) {
+    if (!j1939Has(t, 'axle_load')) return null;
+    const d = j1939Blank();
+    d[0] = J1939_VW_DRIVE_AXLE;
+    j1939EncodeSPN(j1939SpnDef(0xFEEA, 582), d, t.axle_load);
+    // 180 Trailer Weight and 181 Cargo Weight stay "not available". The contract publishes
+    // trailer_axle_load, which is the trailer's AXLE load reported over the trailer's own bus -
+    // not the trailer's total mass - and there is no cargo mass anywhere in the telemetry, only
+    // the refuse hopper's percentage. Both would be a second model wearing this group's hat.
+    return d;
+  },
+});
+
+// ── Transmit ────────────────────────────────────────────────────────────────
+// Everything this path puts on the wire goes through canForward, the same gateway carlito.js's
+// telemetry rides: ingested once for the monitor AND transmitted when a bus is open, shown as a
+// single FW entry. There is no second transmit path and no bus state to check here.
+function j1939TxFrame(pgn, sa, da, prio, data) {
+  const f = { id: j1939BuildIdDa(pgn, sa, da, prio), isExt: true, isRtr: false, dlc: data.length, data };
+  if (window.canForward) window.canForward(f);
+  else if (window.ingestFrame) window.ingestFrame(f);
+}
+
+// ── Server ──────────────────────────────────────────────────────────────────
+// Called for every 59904 seen, whichever dictionary the tab's Mode dropdown has selected: that
+// dropdown picks how frames are DISPLAYED and must not change what is on the bus.
+//
+// THE THREE OUTCOMES ARE THE LESSON, and they are different on purpose:
+//   - the vehicle publishes the signal            -> the parameter group, from the engine ECU
+//   - a vehicle is there but has no such parameter -> a NACK from the engine ECU
+//   - no vehicle on the link at all               -> SILENCE, because there is no ECU to answer
+// The last one is the same reading the DroneCAN roster gives a node that has stopped publishing.
+// A request that nothing answers is not a bug in the requester.
+let j1939ReqLast = null;   // { ts, pgn, outcome } - the bar's readout, not bus state
+function j1939ServeRequest(parsed, data) {
+  if (!data || data.length < 3) return;
+  const want = (data[0] | (data[1] << 8) | (data[2] << 16)) >>> 0;
+  // Whether anything here implements the group AT ALL, kept apart from whether it was addressed
+  // to the right ECU. Those are different answers: "nobody carries this" and "the ECU that
+  // carries it is not the one you asked" are the two ways a specific-address request goes quiet,
+  // and telling a reader they are the same thing would send them looking in the wrong place.
+  let implemented = null;
+  for (const srv of J1939_REQ_SERVERS) {
+    if (srv.pgn !== want) continue;
+    implemented = srv;
+    if (parsed.da !== 0xFF && parsed.da !== srv.sa) continue;   // addressed to some other ECU
+    if (parsed.sa === srv.sa) continue;                          // an ECU does not answer itself
+    const t = window.carlitoTelemetry ? window.carlitoTelemetry() : null;
+    if (!t) { j1939ReqNote(want, 'no vehicle on the link - nothing answered'); return; }
+    const payload = srv.build(t);
+    if (payload) {
+      // PDU2, so the answer is a broadcast whoever asked for it - which is why every listener
+      // sees it and it lands in the PGN Monitor beside the periodic traffic.
+      j1939TxFrame(srv.pgn, srv.sa, 0xFF, srv.prio, payload);
+      j1939ReqNote(want, 'answered by ' + j1939SaLabel(srv.sa));
+    } else {
+      const d = j1939Blank();
+      d[0] = J1939_ACK_NACK;
+      d[1] = 0xFF;                                   // group function: not applicable to a request
+      d[4] = srv.sa;                                 // the address the acknowledgment came from
+      d[5] = want & 0xFF; d[6] = (want >> 8) & 0xFF; d[7] = (want >> 16) & 0xFF;
+      j1939TxFrame(J1939_ACK_PGN, srv.sa, parsed.sa, J1939_PRIO_REQ, d);
+      j1939ReqNote(want, 'NACK - this vehicle carries no such parameter');
+    }
+    return;
+  }
+  // The address named here is the SERVER'S, not a constant: VW is answered by Axle - Drive #1
+  // and the other two by Engine #1, so a fixed 'it is the engine' would send a reader looking at
+  // the wrong ECU for one group in three.
+  j1939ReqNote(want, implemented
+    ? `it is ${j1939SaLabel(implemented.sa)} that carries this one, not 0x${j1939H(parsed.da)}`
+    : 'nothing on this bus implements it - no answer is the answer');
+}
+function j1939ReqNote(pgn, outcome) {
+  j1939ReqLast = { ts: Date.now(), pgn, outcome };
+  const el = document.getElementById('j1939ReqStatus');
+  if (el) el.textContent = j1939PgnLabel(pgn) + ' - ' + outcome;
+}
+
+// ── Client ──────────────────────────────────────────────────────────────────
+// The bar's Send button. Reads the PGN box (0x-prefixed hex, else decimal - canParseIntAuto's
+// rules) and the destination, then puts a real 59904 on the bus from the tool address. The
+// server above answers it exactly the way it would answer a laptop plugged into the same
+// connector: the exchange is not short-circuited internally, it goes out and comes back.
+function j1939SendRequest() {
+  const pgnEl = document.getElementById('j1939ReqPgn');
+  const daEl  = document.getElementById('j1939ReqDa');
+  const pgn = window.canParseIntAuto ? window.canParseIntAuto(pgnEl ? pgnEl.value : '') : NaN;
+  if (!Number.isFinite(pgn) || pgn > 0xFFFFFF) { j1939ReqNote(0, 'not a PGN'); return; }
+  const da = daEl ? (parseInt(daEl.value, 10) & 0xFF) : 0xFF;
+  // The readout is set BEFORE the frame goes out, because the frame comes straight back through
+  // ingestFrame and the server writes the OUTCOME over it in the same call stack. Noting it
+  // afterwards would report "requested" every time and hide the answer.
+  j1939ReqNote(pgn, 'requested' + (da === 0xFF ? ' (global)' : ' from 0x' + j1939H(da)));
+  j1939TxFrame(J1939_REQ_PGN, J1939_SA_TOOL, da, J1939_PRIO_REQ,
+    [pgn & 0xFF, (pgn >> 8) & 0xFF, (pgn >> 16) & 0xFF]);
+}
+// The preset dropdown only FILLS the box. The request stays a typed field, because the point of
+// the bar is that any PGN can be asked for - including one nothing here answers, which is a
+// reading of its own.
+function j1939ReqPreset() {
+  const sel = document.getElementById('j1939ReqPreset');
+  const box = document.getElementById('j1939ReqPgn');
+  if (sel && box && sel.value) { box.value = sel.value; sel.value = ''; }
+}
+window.j1939SendRequest = j1939SendRequest;
+window.j1939ReqPreset = j1939ReqPreset;
+
 window.j1939SetProto = j1939SetProto;
 window.j1939GetProto = () => j1939ProtoMode;
 window.j1939Apply    = (m) => j1939SetProto(m || window._j1939ProtoPending || 'j1939');
@@ -983,6 +1408,9 @@ function j1939Clear() {
   j1939DmMap.clear();
   j1939Log = [];
   j1939TpSessions.clear();
+  j1939ReqLast = null;
+  const rq = document.getElementById('j1939ReqStatus');
+  if (rq) rq.textContent = '';
   j1939Dirty = true;
 }
 
@@ -1200,7 +1628,7 @@ function j1939BaseDemoFrames() {
   // ISO Address Claim (0xEE00) every 30th tick - engine ECU NAME.
   if (j1939DemoTickJ++ % 30 === 0) {
     const name = (id, mfr, fn, devClass, indGrp) =>
-      [...n2kU32((id | (mfr << 21)) >>> 0), ...n2kU32(((fn << 8) | (devClass << 17) | (indGrp << 25) | (1 << 28)) >>> 0)];
+      [...n2kU32((id | (mfr << 21)) >>> 0), ...n2kU32(((fn << 8) | (devClass << 17) | (indGrp << 28) | (1 << 31)) >>> 0)];
     frames.push(n2kFrame(0xEE00, 0x00, name(0x40001, 0, 0, 0, 0))); // Engine #1
   }
   return frames;
@@ -1284,9 +1712,17 @@ function isoDemoFrames() {
   const tick = isoDemoTick++;
 
   // Tractor ECU (SA 0xF0): wheel speed/distance, rear PTO, rear hitch, direction/speed.
-  frames.push(n2kFrame(0xFE48, 0xF0, [...n2kU16(osc(0, 8, 17) / 0.001), ...n2kU32(Math.round((t % 1000) * 1000)), 0xFF, 0x40]));
-  frames.push(n2kFrame(0xFE45, 0xF0, [...n2kU16(osc(0, 1000, 13) / 0.125), ...n2kU16(540 / 0.125), 0x01, 0xFF, 0xFF, 0xFF]));
-  frames.push(n2kFrame(0xFE43, 0xF0, [Math.round(osc(0, 100, 23) / 0.4) & 0xFF, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]));
+  // Byte 8 is 0x15, not 0x40: direction (8.1) Forward, key switch (8.3) Not off, start/stop
+  // (8.5) Permit, operator direction reversed (8.7) Not reversed. The old 0x40 was written for
+  // the direction bits at 8.7, which is where the WBSD entry used to look for them.
+  frames.push(n2kFrame(0xFE48, 0xF0, [...n2kU16(osc(0, 8, 17) / 0.001), ...n2kU32(Math.round((t % 1000) * 1000)), 0xFF, 0x15]));
+  // The PTO rides 0xFE43 and the hitch 0xFE45, not the reverse - these two payloads were on
+  // each other's PGN, which the swapped ISOBUS_DB entries made look right. Byte 5 of the PTO is
+  // 0x41 so the request status (5.1) and the engagement itself (5.7) both read Engaged; byte 2
+  // of the hitch is 0x7F so the limit status (2.4) is N/A and the in-work indication (2.7)
+  // reads In Work.
+  frames.push(n2kFrame(0xFE43, 0xF0, [...n2kU16(osc(0, 1000, 13) / 0.125), ...n2kU16(540 / 0.125), 0x41, 0xFF, 0xFF, 0xFF]));
+  frames.push(n2kFrame(0xFE45, 0xF0, [Math.round(osc(0, 100, 23) / 0.4) & 0xFF, 0x7F, Math.round((osc(0, 80, 29) + 100) / 0.8) & 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]));
   frames.push(n2kFrame(0xFEE8, 0xF0, [...n2kU16(osc(0, 360, 60) * 128), ...n2kU16((osc(-10, 10, 31) + 200) * 128), ...n2kU16((120 + 2500) / 0.125), ...n2kU16(osc(0, 30, 17) * 256)]));
 
   // Task Controller (SA 0x80): a "Value" (cmd 3) for application-rate DDI 271.
@@ -1296,7 +1732,7 @@ function isoDemoFrames() {
   // Address claims (ag NAMEs, every 30th tick): a tractor + a sprayer implement.
   if (tick % 30 === 0) {
     const name = (id, mfr, fn, devClass, indGrp) =>
-      [...n2kU32((id | (mfr << 21)) >>> 0), ...n2kU32(((fn << 8) | (devClass << 17) | (indGrp << 25) | (1 << 28)) >>> 0)];
+      [...n2kU32((id | (mfr << 21)) >>> 0), ...n2kU32(((fn << 8) | (devClass << 17) | (indGrp << 28) | (1 << 31)) >>> 0)];
     frames.push(n2kFrame(0xEE00, 0xF0, name(0x12345, 100, 130, 1, 2))); // Tractor
     frames.push(n2kFrame(0xEE00, 0x80, name(0x23456, 137, 6,   6, 2))); // Sprayer
   }

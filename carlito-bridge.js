@@ -38,7 +38,7 @@ function log(msg, level) {
 }
 
 // Sink for every parsed RX frame: feed the RAMN decoder so ramnGetState() (which Carlito
-// reads each tick) stays current. Non-RAMN ids (incl. Carlito's own 0x520–0x528 echo) are
+// reads each tick) stays current. Non-RAMN ids (incl. Carlito's own 0x520–0x52B echo) are
 // ignored by ramnIngestFrame, so this is safe for all traffic. Exposed on window too because
 // carlito.js's telemetry path early-returns unless window.ingestFrame exists.
 let rxCount = 0, txCount = 0, dropCount = 0;   // live health counters (shown in the bar)

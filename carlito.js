@@ -117,7 +117,7 @@
       <button id="carlitoReload" title="Reload the game">Reload</button>
       <button id="carlitoKbd" title="Block physical keyboard from reaching the game (JS bridge still drives)">⌨ on</button>
       <button class="carlito-link on" id="carlitoUp" title="Uplink: send RAMN controls into the game (SloppyCAN → Carlito)">Up ●</button>
-      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x528 (Carlito → SloppyCAN)">Down ●</button>
+      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52B (Carlito → SloppyCAN)">Down ●</button>
       <button class="carlito-iocaret" id="carlitoIoCaret" title="Show/hide debug panel">▸ debug</button>
     </div>
     <div class="carlito-io collapsed" id="carlitoIo">
@@ -173,7 +173,7 @@
   // Carlito ships two channels from one repo: `stable` (promoted, what anonymous visitors get)
   // and `dev` (latest push). Both URLs are HARDCODED here, absolute.
   // SECURITY: GAME_ORIGIN derived below is the inbound trust gate for CAN injection (frames
-  // 0x520–0x528). An attacker-supplied ?carlitoUrl=https://evil.example would otherwise make
+  // 0x520–0x52B). An attacker-supplied ?carlitoUrl=https://evil.example would otherwise make
   // evil.example the trusted game and let it inject frames on a live bus. The rule that keeps that
   // shut is "the trusted cross-origin game is a constant in this file"; two constants satisfy it
   // exactly as one did, so this is a second entry, NOT a relaxation. The two channels are the same
@@ -226,8 +226,10 @@
   // version mismatch instead of failing silently.
   const CONTRACT = window.CARLITO_CONTRACT || { version: 0, signals: [] };
   const CONTRACT_VERSION = CONTRACT.version | 0;
-  const CONTRACT_IN  = new Set(CONTRACT.signals.filter(s => s.dir === 'in').map(s => s.name));
-  const CONTRACT_OUT = new Set(CONTRACT.signals.filter(s => s.dir === 'out' && s.status !== 'todo').map(s => s.name));
+  // The "in" signal DEFS drive the uplink build (IN_SOURCES below); the name Set stays the
+  // conformance check on what we actually sent.
+  const CONTRACT_IN_SIGS = CONTRACT.signals.filter(s => s.dir === 'in');
+  const CONTRACT_IN  = new Set(CONTRACT_IN_SIGS.map(s => s.name));
   if (!window.CARLITO_CONTRACT) console.warn('Carlito: window.CARLITO_CONTRACT missing — load carlito_contract.js before carlito.js.');
   const GEAR_R_BYTE = 0xFF;   // contract gear byte for reverse (was the v1 sentinel -1)
   let _verWarned = false, _outFieldsChecked = false;
@@ -241,12 +243,127 @@
     console.warn(`Carlito: contract version mismatch — game ${peer} vs bridge v${CONTRACT_VERSION}; some signals may be missing or misread.`);
   }
 
+  // ── Uplink sources: contract "in" signal → where its value comes from ────────────
+  // The uplink is BUILT FROM THE CONTRACT, not hand-listed: pump() walks CONTRACT_IN_SIGS and
+  // asks this registry for each signal's value. A source here is a field of the RAMN state; a
+  // control living in a protocol module registers itself instead (MODULE_IN_SOURCES below).
+  //
+  // A signal with NO entry here is OMITTED from the payload - never sent as a zero. ABSENCE IS
+  // MEANINGFUL: the game reads an absent value as that signal's default (off / 0 / neutral),
+  // and every lamp bit is mirrored verbatim from the bus, so a zero we invented for a control
+  // nobody has wired would be a claim ("the source says off") that no source is making. Omitting
+  // it is the honest statement, and it is what makes the checklist in checkOutFields meaningful.
+  const IN_SOURCES = {
+    accel:     st => +st.accel || 0,
+    brake:     st => +st.brake || 0,
+    steer:     st => +st.steer || 0,
+    handbrake: st => st.handbrake,
+    key:       st => +st.key    || 1,
+    lights:    st => +st.lights || 1,
+    // Gear byte follows the contract (0=N, 1-6=D1-D6, 0xFF=R) - same as the RAMN wire byte.
+    gear:      st => st.gear === 'R' ? GEAR_R_BYTE : (+st.gear || 0),
+    turnL:     st => st.turnL,
+    turnR:     st => st.turnR,
+    horn:      st => st.horn,
+    // Warning LEDs from the 0x1BB status bitfield, so Carlito's dashboard can show them.
+    checkEngine: st => st.checkEngine,
+    battery:     st => st.battery,
+    brakeLamp:   st => st.brakeLamp,   // 0x1BB bit 0x04 → rear stop lamp
+    // THE AIRCRAFT'S FLASHING LAMPS (contract v30), and this side owns the CLOCK. The game
+    // mirrors these bits verbatim exactly as it mirrors turnL/turnR, and it has no blink timer
+    // anywhere - LampSet's was deleted when these signals arrived. So what is sent is
+    // lit-THIS-INSTANT, not "the beacon switch is on", and the rate lives here in lampPhase().
+    beacon:      () => LAMPS.beaconOn && lampPhase(BEACON_PERIOD_MS, BEACON_ON_FRAC),
+    strobe:      () => LAMPS.strobeOn && strobePhase(),
+  };
+
+  // ── The lamp flash clocks (contract v30) ─────────────────────────────────────
+  // NOTHING in the game blinks a lamp. Every flashing lamp in the project flashes because a
+  // source toggles its bit, and for the aircraft's beacon and strobes and for the truck's DM1
+  // lamps that source is here. Phase is read off the wall clock rather than accumulated, so it
+  // never drifts and needs no timer of its own; the uplink samples it at ~33 Hz, which is plenty
+  // to resolve a 2 Hz flash.
+  const BEACON_PERIOD_MS = 1400;   // ~43 flashes/min, the real anti-collision beacon rate
+  const BEACON_ON_FRAC = 0.16;     // a short bright pulse, not a square wave
+  const STROBE_PERIOD_MS = 1200;   // one DOUBLE flash per period, which is what a real strobe does
+  const STROBE_PULSE_MS = 60;      // each of the two pulses
+  const STROBE_GAP_MS = 180;       // start of the first pulse to start of the second
+  // The lamp SWITCHES, which is what a pilot actually flips. The bit on the wire is these AND
+  // the phase above.
+  const LAMPS = { beaconOn: true, strobeOn: true };
+  const lampPhase = (periodMs, onFrac) => (Date.now() % periodMs) < periodMs * onFrac;
+  function strobePhase() {
+    const p = Date.now() % STROBE_PERIOD_MS;
+    return p < STROBE_PULSE_MS || (p >= STROBE_GAP_MS && p < STROBE_GAP_MS + STROBE_PULSE_MS);
+  }
+  window.carlitoLamps = LAMPS;   // so a console or a future panel can flip the switches
+
+  // A protocol MODULE contributes sources for its own flavor's "in" signals the same way it
+  // contributes a flavor packer: it owns the control, so it owns the value. index.html loads those
+  // modules BEFORE this file, so the map is complete by the time buildUplink first runs.
+  // The registry above stays the home of the shared RAMN controls - one signal, one source, and a
+  // name in both is a bug rather than a fallback, so it warns.
+  const MODULE_IN_SOURCES = window.carlitoUplinkSources || {};
+  {
+    const clash = Object.keys(MODULE_IN_SOURCES).filter(k => IN_SOURCES[k]);
+    if (clash.length) console.warn('Carlito: uplink signals sourced twice (module + RAMN state): ' + clash.join(', '));
+  }
+  const inSource = (name) => IN_SOURCES[name] || MODULE_IN_SOURCES[name];
+
+  const _inShapeWarned = {};
+  // Send the contract's SHAPE: bool goes as 0/1 (what turnL has always done), everything else as
+  // a Number, and a non-finite one is omitted rather than sent as NaN (absence is meaningful,
+  // NaN is not).
+  // The integer types are deliberately NOT rounded. accel/brake/steer are contract u8/i8, but
+  // RAMN decodes them fractionally (raw/0xFFF*100) and the game does clampf(float(v)/100, 0, 1) -
+  // the fraction is real control resolution, so rounding here would coarsen the controls to 1%
+  // steps. A source is responsible for its own integer shape.
+  function coerceIn(sig, v) {
+    // UNREACHABLE BY CONSTRUCTION today: an instanced signal (contract 'count' > 1) is
+    // ARRAY-valued, and all four of them (esc_rpm, esc_current, esc_temp, node_health) are "out"
+    // - the contract parse-rejects 'count' on an "in" signal. This exists so the day that changes
+    // fails LOUDLY here instead of silently sending a scalar where the peer decodes an array.
+    if ((sig.count | 0) > 1) {
+      if (!_inShapeWarned[sig.name]) {
+        _inShapeWarned[sig.name] = true;
+        console.warn(`Carlito: in signal '${sig.name}' declares count ${sig.count} - an array-valued uplink field is not supported; omitting it.`);
+      }
+      return undefined;
+    }
+    if (sig.type === 'bool') return v ? 1 : 0;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  // Walk the contract, ask the registry. Same fields, same values, same order as the
+  // hand-written literal this replaced - what grows from here is IN_SOURCES, not this function.
+  function buildUplink(st) {
+    const v = {};
+    for (const sig of CONTRACT_IN_SIGS) {
+      const src = inSource(sig.name);
+      if (!src) continue;                        // no source yet → omit (see IN_SOURCES header)
+      const val = coerceIn(sig, src(st));
+      if (val !== undefined) v[sig.name] = val;
+    }
+    return v;
+  }
+
   // Dev conformance: every field we send must be a contract "in" signal (plan §2 rule 4).
   function checkOutFields(v) {
     if (_outFieldsChecked) return;
     _outFieldsChecked = true;
     const extra = Object.keys(v).filter(k => !CONTRACT_IN.has(k));
     if (extra.length) console.warn('Carlito: OUT fields not declared "in" by the contract: ' + extra.join(', '));
+    // The inverse: declared "in" signals with no source. console.INFO, not warn, DELIBERATELY -
+    // most of the contract's controls (every flavored one with no module behind it yet: the ISOBUS
+    // hitch/PTO set, the boat's rudder, the trailer bus's injected fault …) have no sloppyCAN
+    // control built for them, so a warn would cry wolf on every page load and train everyone to
+    // ignore it. This is the checklist of what is left to wire, not a fault.
+    // The ones that ARE sourced by a module rather than by RAMN state: the drone's seven
+    // (dronecan.js) and the truck's three DM1 lamps (j1939.js), which is where the flash RATE
+    // lives - see j1939LampBit.
+    const unsourced = CONTRACT_IN_SIGS.filter(s => !inSource(s.name)).map(s => s.name);
+    if (unsourced.length) console.info(`Carlito: ${unsourced.length} contract "in" signals have no uplink source yet (omitted, so the game uses their defaults): ` + unsourced.join(', '));
   }
 
   function loadGame() {
@@ -274,16 +391,7 @@
       let st = null;
       if (upOn && loaded && iframe && iframe.contentWindow && window.ramnGetState) {
         st = window.ramnGetState();
-        // Gear byte follows the contract (0=N, 1–6=D1–D6, 0xFF=R) — same as the RAMN wire byte.
-        const gearByte = st.gear === 'R' ? GEAR_R_BYTE : (+st.gear || 0);
-        const v = {
-          accel: +st.accel || 0, brake: +st.brake || 0, steer: +st.steer || 0,
-          handbrake: st.handbrake ? 1 : 0, key: +st.key || 1, lights: +st.lights || 1,
-          gear: gearByte, turnL: st.turnL ? 1 : 0, turnR: st.turnR ? 1 : 0, horn: st.horn ? 1 : 0,
-          // Warning LEDs from the 0x1BB status bitfield, so Carlito's dashboard can show them.
-          checkEngine: st.checkEngine ? 1 : 0, battery: st.battery ? 1 : 0,
-          brakeLamp: st.brakeLamp ? 1 : 0   // 0x1BB bit 0x04 → rear stop lamp
-        };
+        const v = buildUplink(st);
         checkOutFields(v);
         try { iframe.contentWindow.postMessage({ type: 'carlitoInput', version: CONTRACT_VERSION, values: v }, GAME_ORIGIN); } catch (e) { /* not ready */ }
       }
@@ -329,7 +437,9 @@
     el.ci_acclong.textContent = (+t.accLong || 0).toFixed(2);
     el.ci_acclat.textContent = (+t.accLat || 0).toFixed(2);
     el.ci_steer.textContent = (+t.steer || 0) + '%';
-    el.ci_slip.textContent = (+t.slip || 0).toFixed(2);
+    // slip is INSTANCED (contract count 2): [front, rear]. Rendered as the pair, because the
+    // pair is the whole reason the split happened - a mean cannot tell understeer from oversteer.
+    el.ci_slip.textContent = slipPair(t).map(v => v.toFixed(2)).join(' / ');
     el.ci_ground.textContent = (+t.ground || 0) ? 'yes' : 'no';
     el.ci_head.textContent = (+t.heading || 0).toFixed(0) + '°';
     el.ci_pos.textContent = (+t.posX || 0).toFixed(0) + ',' + (+t.posZ || 0).toFixed(0);
@@ -345,7 +455,7 @@
 
   // ── Return channel: Carlito → sloppyCAN telemetry ──
   // Game postMessages {type:'carlitoOutput', values:{…}} ~every 50 ms. We render it and emit CAN
-  // frames 0x520–0x528 (big-endian) via window.canForward - ingested once for the dashboards and,
+  // frames 0x520–0x52B (big-endian) via window.canForward - ingested once for the dashboards and,
   // when a bus is open, transmitted on the wire and shown as a single "FW" dump entry (gateway model;
   // plain RX when no bus). Throttled in the message handler: fast IDs ~10/s, slow IDs ~5/s.
   // Big-endian fixed-point encoders. u16/i16 share byte ops (16-bit two's complement); the
@@ -357,36 +467,185 @@
     i8:  v => [Math.round(v) & 0xFF],
     u8:  v => [Math.round(v) & 0xFF],
   };
-  // CAN layout: contract-unit telemetry → frames 0x520–0x528 (big-endian). postMessage carries
+  // An INSTANCED contract signal (count > 1) arrives as an ARRAY, so `+t.sig || 0` - which
+  // Number()s an array of two into NaN and then falls through to 0 - is exactly the wrong shape.
+  // Read the elements by index, and coerce each one individually: a non-finite element becomes 0
+  // HERE rather than being handed to enc.u8, whose Math.round(NaN) & 0xFF is 0 by accident and
+  // would hide a genuinely broken telemetry frame.
+  const inst = (v, i) => { const n = Number(Array.isArray(v) ? v[i] : undefined); return Number.isFinite(n) ? n : 0; };
+  // slip's two elements, in contract index order: 0 = front axle, 1 = rear.
+  const slipPair = (t) => [inst(t && t.slip, 0), inst(t && t.slip, 1)];
+
+  // CAN layout: contract-unit telemetry → frames 0x520–0x52B (big-endian). postMessage carries
   // engineering units; the fixed-point scaling to bytes lives here (sloppyCAN's domain, per the
-  // contract note). Each contract "out" signal is packed exactly once; checkCanCoverage() asserts
-  // this map equals the contract's non-todo "out" set. `fast` IDs go every frame, others on `slow`.
+  // contract note). Each UNFLAVORED contract "out" signal is packed exactly once here;
+  // checkCanCoverage() asserts that. A FLAVORED signal is not this map's job - see the flavor
+  // packer registry below. `fast` IDs go every frame, others on `slow`.
   const CAN_MAP = [
     { id: 0x520, fast: true,  fields: [['speed', t => enc.i16((+t.speed || 0) * 100)], ['kmh', t => enc.u16((+t.kmh || 0) * 10)]] },
     { id: 0x521, fast: true,  fields: [['rpm', t => enc.u16(+t.rpm || 0)], ['gear', t => enc.u8(+t.gear || 0)], ['throttle', t => enc.i8(+t.throttle || 0)]] },
     { id: 0x522, fast: true,  fields: [['yaw', t => enc.i16((+t.yaw || 0) * 1000)], ['accLong', t => enc.i16((+t.accLong || 0) * 100)], ['accLat', t => enc.i16((+t.accLat || 0) * 100)]] },
-    { id: 0x523, fast: true,  fields: [['steer', t => enc.i16(+t.steer || 0)], ['slip', t => enc.u8((+t.slip || 0) * 100)], ['ground', t => enc.u8(t.ground ? 1 : 0)]] },
+    // slip is TWO bytes since contract v30: front, then rear, in the contract's own zero-based
+    // index order - so 0x523 is five bytes rather than four. One field entry rather than two,
+    // because the coverage check keys on the contract SIGNAL name and there is still one signal.
+    { id: 0x523, fast: true,  fields: [['steer', t => enc.i16(+t.steer || 0)], ['slip', t => slipPair(t).flatMap(v => enc.u8(v * 100))], ['ground', t => enc.u8(t.ground ? 1 : 0)]] },
     { id: 0x524, fast: false, fields: [['posX', t => enc.i16(+t.posX || 0)], ['posZ', t => enc.i16(+t.posZ || 0)], ['heading', t => enc.u16((+t.heading || 0) * 10)]] },
     { id: 0x525, fast: false, fields: [['lat', t => enc.u32((+t.lat || 0) * 1e7)], ['lon', t => enc.u32((+t.lon || 0) * 1e7)]] },
     { id: 0x526, fast: false, fields: [['odo', t => enc.u32((+t.odo || 0) * 1000)]] },
     { id: 0x527, fast: false, fields: [['status', t => enc.u16(+t.status || 0)], ['impact', t => enc.u8(+t.impact || 0)]] },
     { id: 0x528, fast: false, fields: [['fuel', t => enc.u8(+t.fuel || 0)], ['coolant', t => enc.u8(+t.coolant || 0)], ['battery', t => enc.u8((+t.battery || 0) * 10)]] },
+    // 0x520-0x528 is a frozen layout (anything already on the wire decodes against it), so the
+    // vehicle-specific telemetry continues in new IDs rather than filling their spare bytes. Same rules as
+    // above: big-endian, `enc`, an explicit fixed-point scale per field, unit in the comment.
+    // ATTITUDE - bike lean, boat/plane pitch and roll. deg x100 (i16): roll's +/-180 deg is
+    // +/-18000, comfortably inside i16. `fast` because attitude at 10 Hz visibly stair-steps.
+    { id: 0x529, fast: true,  fields: [['lean', t => enc.i16((+t.lean || 0) * 100)],            // deg x100
+                                       ['pitch', t => enc.i16((+t.pitch || 0) * 100)],          // deg x100
+                                       ['roll', t => enc.i16((+t.roll || 0) * 100)]] },         // deg x100
+    // RATES - the plane's gyro pair plus vertical acceleration. rad/s x1000 matches yaw in 0x522,
+    // m/s^2 x100 matches accLong/accLat, so the three IMU frames share one scale vocabulary.
+    // `fast` for the same reason 0x522 is: a rate sampled slowly is a different signal.
+    { id: 0x52A, fast: true,  fields: [['roll_rate', t => enc.i16((+t.roll_rate || 0) * 1000)],   // rad/s x1000
+                                       ['pitch_rate', t => enc.i16((+t.pitch_rate || 0) * 1000)], // rad/s x1000
+                                       ['acc_vert', t => enc.i16((+t.acc_vert || 0) * 100)]] },   // m/s^2 x100
+    // SLOW vehicle state - altitude and vertical speed change over seconds; trim is a set-and-hold
+    // position and rudder_actual is its slow-moving feedback. None of the four needs 20 Hz.
+    { id: 0x52B, fast: false, fields: [['altitude', t => enc.u16((+t.altitude || 0) * 10)],     // m x10 (0-500 m -> 0-5000)
+                                       ['vspeed', t => enc.i16((+t.vspeed || 0) * 100)],        // m/s x100
+                                       ['rudder_actual', t => enc.i8(+t.rudder_actual || 0)],   // % (-100..100)
+                                       ['trim', t => enc.i8(+t.trim || 0)]] },                  // % (-100..100)
   ];
-  // One-time: the CAN map must pack exactly the contract's non-todo "out" signals (plan §3:
-  // "CAN frame packing … generated/checked from the contract too").
+  // ── Declared coverage opt-outs ──────────────────────────────────────────────
+  // Unflavored "out" signals this frame map deliberately does NOT carry, each with its reason.
+  //
+  // This is NOT the contract's `status: 'todo'`, and must not be confused with it: that flag is
+  // CONTRACT-side and means "this signal is not finished yet" - setting it would be a contract
+  // edit and a paired promote across both repos, and it says the wrong thing anyway. "The game
+  // publishes this and no frame here carries it" is a PACKER-side decision about frame layout,
+  // which is this file's own domain. checkCanCoverage() subtracts these from the gap list and
+  // reports them separately, because "nothing packs this, by decision" and "nothing packs this
+  // yet" are different states and a check that cannot tell them apart hides real gaps.
+  //
+  // THE REASON STRING IS MANDATORY - an opt-out without one is exactly how a gap hides.
+  //
+  // CURRENTLY EMPTY, and that is a result rather than an oversight - see CAN_MAP_ON_REQUEST
+  // below, which is where its one entry went. The mechanism stays because the next signal with
+  // no honest frame will want it.
+  const CAN_MAP_UNPACKABLE = {};
+
+  // ── Request-served signals ──────────────────────────────────────────────────
+  // A THIRD state, and the reason it is not just an opt-out with a nicer reason string: these
+  // signals ARE carried, by a parameter group that does not exist until something asks for it.
+  // J1939-71 gives a handful of groups a transmission repetition rate of literally "On request",
+  // and `speed_limit` rides one of them - SPN 74 in PGN 65261 (CCSS). It was opted out here
+  // because there was no periodic frame to put it in and stuffing it into the 20 Hz proprietary
+  // block would have misstated both its rate and its identity. j1939.js now implements the
+  // request path (PGN 59904 in, the group or a NACK back out) and answers 65261 out of
+  // window.carlitoTelemetry, so the signal is covered - just not on a clock.
+  //
+  // The DECLARATION lives here and the IMPLEMENTATION lives in j1939.js on purpose. A scope
+  // declares things about its own signals; a page that does not load j1939.js (carlito-bridge)
+  // has no request transport at all, and a coverage check that reported a gap there would be
+  // reporting the absence of a tab module rather than a hole in this map. Where j1939.js IS
+  // loaded, the check cross-references its registry, so a declaration and an implementation that
+  // drift apart are loud.
+  //
+  // THE REASON STRING IS MANDATORY here too, for the same reason it is above.
+  const CAN_MAP_ON_REQUEST = {
+    speed_limit: 'configured, not measured: J1939 SPN 74 rides PGN 65261 (CCSS), whose transmission repetition rate is "On request" - so it has no periodic frame by design, and j1939.js answers a PGN 59904 request for it out of the live telemetry. The contract calls the SPN "the naming reference here, not a claim about the wire", and this changes nothing about that: the signal TYPE already IS SPN 74\'s wire form exactly (one byte, 1 km/h per bit, 0 offset), which is the only reason it can be answered without a conversion',
+  };
+
+  // ── Flavor packers ──────────────────────────────────────────────────────────
+  // A flavored contract signal is NOT packed here. The contract says so itself: a flavor
+  // "borrows a protocol's signal names/semantics … without implementing its CAN frames -
+  // frame layout stays on the sloppyCAN side", and that layout belongs to that protocol's
+  // module (dronecan.js today), not to this generic 0x520-0x52B telemetry block. A module
+  // registers { flavor, signals, pack(t, slow) } on window.carlitoFlavorPackers - plus an
+  // optional { unpackable: { signal: reason } } for what it declares it will never pack and an
+  // optional { onRequest: { signal: reason } } for what it declares is carried only when asked
+  // for; index.html loads those modules BEFORE carlito.js, so the list is complete by the time
+  // the coverage check below runs at eval time, exactly as it always has.
+  const FLAVOR_PACKERS = window.carlitoFlavorPackers || [];
+
+  // What a loaded request transport actually answers for: signal -> the parameter group that
+  // answers. Empty on a page with no such transport, which is what makes the cross-check in
+  // report() below skip rather than warn.
+  const REQUEST_SERVED = new Map();
+  for (const srv of (window.j1939RequestServers || []))
+    for (const sig of (srv.signals || [])) REQUEST_SERVED.set(sig, `PGN ${srv.pgn} ${srv.abbr}`);
+
+  // One-time: CAN_MAP must pack exactly the contract's non-todo UNFLAVORED "out" signals, and
+  // every registered flavor packer must account for its own flavor's out signals (plan §3:
+  // "CAN frame packing … generated/checked from the contract too"), minus whatever each has
+  // DECLARED unpackable (CAN_MAP_UNPACKABLE above / a packer's own `unpackable`) or DECLARED
+  // request-served (CAN_MAP_ON_REQUEST / a packer's own `onRequest`). A flavor with no packer
+  // loaded is silent - nothing claims to implement those frames yet, which is the contract's
+  // stated design and not a defect.
   (function checkCanCoverage() {
-    const packed = new Set(CAN_MAP.flatMap(f => f.fields.map(([sig]) => sig)));
-    const missing = [...CONTRACT_OUT].filter(s => !packed.has(s));
-    const extra = [...packed].filter(s => !CONTRACT_OUT.has(s));
-    if (missing.length) console.warn('Carlito: CAN map missing contract out signals: ' + missing.join(', '));
-    if (extra.length) console.warn('Carlito: CAN map packs signals not in contract out: ' + extra.join(', '));
+    const outSigs = CONTRACT.signals.filter(s => s.dir === 'out' && s.status !== 'todo');
+
+    // One scope's coverage. `own` = the out signals it is responsible for, `packed` = what it
+    // actually packs, `optOut` = { signal: reason } it has declared it will never pack. The
+    // opt-outs come off the gap list and get their own line; the three warns before that are the
+    // ways a bogus opt-out could otherwise hide a real gap.
+    function report(label, own, packed, optOut, onRequest) {
+      const onReq = Object.keys(onRequest || {});
+      const declared = Object.keys(optOut || {});
+      const noReason = declared.filter(s => typeof optOut[s] !== 'string' || !optOut[s].trim());
+      const notOurs = declared.filter(s => !own.includes(s));
+      const bothWays = declared.filter(s => packed.has(s));
+      if (noReason.length) console.warn(`Carlito: ${label} declares signals unpackable with no reason given: ` + noReason.join(', '));
+      if (notOurs.length) console.warn(`Carlito: ${label} declares unpackable signals that are not its out signals: ` + notOurs.join(', '));
+      if (bothWays.length) console.warn(`Carlito: ${label} declares signals unpackable yet packs them: ` + bothWays.join(', '));
+
+      // The same three ways a bogus declaration could hide a real gap, for the on-request map.
+      const reqNoReason = onReq.filter(s => typeof onRequest[s] !== 'string' || !onRequest[s].trim());
+      const reqNotOurs = onReq.filter(s => !own.includes(s));
+      const reqBothWays = onReq.filter(s => packed.has(s));
+      if (reqNoReason.length) console.warn(`Carlito: ${label} declares signals request-served with no reason given: ` + reqNoReason.join(', '));
+      if (reqNotOurs.length) console.warn(`Carlito: ${label} declares request-served signals that are not its out signals: ` + reqNotOurs.join(', '));
+      if (reqBothWays.length) console.warn(`Carlito: ${label} declares signals request-served yet also packs them periodically: ` + reqBothWays.join(', '));
+      // ...plus the one only this map can have: a declaration with nothing implementing it. Only
+      // checked where a request transport is actually loaded - see the CAN_MAP_ON_REQUEST note.
+      if (REQUEST_SERVED.size) {
+        const unserved = onReq.filter(s => !REQUEST_SERVED.has(s));
+        if (unserved.length) console.warn(`Carlito: ${label} declares signals request-served that no registered server answers for: ` + unserved.join(', '));
+        const undeclared = own.filter(s => REQUEST_SERVED.has(s) && !onReq.includes(s) && !packed.has(s));
+        if (undeclared.length) console.warn(`Carlito: ${label} has registered request servers for signals it does not declare request-served: ` + undeclared.join(', '));
+      }
+
+      const optSet = new Set(declared), reqSet = new Set(onReq);
+      const missing = own.filter(s => !packed.has(s) && !optSet.has(s) && !reqSet.has(s));
+      const extra = [...packed].filter(s => !own.includes(s));
+      if (missing.length) console.warn(`Carlito: ${label} missing out signals: ` + missing.join(', '));
+      if (extra.length) console.warn(`Carlito: ${label} packs signals that are not its out signals: ` + extra.join(', '));
+
+      // A decision on the record, not a problem: info, reported separately from `missing`.
+      const honoured = declared.filter(s => own.includes(s) && !packed.has(s));
+      if (honoured.length) console.info(`Carlito: ${label} deliberately packs nothing for ` +
+        honoured.map(s => `${s} (${optOut[s]})`).join(' · '));
+      const servedHere = onReq.filter(s => own.includes(s));
+      if (servedHere.length) console.info(`Carlito: ${label} carries on request ` +
+        servedHere.map(s => `${s}${REQUEST_SERVED.has(s) ? ` (${REQUEST_SERVED.get(s)})` : ' (no request transport loaded on this page)'}`).join(' · '));
+    }
+
+    report('CAN map',
+      outSigs.filter(s => !s.flavor).map(s => s.name),
+      new Set(CAN_MAP.flatMap(f => f.fields.map(([sig]) => sig))),
+      CAN_MAP_UNPACKABLE, CAN_MAP_ON_REQUEST);
+    for (const p of FLAVOR_PACKERS) {
+      report(`${p.flavor} packer`,
+        outSigs.filter(s => s.flavor === p.flavor).map(s => s.name),
+        new Set(p.signals || []),
+        p.unpackable, p.onRequest);
+    }
   })();
   function injectTelemetry(t, slow) {
     if (!window.ingestFrame) return;
     // Gateway model: forward each telemetry frame - ingested once for the dashboards AND, when a bus
     // is open, transmitted on the wire, shown as a single "FW" dump entry. No bus ⇒ plain RX inject.
-    const inj = (id, data) => {
-      const frame = { id, isExt: false, isRtr: false, dlc: data.length, data };
+    const inj = (id, data, isExt) => {
+      const frame = { id, isExt: !!isExt, isRtr: false, dlc: data.length, data };
       if (window.canForward) window.canForward(frame);
       else window.ingestFrame(frame);
     };
@@ -395,6 +654,18 @@
       const data = [];
       for (const [, encode] of f.fields) data.push(...encode(t));
       inj(f.id, data);
+    }
+    // Flavored signals ride their own protocol's frames, built by that flavor's module.
+    for (const p of FLAVOR_PACKERS) {
+      if (!p.pack) continue;
+      let frames;
+      // This runs at the telemetry rate, so a broken packer must warn once and then stay quiet.
+      try { frames = p.pack(t, slow) || []; }
+      catch (e) {
+        if (!p._warned) { p._warned = true; console.warn(`Carlito: ${p.flavor} packer threw, skipping it:`, e); }
+        continue;
+      }
+      for (const fr of frames) inj(fr.id, fr.data, fr.isExt);
     }
   }
   window.addEventListener('message', (e) => {
@@ -405,14 +676,25 @@
     if (!d || d.type !== 'carlitoOutput' || !d.values) return;
     checkContractVersion(d.version);   // both sides warn on version mismatch (plan §3)
     lastTel = d.values; lastTelT = performance.now();
-    // Forward at the game's native cadence: fast IDs (0x520–0x523) every message, slow/low-rate IDs
-    // (0x524–0x528) every other message (the 50/100 ms fast:slow split). The bridge's drop-stale
+    // Forward at the game's native cadence: fast IDs (0x520–0x523, 0x529–0x52A) every message, slow/low-rate IDs
+    // (0x524–0x528, 0x52B) every other message (the 50/100 ms fast:slow split). The bridge's drop-stale
     // backpressure self-paces to the link, so no artificial rate cap is needed.
     if (downOn && win.classList.contains('open')) {
       slowTick = !slowTick;
       injectTelemetry(lastTel, slowTick);
     }
   });
+  // ── The game's live telemetry, for the request servers ──────────────────────
+  // A request-served parameter group is built at the moment somebody asks, not on the telemetry
+  // tick, so its builder needs to reach the latest values rather than be handed them. STALE
+  // READS NULL, deliberately: a request answered out of a frozen snapshot would report an hour
+  // meter for a vehicle that is no longer on the link, and silence is the honest answer there -
+  // the same reading a DroneCAN node that stopped publishing gives. 600 ms is the window
+  // renderIn already treats as "still live" at the game's ~10 Hz slow tick.
+  const TELEMETRY_STALE_MS = 600;
+  window.carlitoTelemetry = () =>
+    (lastTel && performance.now() - lastTelT < TELEMETRY_STALE_MS) ? lastTel : null;
+
   function startPump() { if (!rafId) rafId = requestAnimationFrame(pump); }
 
   // ── Keyboard block: keep focus on the parent so physical keys never reach the (cross-origin) game

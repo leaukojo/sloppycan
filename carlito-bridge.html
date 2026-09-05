@@ -7,7 +7,7 @@
 <!--
   Standalone Carlito↔RAMN bridge. Connects to a CAN adapter (gs_usb or SLCAN), decodes
   the RAMN control frames straight into the embedded Carlito game, and forwards Carlito's
-  telemetry (CAN 0x520–0x528) back onto the wire. No dashboards, no controls - meant to sit
+  telemetry (CAN 0x520–0x52B) back onto the wire. No dashboards, no controls - meant to sit
   alongside your own CAN tooling. NOT part of SloppyCAN: it only reuses the shared transport
   (can-link.js) + the RAMN decoder (ramn.js) + the Carlito link (carlito.js).
 -->
@@ -94,6 +94,9 @@ body.zen .carlito-window .carlito-io { display: none !important; }
   <!-- RAMN decoder (ramnGetState / ramnIngestFrame) and the Carlito link, reused unchanged. -->
   <script src="ramn.js" defer></script>
   <script src="carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
+  <script src="dronecan.js" defer></script><!-- DroneCAN transfer encoder + carlito dronecan-flavor packer; must precede carlito.js -->
+  <script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; must precede carlito.js -->
+  <script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal); must precede carlito.js -->
   <script src="carlito.js" defer></script>
 </body>
 </html>

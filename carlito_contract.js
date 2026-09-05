@@ -2,18 +2,23 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 19,
+  "version": 33,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
     "'type'/'unit'/'range' are packing hints; CAN frame IDs and byte layout live on the sloppyCAN side and are finalized there together with carlito.js.",
-    "'warn' (optional number, added v3) is the danger threshold the dashboard highlights: the tachometer redline, low-fuel, coolant overheat. The dash infers low- vs high-side from which end of 'range' it sits near.",
-    "'flavor' borrows a protocol's signal names/semantics (j1939, isobus, cleanopen, canaerospace, dronecan) without implementing its CAN frames — frame layout stays on the sloppyCAN side.",
+    "'warn' (optional number, added v3) is the danger threshold the dashboard highlights: the tachometer redline, low-fuel, coolant overheat. Which side of it is the dangerous one is DECLARED in 'warn_side' ('low' | 'high'), never inferred: the parser rejects either field without the other. Inferring it from the range was a trap - it made the dashboard's danger direction a silent function of whatever range you happened to pick.",
+    "'flavor' borrows a protocol's signal names/semantics (j1939, isobus, iso11992, j2497, cleanopen, canaerospace, dronecan, train) without implementing its CAN frames — frame layout stays on the sloppyCAN side.",
     "'cleanopen' is the only flavor on a SECOND NETWORK rather than the vehicle's own bus: CiA 422 (EN 16815:2019) is a CANopen body-control network, so the garbage truck's body signals reach the J1939 chassis across a CiA 413-6 truck-gateway interface and appear on the truck's cluster per CiA 413-8. The gateway is the content — body_inhibit is computed from chassis state and published on the body network, and body_bus can be down.",
     "'iso11992' is the TRAILER bus (ISO 11992-2 over pins 6 and 7 of the ISO 7638 connector), and how LITTLE rides it is the content: part 2 is the application layer for brakes and running gear only, so a coupling claim, the brake demand going out (EBS11), the ABS state coming back (EBS21), an axle load and an injectable fault are the ENTIRE boundary. It is the one signal group here that is bidirectional by design, and it deliberately carries no body type at all — see trailer_connected. Contrast 'cleanopen' above: the body network is thick (a second bus with its own profile behind a gateway), the trailer network is thin (four messages about brakes), and both are real.",
     "'j2497' is the REGIONAL CONTRAST to 'iso11992', and the contrast is a SUBTRACTION rather than a second set of messages: SAE J2497 (PLC4TRUCKS) is what North America put on the truck/trailer boundary, and it is not a bus at all — the ISO 7638 connector has no data pair over there, so trailer ABS status is modulated onto the POWER LINE and its payload is essentially LAMP ON / LAMP OFF to one dash telltale. So this flavor has exactly ONE signal (trailer_abs_lamp) and that single mirrored bit is the whole protocol. A tractor unit without the ISO 11992 data pair (VehicleSpec.trailer_bus_equipped false — the shipped 'semi-conventional') tows and brakes exactly the same trailer through the same pneumatic lines and publishes nothing about it: thin, thinner, and both are real.",
     "'j1939' and 'isobus' are parent and child: ISO 11783 (ISOBUS) is built on SAE J1939, so a handful of signals carry the isobus flavor and are shared with the truck — engine_load is J1939 SPN 92 whichever family reads it, and the tractor's was always the borrowed one. Signals the truck alone declares are flavored j1939.",
     "'train' is the one flavor that borrows PRACTICE, not a protocol: real trains run IEC 61375 (TCN/WTB/MVB, not CAN) and the CAN-adjacent CiA 421 profiles use an object dictionary that does not fit this flat (name, dir) model. The train signals are custom flat signals whose semantics are borrowed from rail practice / CiA 421.",
+    "'count' (optional integer >= 1, added v20, default 1 when absent) makes a signal INSTANCED: its value is an array of exactly N elements of the declared 'type', and 'range'/'warn' apply PER ELEMENT. It exists because DroneCAN distinguishes instances with a field inside one message type (uavcan.equipment.esc.Status carries esc_index) rather than by defining esc1_rpm..esc4_rpm, and hand-listing the four would be exactly the duplicated signal list this file exists to prevent. The drone's four ESCs are the first consumer; the index order is the vehicle's own (DroneVehicle.MOTORS), zero-based, and the dashboard labels its bars with that same esc_index so a fault bit and a bar name agree. 'node_health' (v23) is the second, over a different index space (DroneBus.NODES) — which is the mechanism working as intended: an instanced signal's index means whatever the declaring subsystem says it means, and both are stated in their descs.",
+    "'count' > 1 is REJECTED at parse on anything the readers cannot express: it is 'out'-only (the inbound path in bridge_source.gd normalizes each signal by hand, per name, and has no array concept), and it may not carry an 'enum' or be type 'bool' (both decode to one chip or one lamp, and an array would silently read as a truthy nothing). A parse error there is better than an instanced signal that publishes correctly and renders as a lie.",
+    "'speed_limit' (added v21) is the file's first CONFIGURED 'out' signal: every other one is measured out of the sim or is a labelled model of something the sim did, and this one is a number the vehicle simply CARRIES. That is not a hole in standing rule 3 but the other side of it - the honest reading of a road-speed governor is the limit it is set to, read off VehicleSpec.speed_limit_kmh, and NOT something back-derived from the throttle. What the limiter does is separately visible in engine_load, which reads the governed throttle rather than the pedal, so cause and consequence are two signals that cannot drift apart.",
+    "'slip' (v30) is the 'count' mechanism's first UNFLAVORED consumer and its first non-drone one, over a third index space again (0 = front axle, 1 = rear). The mechanism was built for the DroneCAN ESCs, and the fact that a car's two axles drop into it with no new concept is the mechanism working as intended. See its desc for why the mean it replaced was precisely the number that could not carry the reading.",
+    "THE CONTRACT CARRIES A LAMP'S FLASH, NEVER A CLOCK. turnL/turnR always did, and 'beacon' and 'strobe' (v30) close the last hole in it: LampSet used to pulse the aircraft beacon off the wall clock - the only local blink anywhere in the project - purely because no beacon signal existed to mirror. It exists now, sloppyCAN toggles it, and BEACON_PERIOD / BEACON_ON_FRAC were deleted rather than joined. THE SAME RULE COVERS J1939-73's DM1 flash-1Hz and flash-2Hz LAMP STATES WITH NO NEW SIGNAL AT ALL: red_stop / amber_warn / protect_lamp stay bool and the source toggles them at the rate that states the urgency, which is how a real cluster separates an ACTIVE fault from a PENDING one and is what it reads too. A flash rate is a property of the source, not of the dashboard.",
     "No entries are \"status\": \"todo\"; a planned-but-unimplemented signal would use that marker.",
     "Contract edits bump 'version'; both sides warn on mismatch instead of failing silently."
   ],
@@ -32,7 +37,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -53,7 +57,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -74,7 +77,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone"
       ],
@@ -89,7 +91,6 @@ window.CARLITO_CONTRACT = {
         "car",
         "truck",
         "tractor",
-        "bike",
         "plane",
         "train"
       ],
@@ -110,7 +111,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -133,7 +133,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -154,7 +153,6 @@ window.CARLITO_CONTRACT = {
         "car",
         "truck",
         "tractor",
-        "bike",
         "plane",
         "train"
       ],
@@ -168,8 +166,7 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "car",
         "truck",
-        "tractor",
-        "bike"
+        "tractor"
       ],
       "desc": "Left turn signal. Blinks at the source (RAMN 0x1BB); mirror verbatim, never add a local blink timer."
     },
@@ -181,8 +178,7 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "car",
         "truck",
-        "tractor",
-        "bike"
+        "tractor"
       ],
       "desc": "Right turn signal. Same verbatim-mirror rule as turnL."
     },
@@ -196,7 +192,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -213,7 +208,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -230,7 +224,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -245,8 +238,7 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "car",
         "truck",
-        "tractor",
-        "bike"
+        "tractor"
       ],
       "desc": "Rear stop-lamp state, from the RAMN 0x1BB brake bit. Drives STOP in the tri-state rear lamps."
     },
@@ -264,7 +256,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -285,7 +276,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -301,12 +291,12 @@ window.CARLITO_CONTRACT = {
         0,
         8000
       ],
+      "warn_side": "high",
       "warn": 6800,
       "vehicles": [
         "car",
         "truck",
         "tractor",
-        "bike",
         "plane"
       ],
       "desc": "Engine RPM. Real signal: read out of the drivetrain sim, not derived from speed. 'warn' is the tachometer redline."
@@ -325,7 +315,6 @@ window.CARLITO_CONTRACT = {
         "car",
         "truck",
         "tractor",
-        "bike",
         "plane",
         "train"
       ],
@@ -345,7 +334,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -366,7 +354,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -387,7 +374,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -408,7 +394,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -429,7 +414,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone"
       ],
@@ -444,13 +428,13 @@ window.CARLITO_CONTRACT = {
         0,
         1
       ],
+      "count": 2,
       "vehicles": [
         "car",
         "truck",
-        "tractor",
-        "bike"
+        "tractor"
       ],
-      "desc": "Tire slip. The sim tracks per-axle slip; a per-axle split of this signal is an open option."
+      "desc": "Tire slip PER AXLE: element 0 = FRONT, element 1 = REAR, zero-based to match the wire. INSTANCED rather than declared twice, for the reason the ESCs are (see the 'count' note above): one name, one range, one warn side, and an index that means what the declaring subsystem says it means. THE SPLIT IS THE READING. The sim has always tracked the two axles separately and this signal used to publish only their MEAN, which is precisely the number that cannot tell an understeering axle from an oversteering one: slip on the front with the rear planted is a car washing wide, slip on the rear alone is the back stepping out, and the mean is the same value for both. Distinct from the tractor's 'wheel_slip' (J1939 SPN 1858, driveline speed over ground speed), which stays its own single unsigned signal on its own flavor and is not a per-axle anything."
     },
     {
       "name": "ground",
@@ -461,7 +445,6 @@ window.CARLITO_CONTRACT = {
         "car",
         "truck",
         "tractor",
-        "bike",
         "plane"
       ],
       "desc": "Wheels on ground."
@@ -476,7 +459,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -493,7 +475,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -514,7 +495,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -535,7 +515,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -556,7 +535,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -577,7 +555,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -594,12 +571,11 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
       ],
-      "desc": "Status bitfield; bit layout is provisional until finalized with sloppyCAN frame packing."
+      "desc": "Status bitfield. The bit layout is FROZEN and is the wire assignment: 0 ignition, 1 on the ground - all wheels in contact for a wheeled chassis, and the drone's own landed predicate (DroneSensors.landed_now) for a craft that has no wheels to report it - 2 moving, 3 reverse gear, 4 neutral gear, 5 handbrake, 6 headlights at LOW or brighter (ST_* in src/vehicles/base/vehicle_telemetry.gd). A new flag APPENDS at bit 7 or above - nine are free in the u16 - and an existing bit is never renumbered, because a renumber is both a paired change across carlito and sloppycan and a silent misread of every frame an older build already sent."
     },
     {
       "name": "impact",
@@ -615,7 +591,6 @@ window.CARLITO_CONTRACT = {
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
@@ -631,13 +606,13 @@ window.CARLITO_CONTRACT = {
         0,
         100
       ],
+      "warn_side": "low",
       "warn": 15,
       "vehicles": [
         "car",
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane"
       ],
       "desc": "Fuel level. 'warn' is the low-fuel threshold."
@@ -651,13 +626,13 @@ window.CARLITO_CONTRACT = {
         0,
         150
       ],
+      "warn_side": "high",
       "warn": 110,
       "vehicles": [
         "car",
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane"
       ],
       "desc": "Coolant temperature. 'warn' is the overheat threshold."
@@ -668,35 +643,33 @@ window.CARLITO_CONTRACT = {
       "type": "f32",
       "unit": "V",
       "range": [
-        0,
-        16
+        9,
+        17
       ],
+      "warn_side": "low",
+      "warn": 11.5,
       "vehicles": [
         "car",
         "truck",
         "tractor",
         "boat",
-        "bike",
         "plane",
         "drone",
         "train"
       ],
-      "desc": "Battery voltage. Distinct from the 'in' battery warning LED."
+      "desc": "Battery/pack terminal voltage. Distinct from the 'in' battery warning LED. ONE SIGNAL, TWO MODELS, both labelled honest models: an engined vehicle publishes an alternator (resting volts with the key off, charging volts drooping under load), while the battery-electric drone publishes its 4S LiPo, V_oc(soc) - I * pack_current * R_internal, and there is deliberately no separate pack_voltage - a pack voltage IS a battery voltage and a second name for it would be two truths on one bus. The range covers BOTH and is set from the ACHIEVABLE envelope rather than the resting curve: the 17 top is a 4S straight off the charger at 16.8 V, and the 9 bottom is the drone worst case, an empty pack (12.6 V open-circuit) with all four motors pinned at the mixer clamp (305 A through 11 milliohm = 3.4 V of sag). A car never leaves 12.6-14.2. warn 11.5 is a low-side threshold: a flat lead-acid, or a LiPo collapsing under load."
     },
     {
-      "name": "lean",
+      "name": "speed_limit",
       "dir": "out",
-      "type": "f32",
-      "unit": "deg",
-      "range": [
-        -70,
-        70
-      ],
-      "warn": 48,
+      "type": "u8",
+      "unit": "km/h",
       "vehicles": [
-        "bike"
+        "car",
+        "truck",
+        "tractor"
       ],
-      "desc": "Chassis lean angle, + = leaning right. Anchored on the IMU lean-angle channel motorcycle stability control (Bosch MSC) uses. Honest model: computed from the same arcade lean model that drives the visuals, not a balance sim."
+      "desc": "Road-speed governor: the maximum road speed this vehicle is allowed to make, 0 = ungoverned. CONFIGURED, NOT MEASURED - read straight off VehicleSpec.speed_limit_kmh, never back-derived from the applied throttle, because what a body is limited to is a fact about the body and not about what it is doing this tick. The limiter's EFFECT is a separate signal: engine_load reads Drivetrain.applied_throttle (the governed throttle) rather than the pedal, so a governed truck at its limit publishes a flat pedal, a part-throttle load, and the limit that explains both. 0 is published EVERY TICK on a body with no limiter rather than being omitted - the same rule a detached implement follows, so the cluster does not change shape between a van and a sedan. J1939 SPN 74 'Maximum Vehicle Speed Limit' is the authentic signal, and the type is its wire form exactly: one byte, 1 km/h per bit, 0 offset, 0 to 250 km/h, carried in PGN 65261 (0xFEED, 'Cruise Control/Vehicle Speed Setup', CCSS) beside the cruise high/low set limits. That PGN is sent ON REQUEST rather than periodically, which is why this signal is not in sloppyCAN's telemetry frame map. Deliberately range-less, like engine_hours: a value that is constant for a whole session has no meaningful full scale, and a bar pinned at 90 of 250 for an hour says less than a readout. Deliberately UNFLAVORED despite naming an SPN, like wheel_slip and its SPN 1858: the truck and the tractor really do speak J1939/ISOBUS, but a passenger car does not, and four of the nine shipped limits sit on the car family (van, pickup, pickup-flat, ambulance). The SPN is the naming reference here, not a claim about the wire."
     },
     {
       "name": "hitch_pos",
@@ -910,12 +883,13 @@ window.CARLITO_CONTRACT = {
         0,
         100
       ],
+      "warn_side": "high",
       "warn": 60,
       "vehicles": [
         "tractor"
       ],
       "flavor": "isobus",
-      "desc": "Wheel slip: how far wheel_speed runs ahead of ground_speed, as a percentage of wheel_speed. Unsigned like J1939 SPN 1858, so braking slip (ground faster than wheels) reads 0. 'warn' is the digging-in threshold — it sits in the HIGH half of 'range' so the dashboard reads it as a high-side danger (SignalDef.warn_is_low infers the side from the midpoint)."
+      "desc": "Wheel slip: how far wheel_speed runs ahead of ground_speed, as a percentage of wheel_speed. Unsigned like J1939 SPN 1858, so braking slip (ground faster than wheels) reads 0. 'warn' is the digging-in threshold."
     },
     {
       "name": "engine_hours",
@@ -997,6 +971,7 @@ window.CARLITO_CONTRACT = {
         -90,
         90
       ],
+      "warn_side": "high",
       "warn": 30,
       "vehicles": [
         "boat",
@@ -1014,6 +989,7 @@ window.CARLITO_CONTRACT = {
         -180,
         180
       ],
+      "warn_side": "high",
       "warn": 45,
       "vehicles": [
         "boat",
@@ -1074,7 +1050,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "j1939",
-      "desc": "Red Stop Lamp from the J1939-73 DM1 lamp status byte: an active fault severe enough to stop the vehicle. Mirrored VERBATIM like turnL — sloppyCAN is the sole authority, an absent bit is off, and there is no local timer of any kind. DM1's real lamp states also include flash-1Hz and flash-2Hz; those are deliberately NOT modelled, because a blink would have to come from a local clock and the standing rule forbids one (see the plane beacon exception in TODO.md). checkEngine already IS DM1's Malfunction Indicator Lamp, so no fourth lamp is added for it."
+      "desc": "Red Stop Lamp from the J1939-73 DM1 lamp status byte: an active fault severe enough to stop the vehicle. Mirrored VERBATIM like turnL — sloppyCAN is the sole authority, an absent bit is off, and there is no local timer of any kind. DM1's real lamp states also include flash-1Hz and flash-2Hz, and they need NO new signal: the bit stays bool and sloppyCAN toggles it at the rate that states the urgency, which is how a real cluster separates an ACTIVE fault from a PENDING one. checkEngine already IS DM1's Malfunction Indicator Lamp, so no fourth lamp is added for it."
     },
     {
       "name": "amber_warn",
@@ -1107,12 +1083,13 @@ window.CARLITO_CONTRACT = {
         0,
         12
       ],
+      "warn_side": "low",
       "warn": 5,
       "vehicles": [
         "truck"
       ],
       "flavor": "j1939",
-      "desc": "Service brake air pressure, circuit 1 (J1939 SPN 1087, PGN 0xFEAE 'AIR1' — in the published FMS set). Honest model, clearly labelled: the truck has no simulated pneumatic circuit, so this is a reservoir that charges while the engine runs and is drawn down by brake applications. 'warn' 5.0 is the LOW-PRESSURE WARNING and sits below the [0,12] midpoint so SignalDef.warn_is_low reads it as a low-side danger. It is deliberately NOT the cut-in: the spring brakes apply lower still (TruckTelemetry.AIR_SPRING_BRAKE_BAR), so there is a warning band before the truck stops being able to move, as on a real vehicle."
+      "desc": "Service brake air pressure, circuit 1 (J1939 SPN 1087, PGN 0xFEAE 'AIR1' — in the published FMS set). Honest model, clearly labelled: the truck has no simulated pneumatic circuit, so this is a reservoir that charges while the engine runs and is drawn down by brake applications. 'warn' 5.0 is the LOW-PRESSURE WARNING. It is deliberately NOT the cut-in: the spring brakes apply lower still (TruckTelemetry.AIR_SPRING_BRAKE_BAR), so there is a warning band before the truck stops being able to move, as on a real vehicle."
     },
     {
       "name": "air_secondary",
@@ -1123,6 +1100,7 @@ window.CARLITO_CONTRACT = {
         0,
         12
       ],
+      "warn_side": "low",
       "warn": 5,
       "vehicles": [
         "truck"
@@ -1154,12 +1132,13 @@ window.CARLITO_CONTRACT = {
         0,
         20000
       ],
+      "warn_side": "high",
       "warn": 11500,
       "vehicles": [
         "truck"
       ],
       "flavor": "j1939",
-      "desc": "Drive-axle load (J1939 SPN 582). READ OUT OF THE SIM: the summed RayWheel suspension force on the rear axle converted to kilograms, never a mass lookup — so weight transfer under braking, a laden body and (from the trailer phases) a coupled trailer all move it as consequences. 'warn' 11500 is the real EU 11.5 t drive-axle limit; it sits above the 10000 midpoint, so the dashboard reads it as a high-side danger."
+      "desc": "Drive-axle load (J1939 SPN 582). READ OUT OF THE SIM: the summed RayWheel suspension force on the rear axle converted to kilograms, never a mass lookup — so weight transfer under braking, a laden body and (from the trailer phases) a coupled trailer all move it as consequences. 'warn' 11500 is the real EU 11.5 t drive-axle limit."
     },
     {
       "name": "body_cmd",
@@ -1279,12 +1258,13 @@ window.CARLITO_CONTRACT = {
         0,
         30000
       ],
+      "warn_side": "high",
       "warn": 24000,
       "vehicles": [
         "truck"
       ],
       "flavor": "iso11992",
-      "desc": "Towed-unit axle load (J1939 SPN 582, reported by the trailer's own EBS). READ OUT OF THE SIM exactly as the tractor's axle_load is, through the SAME function rather than a second model: the summed RayWheel suspension force on the trailer's bogie converted to kilograms, never a mass lookup. The trailer carries its own unmodified RayWheels, so its weight transfer, its load and the road under it all move this as consequences of real force. 'warn' 24000 is roughly the EU tri-axle bogie limit and sits above the [0,30000] midpoint, so the dashboard reads it as a high-side danger. Reads a real 0 every tick while bobtail — and with a trailer coupled to a unit that has no trailer bus, per trailer_connected."
+      "desc": "Towed-unit axle load (J1939 SPN 582, reported by the trailer's own EBS). READ OUT OF THE SIM exactly as the tractor's axle_load is, through the SAME function rather than a second model: the summed RayWheel suspension force on the trailer's bogie converted to kilograms, never a mass lookup. The trailer carries its own unmodified RayWheels, so its weight transfer, its load and the road under it all move this as consequences of real force. 'warn' 24000 is roughly the EU tri-axle bogie limit. Reads a real 0 every tick while bobtail — and with a trailer coupled to a unit that has no trailer bus, per trailer_connected."
     },
     {
       "name": "trailer_brake_demand",
@@ -1354,6 +1334,28 @@ window.CARLITO_CONTRACT = {
       "desc": "Flap setting request (CANaerospace flavor); arcade lift/drag boost."
     },
     {
+      "name": "beacon",
+      "dir": "in",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "plane"
+      ],
+      "flavor": "canaerospace",
+      "desc": "THE ANTI-COLLISION BEACON, AND IT FLASHES BECAUSE THE SOURCE TOGGLES THE BIT. Mirrored VERBATIM exactly as turnL and turnR are: absent = off, no local timer, no blink clock. That is worth stating rather than assuming, because it used to be otherwise - LampSet pulsed the beacon lens off the wall clock, the only local blink anywhere in the project, and it did so ONLY because this signal did not exist and there was no bit to mirror. It exists now, sloppyCAN owns the ~43 flashes per minute, and BEACON_PERIOD / BEACON_ON_FRAC were deleted rather than joined."
+    },
+    {
+      "name": "strobe",
+      "dir": "in",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "plane"
+      ],
+      "flavor": "canaerospace",
+      "desc": "THE WING-TIP STROBES. Unmodelled until this signal existed, for exactly the reason the beacon was pulsed from a local clock - see 'beacon'. Same source, same verbatim mirror, same absent = off: sloppyCAN owns the double-flash and the game only lights the lenses. A SEPARATE BIT from the beacon rather than a brightness on it, because they are separate switches on a real aircraft and are run at different times: the beacon goes on before engine start and stays on, the strobes go on entering the runway."
+    },
+    {
       "name": "climb",
       "dir": "in",
       "type": "i8",
@@ -1377,7 +1379,98 @@ window.CARLITO_CONTRACT = {
         "drone"
       ],
       "flavor": "dronecan",
-      "desc": "Motor arm (DroneCAN flavor); rotors spin only when armed (key must also be Ignition)."
+      "desc": "THE ARM REQUEST - a LATCHED switch, not a momentary press, and a REQUEST rather than a state. What the flight controller does with it is the out signal 'armed', and the two disagreeing is the reading: the craft arms only on this bit's RISING EDGE and only with every pre-arm check passing (see 'prearm_fail'), it REFUSES a disarm while airborne, and it disarms itself a few seconds after landing - after which the switch has to be cycled before it will arm again, exactly as on a real aircraft. Mirrored VERBATIM like every other in-bit, with an absent bit meaning 0 = disarmed; there is no local timer and no debounce on it. The key must ALSO be at Ignition and the pack must have charge, and neither of those is a check the FC is making - they are whether there is a powered flight controller at all, so Lock and On simply cannot fly. It has a local key for the reason 'node_fail' and 'flight_mode' do: InputRouter owns the toggle (the _lights / _pto pattern) so keyboard and touch share one switch."
+    },
+    {
+      "name": "node_fail",
+      "dir": "in",
+      "type": "u16",
+      "unit": "bitfield",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "TAKE A NODE OFF THE BUS. Bit i set = roster index i (DroneBus.NODES: 0-3 the four ESCs, 4 GNSS, 5 POWER, 6 AHRS, 7 RANGE) stops publishing. THE BIT INDEX IS THE ROSTER INDEX, NOT THE NODE ID - the ids (11-14, 20-23) are what sloppyCAN addresses its NodeStatus frames with, while a sparse mask over them would waste the u16 and mean nothing to anyone. THE CONTRACT'S FIRST INBOUND BITFIELD: every other 'in' bit here (turnL, red_stop, trailer_abs_lamp, ...) is its own bool signal, and this one is packed because it is one FIELD with an index rather than eight independent lamps - the same reason node_health is instanced instead of hand-listed. Mirrored VERBATIM like every other in-bit: sloppyCAN is the sole authority, there is no local timer, no debounce and no smoothing, and an ABSENT value is 0, i.e. every node online. Bits above the roster are ignored rather than rejected - a peer describing an airframe with more nodes than this one is not an error. It is not a fault report but a bench SWITCH: this is what unplugging an ESC does, and what it costs is real (an offline ESC's mixer command is forced to zero at the motor, so the craft loses roll/pitch/yaw authority asymmetrically and cannot hold yaw on three motors, uncompensated). Because it is a switch and not damage, a respawn does not clear it. It also has a local key (Y cycles none -> ESC1 -> ... -> RANGE -> none), unlike scv_flow or retarder, because a feature you cannot reach from the keyboard cannot be driven - and driving is how this project verifies."
+    },
+    {
+      "name": "flight_mode",
+      "dir": "in",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "STABILIZE",
+        "1": "ALT HOLD",
+        "2": "LOITER",
+        "3": "RTL",
+        "4": "LAND"
+      },
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE FLIGHT MODE THE OPERATOR IS ASKING FOR. 0 STABILIZE (manual, self-levelling, the climb axis is a thrust TRIM), 1 ALT_HOLD (the climb axis becomes a climb RATE and a centred stick holds the height), 2 LOITER (ALT_HOLD plus horizontal position hold), 3 RTL (climb to 40 m above home, fly home, then land), 4 LAND (descend at 1 m/s and cut the motors on touchdown). IT IS A REQUEST, NOT A STATE - what the flight controller is ACTUALLY in after any refusal or override is the separate out signal 'mode_actual', and the two disagreeing is the reading rather than a bug. Mode is an FC concept and not a DroneCAN message; the bus carries the CONSEQUENCE. This is the drone's counterpart of the tractor's 'guidance_curvature' - an external computer taking a control axis - and it carries exactly the same justification: it is a CONTROL mode, never a mission system. Mirrored VERBATIM like every other in-value, with an ABSENT value meaning 0 = STABILIZE, i.e. the craft is simply hand-flown; an out-of-range byte lands on STABILIZE too rather than being rejected (the 'body_cmd' rule - a peer describing an aircraft with more modes than this one is describing a different aircraft). IT ALSO HAS A LOCAL KEY, for the reason 'node_fail' does: a feature you cannot reach from the keyboard cannot be driven, and driving is how this project verifies. THE KEY IS Z, NOT Q - Q has been the tractor's SCV spool since that control got one, and Z is the only unbound letter left. Z cycles STABILIZE -> ALT HOLD -> LOITER -> RTL -> LAND -> STABILIZE, owned by InputRouter like the lights and the PTO so keyboard and touch share one state; CHANGING the request is also what releases an automatic override, so pressing Z always hands control back."
+    },
+    {
+      "name": "led",
+      "dir": "in",
+      "type": "u32",
+      "unit": "rgb565",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE AIRCRAFT'S INDICATION LEDs, ONE PACKED RGB COLOUR (uavcan.equipment.indication.LightsCommand). The low 16 bits are RGB565 - red in bits 15-11, green in 10-5, blue in 4-0, exactly the LightsCommand wire layout; the type is u32 so the field has room for the light_id/command shape a real LightsCommand carries per lamp, and bits above 15 are ignored rather than rejected. 0 is BLACK, i.e. the LEDs are commanded off, which is also the absent-value default - the same 'an absent bit is off' rule every other in-bit follows. ONE COLOUR FOR ALL FOUR ARM TIPS: this airframe has one lamp group, so a per-light index would be a field with one legal value. Mirrored VERBATIM: sloppyCAN is the sole authority, there is no local blink timer, no fade and no pattern engine - if the LEDs pulse it is because the source is toggling the colour, exactly as the turn lamps blink because the source toggles the bit. THIS IS THE SHAPE EVERY FLASHING LAMP HERE TAKES: the source owns the toggle and the game mirrors the value - see 'beacon' and 'strobe', which closed the last local-clock hole in v30. WHY 'lights' IS NOT THE DRONE'S INDICATION CHANNEL: 'lights' is the shared OFF/CLEARANCE/LOW/HIGH headlight ladder, and a quadcopter has no headlamp - the ladder is a car's and reads wrong on the cluster. It is left alone rather than re-labelled per vehicle (the same cosmetic wart the plane already carries), because the level NUMBERS are the protocol and are shared by all seven vehicles; 'led' is the drone's real indication channel and the one the airframe lights from. BRIDGE-ONLY, with no local key, unlike 'node_fail' and 'flight_mode': an LED colour is not a control you fly with, so there is nothing a keyboard cycle would let you verify that sloppyCAN's colour picker does not. With no bridge the arm tips sit dark, which is the honest reading of a bus that has commanded nothing."
+    },
+    {
+      "name": "beep",
+      "dir": "in",
+      "type": "bool",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE AIRFRAME BUZZER (uavcan.equipment.indication.BeepCommand). True = sounding. Mirrored VERBATIM with the lamp bits: sloppyCAN is the sole authority, absent = off, and there is NO local timer of any kind - a real BeepCommand carries a frequency and a duration and the source is what repeats it, so a beep pattern is the source's to make and never a clock in the game. Same shape as 'led' above, and the same rule holds: a beep pattern is the source's to make. WHAT IS NOT MODELLED: the AUDIBLE side. The airframe has no buzzer sample, so the bit is published to the cluster as a tell-tale and lights nothing on the craft - the SIGNAL is honest, the sound is simply absent, and that is a missing asset rather than a local-timer gap."
+    },
+    {
+      "name": "hardpoint_cmd",
+      "dir": "in",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE CARGO HOOK, COMMANDED (uavcan.equipment.hardpoint.Command). True = HOLD, false = RELEASE. The DSDL field is a uint16 documented as 'either a binary command (0 - release, 1+ - hold) or bitmask', and this models the binary case: one hardpoint, one latch, one bit. Mirrored VERBATIM like every other in-bit, absent = 0 = released, with no timer and no debounce. IT IS A REQUEST, NOT A STATE - what the latch actually did comes back as 'hardpoint_state', and the two disagreeing is the reading, exactly as 'arm' disagrees with 'armed' and 'hitch_pos' with 'hitch_pos_actual'. This is the drone's counterpart of the tractor's three-point hitch and it has a local key for the same reason: InputRouter owns the toggle (the _lights / _pto pattern) so the key and a touch button share one switch."
+    },
+    {
+      "name": "gimbal_pitch",
+      "dir": "in",
+      "type": "i8",
+      "unit": "deg",
+      "range": [
+        -90,
+        30
+      ],
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "CAMERA GIMBAL PITCH COMMAND (uavcan.equipment.camera_gimbal.AngularCommand, whose wire form is a quaternion in COMMAND_MODE_ORIENTATION_BODY_FRAME - the two Euler angles the contract carries are what sloppyCAN builds it from). DEGREES, NOT PERCENT, and that is a decision: a gimbal has real mechanical stops and they fit i8 in whole degrees, so there is no scaling fiction between this number and where the camera is pointed. + = up. The range IS the stop travel - straight down to 30 degrees above the horizon, the reach of a belly mount. BRIDGE-ONLY, with no local key, for the reason 'retarder' and 'led' have none: framing a shot is not a control you fly with. Slew-rate limited on the way to 'gimbal_pitch_actual', so a step command walks rather than teleporting the view."
+    },
+    {
+      "name": "gimbal_yaw",
+      "dir": "in",
+      "type": "i8",
+      "unit": "deg",
+      "range": [
+        -120,
+        120
+      ],
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "CAMERA GIMBAL YAW (PAN) COMMAND, + = right, seen from above. Degrees and stop travel like 'gimbal_pitch' - see there for the AngularCommand mapping, the bridge-only rule and the slew limit. The range is the pan stops either side of straight ahead: a gimbal that could spin freely would need more than i8 degrees to describe, and this one deliberately cannot, so the mount's own limit and the signal's own limit are the same number."
     },
     {
       "name": "altitude",
@@ -1388,6 +1481,7 @@ window.CARLITO_CONTRACT = {
         0,
         500
       ],
+      "warn_side": "high",
       "warn": 450,
       "vehicles": [
         "plane",
@@ -1404,12 +1498,124 @@ window.CARLITO_CONTRACT = {
         -20,
         20
       ],
+      "warn_side": "low",
       "warn": -15,
       "vehicles": [
         "plane",
         "drone"
       ],
       "desc": "Vertical speed (variometer), + = climbing. 'warn' is the excessive-descent threshold."
+    },
+    {
+      "name": "agl",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m",
+      "range": [
+        -1,
+        100
+      ],
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Height above whatever is underneath (uavcan.equipment.range_sensor.Measurement). MEASURED, NOT DERIVED: one raycast straight down from the airframe against the level's own collision, so over a harbour shed it reads the ROOF and not the water beside it, and over the sea it reads the seabed. THE RAY IS CAST ALONG WORLD DOWN, not the body's own -Y: a real body-mounted rangefinder measures a SLANT range and the flight controller tilt-corrects it by cos(pitch)*cos(roll), so casting the corrected ray directly is the same number with no second model behind it - and it is what keeps this signal's NAME true under a 32 degree lean. -1 IS THE INVALID READING AND THE ONLY ONE. It is published in exactly two cases: the beam found nothing inside its 100 m maximum range, and the RANGE node (node_fail roster index 7) is off the bus. A lidar with no return reports NO RANGE, never zero, and zero is precisely the value a landing detector would act on - which is why the sentinel is the range floor instead of the range floor being 0. The landed predicate behind status bit 1 reads the craft's OWN measurement rather than this published value, so taking RANGE off the bus makes the reading invalid without making the aircraft forget it is standing on the ground: the same split the per-ESC arrays have between what the bus last heard and the state still integrating underneath it."
+    },
+    {
+      "name": "sats",
+      "dir": "out",
+      "type": "u8",
+      "unit": "count",
+      "range": [
+        0,
+        16
+      ],
+      "warn_side": "low",
+      "warn": 4,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Satellites used in the solution (uavcan.equipment.gnss.Fix2.sats_used). MEASURED, NOT SCRIPTED, and that is the whole point of the signal: sixteen rays on a fixed golden-angle spiral over the sky - area-uniform from the zenith out to an 80 degree mask angle, i.e. the 10 degree elevation mask a real receiver uses - are cast out of the airframe against the level's real collision, and AN UNOBSTRUCTED RAY IS A VISIBLE SATELLITE. So a building canyon, a harbour front or a bridge deck takes satellites away because it is genuinely in the way, and open water takes none. There is no scripted no-fix volume anywhere and there must never be one: if the fix does not drop where it should, the CONE is wrong. Four of the sixteen are re-cast per tick, round-robin, rather than all of them every tick. That keeps the cost off the flight tick, and it is also the more honest rate - the whole sky refreshes at 15 Hz, still faster than the tracking loops of the receivers this stands in for. The GNSS node (node_fail roster index 4) going offline forces this to 0, because a fix is a statement about RIGHT NOW and a receiver that has stopped talking is not still solving - so unlike an ESC's rpm this does NOT hold its last value. A respawn clears the sky the same way, so the fix REACQUIRES over the next four ticks instead of teleporting with you. warn 4 is the count a 3D fix needs."
+    },
+    {
+      "name": "fix_type",
+      "dir": "out",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "NO FIX",
+        "1": "TIME",
+        "2": "2D",
+        "3": "3D"
+      },
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Fix status (uavcan.equipment.gnss.Fix2.status), the DroneCAN enum verbatim - 0 NO_FIX, 1 TIME_ONLY, 2 2D_FIX, 3 3D_FIX. DERIVED FROM 'sats' AND NOTHING ELSE, on the textbook count: no satellite is no fix at all, one or two are enough to discipline a clock, three solve a horizontal position against an assumed altitude, and four solve all three axes plus the clock. It carries an enum and NO range, so it falls into the dashboard's state-chip branch and renders beside ARMED rather than becoming a bar - an ordinal on a 0-3 bar would say nothing. lat/lon ARE NOT GATED ON IT and stay the sim's own position. They are the shared base signals every vehicle publishes, and freezing them here would be a second model of where the craft is; so NO FIX beside a live lat/lon is the reading, not a bug. What the receiver can report and what the airframe actually knows are different things, which is the same lesson the held ESC telemetry teaches from the other side."
+    },
+    {
+      "name": "hdop",
+      "dir": "out",
+      "type": "f32",
+      "unit": "DOP",
+      "range": [
+        0,
+        10
+      ],
+      "warn_side": "high",
+      "warn": 6,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Horizontal dilution of precision, the horizontal companion of uavcan.equipment.gnss.Fix2.pdop. LABELLED HONEST MODEL, and the only number in the GNSS block that is not simply counted: real HDOP is the horizontal trace of (G^T G)^-1 over the line-of-sight geometry matrix, and what is computed here instead is the ANGULAR SPREAD of the rays that came back visible - 0.372 / (1 - |mean unit vector|), clamped to the bar. That keeps DOP's actual physical content, which is that satellites bunched into one patch of sky solve a position badly while satellites spread across it solve it well, without a 4x4 matrix inverse on the flight tick. An open sky reads about 0.9, one building taking half the sky about 1.3, and a canyon that leaves only a strip overhead pins the bar - by then it is under the four satellites a fix needs, which is the same answer arriving by the other route. WITH FEWER THAN THE FOUR SATELLITES A 3D FIX NEEDS - and therefore also with the GNSS node offline, which is simply a sky it cannot see - it publishes the range top: there is no fix, so there is no precision left to dilute. warn 6 is a high-side threshold: dilution is bad."
+    },
+    {
+      "name": "roll_rate",
+      "dir": "out",
+      "type": "f32",
+      "unit": "rad/s",
+      "range": [
+        -10,
+        10
+      ],
+      "vehicles": [
+        "plane",
+        "drone"
+      ],
+      "desc": "Body roll rate, + = right side down: the time derivative of 'roll', read straight off the rigid body's angular velocity about its own forward axis, exactly the way 'yaw' is read about its up axis. WITH 'pitch_rate' AND THE EXISTING 'yaw' THIS COMPLETES uavcan.equipment.ahrs.Solution.angular_velocity - yaw was already the third axis and did not need a second name. DELIBERATELY UNFLAVORED, like pitch and roll: this is honest body motion that any airframe has, not a DroneCAN concept, which is what let the PLANE declare all three (v30) without inheriting a protocol with them. BaseVehicle has always computed the triple off the rigid body for every vehicle, so the plane cost three list entries and no code. Unflavored and warn-less means it renders on no dashboard - it is a bus signal, exactly as yaw / accLong / accLat already are."
+    },
+    {
+      "name": "pitch_rate",
+      "dir": "out",
+      "type": "f32",
+      "unit": "rad/s",
+      "range": [
+        -10,
+        10
+      ],
+      "vehicles": [
+        "plane",
+        "drone"
+      ],
+      "desc": "Body pitch rate, + = nose up: the time derivative of 'pitch', about the body's own right axis. The second of the two missing axes of uavcan.equipment.ahrs.Solution.angular_velocity - see 'roll_rate' for why the triple is unflavored and for why 'yaw' completes it rather than being republished under a third name."
+    },
+    {
+      "name": "acc_vert",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m/s^2",
+      "range": [
+        -30,
+        30
+      ],
+      "vehicles": [
+        "plane",
+        "drone"
+      ],
+      "desc": "Vertical body acceleration, + = up along the body's own up axis. WITH accLong AND accLat THIS COMPLETES uavcan.equipment.ahrs.Solution.linear_acceleration. It is computed exactly as those two are - the tick's velocity change projected onto a body axis and smoothed at the same rate - which means it is KINEMATIC AND CARRIES NO GRAVITY TERM: a hovering drone reads 0 rather than +9.8, and a craft in free fall reads 0 as well. That is the convention accLong/accLat have always used, and matching it matters more than matching a real accelerometer's specific force, which would have left one axis of the triple meaning something different from the other two. Unflavored and warn-less, like the rate pair above."
     },
     {
       "name": "flaps_actual",
@@ -1439,7 +1645,117 @@ window.CARLITO_CONTRACT = {
         "drone"
       ],
       "flavor": "dronecan",
-      "desc": "Mean rotor speed. Honest model derived from thrust demand (labelled, like trim)."
+      "desc": "Mean rotor speed. REAL, not a model: literally the mean of the four esc_rpm values below, computed from that array so this number and the four it summarizes can never disagree."
+    },
+    {
+      "name": "esc_rpm",
+      "dir": "out",
+      "type": "u16",
+      "unit": "rev/min",
+      "range": [
+        0,
+        12000
+      ],
+      "count": 4,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Per-ESC rotor speed, esc_index 0..3 (DroneVehicle.MOTORS order: FL, FR, RL, RR). REAL, READ OUT OF THE SIM: the spooled normalized motor speed the mixer integrated this tick, on the single ROTOR_MAX_RPM mapping the blade visuals and rotor_rpm also use. This is the signal the four motors exist for - a hover moves all four together, a lean splits them front/back or left/right, and a yaw splits them along the counter-rotating DIAGONALS, which is the one pattern no single-rotor model could ever show."
+    },
+    {
+      "name": "esc_current",
+      "dir": "out",
+      "type": "f32",
+      "unit": "A",
+      "range": [
+        0,
+        80
+      ],
+      "count": 4,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Per-ESC phase current, esc_index 0..3. LABELLED HONEST MODEL (like trim and engine_load): there is no simulated motor winding, so this is the mechanical power that motor is really making divided by an efficiency and a pack voltage - the prop reaction torque (prop_torque_ratio times that rotor thrust) times its shaft speed, over eta * v_pack, plus a no-load term. Every input to it is read out of the flight sim, so it splits exactly as esc_rpm does; only the electrical conversion is modeled. v_pack is a constant nominal 14.8 V until the drone gets a real sagging pack. Hover is ~15 A per ESC and a full-stick climb ~38 A, but the range top is NOT set from those: the mixer clamps each motor's demand to [0,1], and collective plus the roll/pitch/yaw demands saturate one motor in any brisk maneuver - an ordinary full lean out of a hover already draws more than a climb does. A pinned motor draws ~76 A, so the range covers the whole ACHIEVABLE envelope at 80 A rather than the straight-line case. Unit-tested against that envelope in tests/test_drone.gd."
+    },
+    {
+      "name": "esc_temp",
+      "dir": "out",
+      "type": "f32",
+      "unit": "degC",
+      "range": [
+        0,
+        150
+      ],
+      "warn_side": "high",
+      "warn": 90,
+      "count": 4,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Per-ESC temperature, esc_index 0..3. LABELLED HONEST MODEL: I^2 R heating relaxed toward a target with a first-order lag (the motor spool shape), target = ambient + k * esc_current^2, so it is slow, it lags the stick, and it settles rather than tracking. Tuned on the ENVELOPE, not on the hover: from a 20 degC ambient a hover settles near 30 degC, a sustained full-stick climb settles near 85 degC - approaching the warn over a long climb without tripping it - and leaning or yawing on top of that crosses 90, which is what the warn is for. The 150 top covers a motor held at the mixer's saturation clamp; because the lag is 20 s, reaching it needs seconds of CONTINUOUSLY pinned motor, which is a tumble and not a flight. warn 90 is a high-side threshold. Reset to ambient on respawn: a teleport must not carry hot ESCs across."
+    },
+    {
+      "name": "esc_fault",
+      "dir": "out",
+      "type": "u8",
+      "unit": "bitfield",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "One bit per ESC (bit i = esc_index i), set while that ESC is over its esc_temp warn OR its node is offline (node_fail / node_online). Two honest fault sources, ORed: the controller cooking itself, and the controller no longer being there. The second is computed by the flight controller rather than reported by the ESC, which is the point - a dropped node cannot file its own fault, so something else has to notice. NOT INSTANCED on purpose: DroneCAN reports a fault per node, but four bools are four bits, and a bitfield is what a fault summary looks like on a bus. NOTE THE BIT SPACE: these bits are esc_index 0..3, NOT roster indices - it happens to be the same for the four ESCs because they sit first in DroneBus.NODES, and it stops being the same the moment a fifth motor or a reordered roster appears. It carries no range and no enum, so it falls through every dashboard branch and renders NOWHERE right now; it still publishes to the bridge, and the node strip is where it will eventually draw."
+    },
+    {
+      "name": "pack_current",
+      "dir": "out",
+      "type": "f32",
+      "unit": "A",
+      "range": [
+        0,
+        320
+      ],
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Total battery pack current (uavcan.equipment.power.BatteryInfo.current). A SUM OF MODELS, not a measurement: it is the four per-ESC currents added together plus a constant 1.5 A avionics draw (flight controller, GPS, radio, gimbal), so it inherits their honesty exactly - the mechanical power underneath is the flight sim's own prop torques and shaft speeds, and only the electrical conversion is modeled. IT SUMS THE TRUE CURRENTS, NOT THE PUBLISHED ONES, and the difference is only ever visible when a node has dropped: this is measured AT THE PACK by the power module, so when an ESC node goes offline (node_fail) the pack stops feeding a motor that has stopped and this number falls, while that ESC's own esc_current entry HOLDS at its last value because a node that is not talking cannot update it. So the four bars and this total can disagree, and when they do, THAT DISAGREEMENT IS THE READING - a stale element beside a live total is exactly what a dropped node looks like on a real bus, and soc, which is coulomb-counted from this, stays honest instead of draining for a motor that is not turning. With every node online they are identical to the last decimal. Hover is ~61 A, a full-stick climb ~154 A, and the 320 top is the whole achievable envelope: four motors held at the mixer's saturation clamp draw ~76 A each. This is the signal soc is coulomb-counted from and the one that sags the battery voltage."
+    },
+    {
+      "name": "soc",
+      "dir": "out",
+      "type": "u8",
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "warn_side": "low",
+      "warn": 20,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Battery state of charge (uavcan.equipment.power.BatteryInfo.state_of_charge_pct). LABELLED HONEST MODEL: plain coulomb counting off pack_current out of a 10 Ah 4S pack - dsoc = -100 * I * dt / (3600 * 10) - which is how a BMS with no cell model really does it. There is no cell chemistry and no capacity-vs-temperature curve behind it. It only ever falls; a quadcopter has no regeneration, and the only recharge in the game is a respawn, which hands you a fresh aircraft. The pack is sized FROM the hover draw so a level hover lasts ~9.8 real minutes and an aggressive flight is two to five times shorter - endurance is something the stick spends. At 0 the motors will not arm and a flying craft settles under its own spool-down. THE DRONE DECLARES NO 'fuel' AND MUST NOT: this is its state of charge, and an electric aircraft has no fuel gauge. warn 20 is the low-charge threshold."
+    },
+    {
+      "name": "pack_temp",
+      "dir": "out",
+      "type": "f32",
+      "unit": "degC",
+      "range": [
+        0,
+        100
+      ],
+      "warn_side": "high",
+      "warn": 60,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Battery pack temperature (uavcan.equipment.power.BatteryInfo.temperature). LABELLED HONEST MODEL, the same first-order shape as esc_temp and the motor spool: I^2 R heating in the pack's own internal resistance, relaxed toward ambient + k * pack_current^2, so it lags and settles rather than tracking. No cells, no airflow, no thermal mass are simulated. Tuned on the ENVELOPE like esc_temp: from a 20 degC ambient a hover settles near 23 degC and a sustained full-stick climb near 40, so neither warns; the 60 warn is crossed around 217 A, which is sustained hard maneuvering with the motors averaging ~0.8 demand. The 100 top is four motors held pinned. PACK_TEMP_TAU is 60 s - three times the ESCs' - because a 1.1 kg pack has far more thermal mass than a controller, so it heats slowly and stays hot after you land. warn 60 is a high-side threshold. Reset to ambient on respawn, with the ESC temperatures and for the same reason."
     },
     {
       "name": "armed",
@@ -1450,7 +1766,188 @@ window.CARLITO_CONTRACT = {
         "drone"
       ],
       "flavor": "dronecan",
-      "desc": "Motors armed (arm request and key Ignition)."
+      "desc": "MOTORS ARMED - the one bit a real ESC gates on (uavcan.equipment.safety.ArmingStatus reduced to what a motor controller acts on), and it is deliberately still a plain bool. It used to BE the whole arming logic (the arm request AND the key at Ignition); it is now the output of a state machine, and the three signals beside it - arming_state, prearm_fail and failsafe - are that machine explaining itself. THE SIGNAL DID NOT CHANGE, THE THING BEHIND IT DID. What is behind it: the key must be at Ignition and the pack must have charge left (both are master-switch facts, not checks - at Lock/On there is no powered flight controller to refuse anything); arming then happens on the RISING EDGE of the arm request with every pre-arm check passing; a disarm request is REFUSED while the craft is airborne (the landed predicate behind status bit 1 is the gate - a switch thrown in flight is a five-kilogram brick falling out of the sky, and every flight controller on the market refuses it); and the craft disarms itself a few seconds after touching down. Arming on the edge rather than the level is what makes that auto-disarm mean anything - the arm switch is LATCHED, so on the level the craft would stop its motors and re-arm on the very next tick under a switch nobody moved - and it is also what a real FC does with a latched arm switch. Everything rotor-borne (rotor_rpm, the blade spin, the vertical damper) is gated on the MOTORS rather than on this bit, because this flips in one tick and the props do not: a disarm spools them down over ~5*tau, still making decaying lift the whole way."
+    },
+    {
+      "name": "node_health",
+      "dir": "out",
+      "type": "u8",
+      "unit": "code",
+      "count": 8,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Per-node health (uavcan.protocol.NodeStatus.health), one element per roster index in DroneBus.NODES order: 0-3 the four ESCs, 4 GNSS, 5 POWER, 6 AHRS, 7 RANGE. Values are the DroneCAN enum verbatim - 0 OK, 1 WARNING, 2 ERROR, 3 CRITICAL. DERIVED, NOT INJECTED: node_fail says only that a node is off the bus, and the health is computed from that plus the craft's own state, so an ESC over its esc_temp warn reads WARNING with nothing injected at all, an offline node reads CRITICAL, and offline DOMINATES an over-temperature because a node that is not talking is not reporting a temperature either. ERROR is deliberately unreachable: the craft has exactly two honest fault sources and they land on WARNING and CRITICAL, and a test asserts nothing returns 2 so a third source is a decision rather than a drift. IT CARRIES NO 'enum' AND MUST NOT: 'count' > 1 with an 'enum' is parse-rejected (see the 'count' note above) because an instanced enum has no reader - the dashboard chip path decodes with int(value) and would throw on an array - so the table lives in this desc instead. IT ALSO CARRIES NO 'range', WHICH IS A LAYOUT DECISION AND NOT AN OVERSIGHT. A range would put it on the generated-bar path as eight indexed bars, and it was tried: eight bars plus a caption is nine rows on a cluster that already generates twenty-four, which pushed the drone from two bar columns to three and the gauges past the edge of the panel on a 1280-wide window. A severity code is a poor bar anyway - it has no meaningful full scale, only four steps - so it takes the esc_fault route instead: it falls through every dashboard branch, renders NOWHERE, and still publishes. The node strip is what a per-node health value is actually for, and until that exists the failure is legible from the aircraft (an offline ESC costs yaw authority) and from the ESC bars freezing at their last values. THE COUNT IS THE ROSTER SIZE, and the roster is declared ONCE, in drone_bus.gd; nothing here can read GDScript, so tests/test_drone_bus.gd pins this number against DroneBus.count() - growing the roster is one edit there and CI then tells you this line has not followed."
+    },
+    {
+      "name": "node_online",
+      "dir": "out",
+      "type": "u16",
+      "unit": "bitfield",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "Node presence: bit i set = roster index i is on the bus and publishing, same bit order as node_fail, and literally its complement over the roster. A node 'going offline' here means what it means on a real bus - it STOPS PUBLISHING NodeStatus - so there is no timer, no debounce and no missed-frame heuristic behind this: the failure is commanded rather than observed. Carries no range and no enum, so like esc_fault it falls through every dashboard branch and renders NOWHERE right now; it still publishes to the bridge, and the node strip is where it will eventually draw. It is deliberately NOT folded into node_health even though CRITICAL already implies it: health is a node's own judgement of itself and presence is the bus's judgement of the node, and a real DroneCAN listener learns the second from silence rather than from a message."
+    },
+    {
+      "name": "mode_actual",
+      "dir": "out",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "STABILIZE",
+        "1": "ALT HOLD",
+        "2": "LOITER",
+        "3": "RTL",
+        "4": "LAND"
+      },
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE MODE THE FLIGHT CONTROLLER IS ACTUALLY IN, after every refusal and every override. Same enum as the 'flight_mode' request, and the point of the pair is that they can differ. Everything that can make them differ, in the order it is applied (DroneModes.resolve_mode is the ONE place this is decided): DISARMED reads STABILIZE, because nothing autonomous runs on a craft whose motors are not turning and reporting a mode the aircraft is not flying would be the same lie ST_GROUND used to tell; a LATCHED GEOFENCE BREACH reads RTL over the top of whatever was selected; LOITER or RTL WITHOUT A 3D FIX falls back to ALT_HOLD, which is what killing the GNSS node (node_fail roster index 4) mid-LOITER produces and the single most legible thing on this signal; and an RTL that has reached its landing leg reads LAND, because a real FC reports the sub-phase and the chip changing is what makes the handover visible - and that leg latches off the mode the FC is ACTUALLY flying, never off the request, so an RTL refused for want of a fix cannot arm a landing to spring later. THE FIX THE MODE DECIDES ON IS DEBOUNCED BY 1 s, while the published 'fix_type' beside it stays raw. A measurement is raw and a decision is held: 'sats' comes off a round-robin sky sweep that turns over four of sixteen rays a tick, so a craft holding position at the edge of a shed crosses the four-satellite line in both directions within a few ticks, and an undebounced mode would toggle at the tick rate - re-seating its hold targets every time, which is a position hold that walks. Killing the GNSS node outright still drops a LOITER within that second. ONE DEGRADATION IS DELIBERATELY NOT REPORTED HERE: LAND without a 3D fix is not refused, it simply loses its position hold and drifts down, because a landing with no receiver still has to come down. 'mode_actual' keeps saying LAND because LAND is what the aircraft is doing; the 'failsafe' signal is where that gets a reading of its own (GPS_LOST). IT CARRIES AN enum AND NO range, deliberately: a range would put it on the generated-bar path as a 0-4 bar with no meaningful full scale (the same decision node_health records), while an enum plus a flavor lands it on the state-chip path beside FIX and ARMED with no code change at all."
+    },
+    {
+      "name": "home_dist",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m",
+      "range": [
+        0,
+        400
+      ],
+      "warn_side": "high",
+      "warn": 360,
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "HORIZONTAL distance to HOME, which is the position at which the craft ARMED. Horizontal because that is what a real flight controller's distance-to-home means - altitude has its own readout, and folding the two together would make a craft directly overhead read as far away. Home needs no level node and no authoring, so it works in all six shipped levels: while the craft is disarmed home simply tracks it, which means there is no 'no home yet' case, this reads 0 on the ground, and the geofence cannot breach before takeoff. THE RANGE TOP IS THE GEOFENCE RADIUS, not a round number - the bar fills as the fence approaches and pins when it is crossed, which is the only full scale this distance has. The fence is SOFT: breaching 400 m horizontally, or 120 m ABOVE HOME, latches a command to RTL and does not stop, brake or teleport the aircraft; WorldBounds remains the hard last-resort wall. 400 m is a genuine visual-line-of-sight distance chosen against the 2000 x 2000 m map - ArduPilot's own 150 m FENCE_RADIUS default would turn ordinary exploring into a permanent RTL - and 120 m is the real EU and US recreational ceiling, measured from home rather than from sea level so a launch on a mountainside gets the same air as one on the beach. Changing the mode releases the latch, so the pilot is never trapped. warn 360 is 0.9 of the radius. THE RANGE IS A SCALE, NOT A CLAMP: the published value is the real distance and can exceed 400 (the bar pins, the number does not), because the fence's RTL is refusable - with the GNSS node down it degrades to ALT_HOLD and the pilot keeps flying, out to the 2000 x 2000 m map's own diagonal. Clamping it to the fence would be the derived fiction rule 3 exists to forbid."
+    },
+    {
+      "name": "arming_state",
+      "dir": "out",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "DISARMED",
+        "1": "BLOCKED",
+        "2": "ARMED"
+      },
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE ARMING STATE MACHINE, READ BACK. uavcan.equipment.safety.ArmingStatus is a two-state signal (disarmed / armed under full control) and the bool 'armed' beside this one carries it verbatim, because that is what an ESC gates on. BLOCKED is the third state a real flight controller reports - not through ArmingStatus, but through the pre-arm messages it publishes when it has been ASKED to arm and has said no. That distinction is the whole reason this signal exists: DISARMED means nobody asked, BLOCKED means the FC refused, and 'prearm_fail' beside it names which check did the refusing. BLOCKED therefore needs BOTH a powered aircraft and a raised arm switch, because a refusal needs a request to refuse - at key Lock or On there is no flight controller judging anything, so an unpowered craft reads DISARMED rather than claiming a judgement nothing made. A craft that AUTO-DISARMED after landing with the switch still up also reads DISARMED, and that is right: nothing is blocking it, it is waiting for the switch to be cycled (arming is an edge - see 'arm'). IT CARRIES AN enum AND NO range, deliberately, for the reason 'mode_actual' and 'fix_type' do: a range would put it on the generated-bar path as a 0-2 bar with no meaningful full scale, while an enum plus a flavor lands it on the state-chip path beside MODE and FIX with no code change at all."
+    },
+    {
+      "name": "prearm_fail",
+      "dir": "out",
+      "type": "u16",
+      "unit": "bitfield",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "WHY THE FLIGHT CONTROLLER REFUSED TO ARM, one bit per check, so a BLOCKED arming_state is diagnosable instead of mysterious. A SET BIT IS A FAILED CHECK, so 0 is 'everything passes' - the same polarity as esc_fault and the opposite of node_online, and the right way round here because this signal's whole job is to name what is wrong. Bit 0 ATTITUDE: |pitch| or |roll| over 10 degrees, about a third of the airframe's own tilt limit - park on a hill and arming is refused. Bit 1 BATTERY: soc under 25 %, deliberately ABOVE the 20 % low-battery failsafe, because arming at exactly the failsafe threshold means taking off already inside one. Bit 2 ESC: at least one of the four ESC nodes is off the bus (node_fail), so the mixer has fewer than four motors. Bit 3 AHRS: the AHRS node is off the bus - nothing self-levels without an attitude solution. Bit 4 STICK: the climb axis is not centred; a stick left deflected is a craft that leaps on arming. Bit 5 FAILSAFE: a failsafe is already active and the 'failsafe' signal names it - an aircraft may not launch into a condition it would immediately have to react to. Bit 6 GPS: the selected flight_mode needs a 3D fix and there is not one - GATED ON THE MODE, which is ArduPilot's own rule rather than a shortcut, because a STABILIZE or ALT_HOLD takeoff needs no receiver at all and refusing one under a harbour roof would make the fix a permission slip instead of a capability. The bits are frozen the way 'status' is: a new check appends at bit 7 and never renumbers an existing one. IT PUBLISHES 0 WHILE ARMED, and that is not a gap: a flying aircraft deflects its climb stick and leans past ten degrees constantly, so live bits in flight would light STICK and ATTITUDE through every manoeuvre and make the signal unreadable in exactly the state it has nothing to say about - a real flight controller stops running its pre-arm checks the moment it arms, for this reason. It carries no range and no enum (a bitfield's values are combinations, which an enum table cannot describe), so like esc_fault and node_online it falls through every dashboard branch and renders NOWHERE today; it still publishes to the bridge, and decoding it is sloppyCAN's side of the paired change."
+    },
+    {
+      "name": "failsafe",
+      "dir": "out",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "NONE",
+        "1": "BATT LOW",
+        "2": "BATT CRIT",
+        "3": "GPS LOST",
+        "4": "GEOFENCE",
+        "5": "MOTOR"
+      },
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "WHAT THE AIRCRAFT IS REACTING TO RIGHT NOW, and the reason the mode it is flying is not the one that was asked for. 'mode_actual' can only ever show the RESULT of an override - a craft dropped from LOITER to ALT_HOLD looks identical whether the receiver died or the pilot moved a switch - so this is the signal that says which. ONE VALUE, MOST SEVERE WINS, and severity is BY THE ACTION FORCED rather than by the enum ordinal (the ordinals are a stable wire enum and nothing more): LAND, meaning come down here and now, outranks RTL, meaning come home, which outranks a bare degradation. In order: MOTOR (an ESC node is off the bus - the airframe has already lost control authority it cannot get back, since a quad on three motors cannot hold yaw, so it outranks even a critical pack; forces LAND), BATT_CRIT (soc under 10 %, no flying home on this much charge; forces LAND), BATT_LOW (soc under 20 %, which is also the soc bar's own warn threshold so the bar turns danger exactly when the aircraft decides to come home; forces RTL), GEOFENCE (the soft 400 m / 120 m fence has latched - it READS the RTL the fence is already commanding rather than forcing a second one, so it still cannot interrupt a landing in progress), GPS_LOST (a mode that uses a position fix, without one - it forces nothing either, because the mode ladder already refuses LOITER and RTL into ALT_HOLD, and this is also the one reading LAND has for a landing that has lost its position hold and is drifting down). A FORCED MODE ARRIVES THROUGH 'mode_actual' AND NOWHERE ELSE, over the top of both the pilot and the fence, and it can only ever ESCALATE - so a low pack that commands RTL with no fix still degrades honestly to ALT_HOLD instead of pretending to fly home. IT IS EVALUATED ARMED OR NOT: the ground cases are what the pre-arm FAILSAFE bit reads, and they are not redundant with the other pre-arm checks even where they overlap, because the pre-arm battery threshold (25 %) asks 'is there enough charge to launch' while BATT_LOW asks 'is there enough to stay up'. A FAILSAFE IS NOT A LATCH AND CANNOT BE DISMISSED: changing the flight_mode releases the fence and the RTL landing leg, but a flat pack or a dead motor clears only when its cause does (restore the node with node_fail, or respawn for a fresh pack). Enum and no range, so it lands on the state-chip path beside MODE - the 'mode_actual' reasoning."
+    },
+    {
+      "name": "hardpoint_state",
+      "dir": "out",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "THE CARGO HOOK, AS IT ACTUALLY IS (uavcan.equipment.hardpoint.Status.status). True = latched onto a payload. NOT AN ECHO of 'hardpoint_cmd': the latch closes only when HOLD is commanded AND a payload is inside the hook's capture range, so commanding HOLD over open ground leaves this false and the pair reads as 'asked, got nothing'. Releasing needs no payload and no conditions - dropping the command drops the load, that tick - which is the asymmetry a real cargo hook has and the reason this is one bit rather than a state ladder."
+    },
+    {
+      "name": "payload_weight",
+      "dir": "out",
+      "type": "f32",
+      "unit": "N",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "WHAT THE HOOK IS CARRYING, IN NEWTON (uavcan.equipment.hardpoint.Status.payload_weight, whose unit the DSDL states as Newton and not kilogram - a hardpoint measures a FORCE on its latch). READ OUT OF THE RIGID BODY, not from a table (rule 3): picking a payload up really changes the drone's RigidBody3D mass AND its centre of mass, which is why the craft sags on pickup and its hover collective climbs to match, and this is that carried mass times gravity. Zero while the latch is open. DELIBERATELY RANGE-LESS, so it joins the odometer readout line instead of becoming a bar, for the reason 'engine_hours' does: what makes it worth reading is that it MOVED, and against any fixed full scale a crate on a 5 kg airframe is a bar that barely twitches."
+    },
+    {
+      "name": "gimbal_pitch_actual",
+      "dir": "out",
+      "type": "i8",
+      "unit": "deg",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "WHERE THE CAMERA IS ACTUALLY POINTING, pitch (uavcan.equipment.camera_gimbal.Status.camera_orientation_in_body_frame_xyzw, resolved back to Euler for this flat signal model). NOT an echo of 'gimbal_pitch': the mount slews at a finite rate and stops at its stops, so a step command walks here over a few tenths of a second and a command past the stop sits on it. BODY FRAME, matching the DSDL - the angle relative to the AIRFRAME, so a banked craft with a centred gimbal still reads 0 rather than reporting the horizon. Range-less like 'payload_weight': the FPV view is this signal's real readout and the number rides the odometer line beside it."
+    },
+    {
+      "name": "gimbal_yaw_actual",
+      "dir": "out",
+      "type": "i8",
+      "unit": "deg",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "WHERE THE CAMERA IS ACTUALLY POINTING, yaw. Same message, same body frame, same slew limit and same range-less treatment as 'gimbal_pitch_actual' - see there. The pair is published together because one axis of an orientation is not an orientation."
+    },
+    {
+      "name": "baro_alt",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "BAROMETRIC ALTITUDE, AND THE WHOLE POINT OF IT IS THAT IT DISAGREES (uavcan.equipment.air_data.StaticPressure, solved through the ISA standard atmosphere). The drone already publishes two other heights measured two other ways - 'altitude' is the world/GPS one and 'agl' is a rangefinder - and this third is solved from a pressure. A real flight controller FUSES the three; this bench deliberately does not, so all three sit on the readout line disagreeing, which is the sensor-fusion lesson stated as three numbers instead of as prose. TWO LABELLED HONEST MODELS make the gap and there are no others (rule 3): the altimeter is set to a FIXED standard-day QNH of 101325 Pa while the level's own sea-level pressure drifts slowly, which is the STANDING offset a real pilot resets on the subscale; and the WindField at the craft's position perturbs the static port, which is what makes the gap MOVE as you fly into the canyon. Range-less, like every other reading on that line."
+    },
+    {
+      "name": "static_press",
+      "dir": "out",
+      "type": "f32",
+      "unit": "Pa",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "STATIC PRESSURE (uavcan.equipment.air_data.StaticPressure.static_pressure), in Pascal: the raw measurement 'baro_alt' is solved FROM, published so the two can be read against each other on the bus. A listener that would trust the barometer differently - another QNH, another atmosphere model - can solve its own altitude out of this rather than out of ours, which is the only reason to carry a derived value and its input side by side. Carries no range and no warn, so like 'esc_fault' and 'node_online' it falls through every dashboard branch and renders NOWHERE: it is a bus signal, and decoding it is sloppyCAN's side of the paired change."
+    },
+    {
+      "name": "oat",
+      "dir": "out",
+      "type": "f32",
+      "unit": "degC",
+      "vehicles": [
+        "drone"
+      ],
+      "flavor": "dronecan",
+      "desc": "OUTSIDE AIR TEMPERATURE (uavcan.equipment.air_data.RawAirData.static_air_temperature, which the DSDL carries in KELVIN - the conversion is sloppyCAN's, like every other unit on the wire). A LABELLED HONEST MODEL, and a deliberately thin one: the ISA lapse rate applied to the craft's own altitude, so it falls about 6.5 degrees per kilometre climbed and does nothing else. THERE IS NO WEATHER IN THIS GAME AND NONE IS CLAIMED HERE - it exists because RawAirData carries it and because temperature is the other half of the air density the barometer is really measuring. Range-less and off the dashboard, like 'static_press'."
     },
     {
       "name": "pantograph",
@@ -1505,12 +2002,13 @@ window.CARLITO_CONTRACT = {
         0,
         30000
       ],
+      "warn_side": "low",
       "warn": 12500,
       "vehicles": [
         "train"
       ],
       "flavor": "train",
-      "desc": "Overhead line voltage at the pantograph, semantics after CiA 421 rail practice. Honest model, clearly labelled: nominal 25 kV minus sag proportional to motor current, 0 when lowered. 'warn' is the collapsing-line threshold (half nominal), placed in the low half of 'range' so the dashboard reads it as a low-side danger."
+      "desc": "Overhead line voltage at the pantograph, semantics after CiA 421 rail practice. Honest model, clearly labelled: nominal 25 kV minus sag proportional to motor current, 0 when lowered. 'warn' is the collapsing-line threshold (half nominal)."
     },
     {
       "name": "motor_current",
@@ -1521,6 +2019,7 @@ window.CARLITO_CONTRACT = {
         0,
         1500
       ],
+      "warn_side": "high",
       "warn": 1200,
       "vehicles": [
         "train"
@@ -1537,12 +2036,13 @@ window.CARLITO_CONTRACT = {
         0,
         6
       ],
+      "warn_side": "low",
       "warn": 2.5,
       "vehicles": [
         "train"
       ],
       "flavor": "train",
-      "desc": "Train brake pipe pressure (air-brake practice): charges toward 5 bar, drops with brake application. 'warn' is the emergency-application threshold, in the low half of 'range' so the dashboard reads it as a low-side danger."
+      "desc": "Train brake pipe pressure (air-brake practice): charges toward 5 bar, drops with brake application. 'warn' is the emergency-application threshold."
     },
     {
       "name": "grade",
