@@ -1546,7 +1546,7 @@ function toggleStatsCollapse() {
 // it's correct even though the buttons have different positioned offsetParents. The
 // deliberate full-width .header-sep break at ≤1200px is intentionally NOT counted.)
 function _buttonsWrap() {
-  const ids = ['connectBtn', 'demoBtn', 'ramnBtn', 'carlitoBtn', 'busPauseBtn', 'clearMainBtn', 'disconnectBtn'];
+  const ids = ['connectBtn', 'demoBtn', 'ramnBtn', 'droneBtn', 'carlitoBtn', 'busPauseBtn', 'clearMainBtn', 'disconnectBtn'];
   const tops = ids.map(id => document.getElementById(id))
                   .filter(b => b && b.offsetParent !== null)
                   .map(b => Math.round(b.getBoundingClientRect().top));
@@ -1845,6 +1845,9 @@ function switchViewTab(name) {
   if (name === 'xcp'   && window.xcpOnShow)   window.xcpOnShow();
   if (name === 'canopen' && window.canopenOnShow) window.canopenOnShow();
   if (name === 'dronecan' && window.dronecanOnShow) window.dronecanOnShow();
+  // The DroneCAN tab decodes the drone's bus, and a car publishes none of it - so offer to put
+  // one on the link. Asks first and stays quiet when there is nothing to change (see drone.js).
+  if (name === 'dronecan' && window.droneRequestVehicle) window.droneRequestVehicle();
   if (name === 'term')  { document.getElementById('termInput').focus(); updateTermTrafficWarn(); }
   if (name === 'isotp') { document.getElementById('isotpInput').focus(); obdOnShow(); }
   updateNotchBtn();

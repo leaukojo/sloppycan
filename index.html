@@ -22,6 +22,7 @@
 <script src="dronecan.js" defer></script><!-- DroneCAN module (also the carlito dronecan-flavor packer; must precede carlito.js) -->
 <script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; frames decode in the J1939 tab's ISO 11783 mode. Must precede carlito.js -->
 <script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal); must precede carlito.js -->
+<script src="drone.js" defer></script><!-- Drone dashboard + control windows: needs ramn.js (makeFloating) and dronecan.js (dcCtl), and must precede carlito.js, which snapshots its uplink overrides -->
 <script src="carlito.js" defer></script><!-- Carlito game link module -->
 </head>
 <body>
@@ -148,6 +149,10 @@
   <button class="btn" id="ramnBtn" onclick="ramnToggle()" title="Toggle the floating RAMN dashboard (instrument cluster + driving panel in Demo).">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16l4-4"/><circle cx="12" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg>
     <span>RAMN dashboard</span>
+  </button>
+  <button class="btn" id="droneBtn" onclick="droneToggle()" title="Toggle the floating drone dashboard + control panel. Opens by itself when a drone is on the Carlito link - the RAMN controls do not fit an aircraft.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l4 4M17 7l-4 4M7 17l4-4M17 17l-4-4"/><rect x="10" y="10" width="4" height="4" rx="1"/><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/></svg>
+    <span>Drone</span>
   </button>
   <button class="btn" id="carlitoBtn" onclick="carlitoToggle()" title="Drive Carlito with RAMN controls - needs a live bus (Connect or Demo first).">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="16.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
@@ -397,6 +402,10 @@
             <button class="onboard-chip" data-target="#ramnBtn">
               <span class="oc-name">RAMN dashboard</span>
               <span class="oc-desc">Floating instrument cluster - Demo can partially emulate a RAMN board</span>
+            </button>
+            <button class="onboard-chip" data-target="#droneBtn">
+              <span class="oc-name">Drone</span>
+              <span class="oc-desc">Arm and fly Carlito's quad - opens itself when a drone is on the link</span>
             </button>
             <button class="onboard-chip" data-target="#wsSelect">
               <span class="oc-name">Workspace</span>

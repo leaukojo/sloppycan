@@ -308,7 +308,25 @@
     const clash = Object.keys(MODULE_IN_SOURCES).filter(k => IN_SOURCES[k]);
     if (clash.length) console.warn('Carlito: uplink signals sourced twice (module + RAMN state): ' + clash.join(', '));
   }
-  const inSource = (name) => IN_SOURCES[name] || MODULE_IN_SOURCES[name];
+
+  // ── Uplink OVERRIDES: a panel that has taken the vehicle ─────────────────────
+  // The two registries above are permanent homes - one signal, one source. This third one is a
+  // CLAIM, checked first and expected to come and go: a control surface for a machine the RAMN
+  // controls do not fit (the drone panel's sticks against the car's pedals) takes the shared
+  // axes while it is driving and hands them straight back when it is not.
+  //
+  // AN OVERRIDE MUST RETURN `undefined` WHEN IT IS NOT IN CONTROL, and that is the whole
+  // protocol - a declining entry falls through to the registry below it, so the RAMN panel
+  // drives again the moment the claim lapses. Returning 0 instead would be a source saying
+  // "centred" over one saying "hard left", which is the fight the permanent registries exist
+  // to prevent. Same rule the game's own arbitration uses: while the bridge is fresh it owns
+  // the vehicle outright, and when it goes stale the local controls are simply back.
+  //
+  // Only one panel may claim a signal at a time; nothing enforces that, because two panels
+  // claiming the same axis is two control surfaces on one aircraft, which is a design mistake
+  // rather than a race.
+  const UPLINK_OVERRIDES = window.carlitoUplinkOverrides || {};
+  const inSource = (name) => UPLINK_OVERRIDES[name] || IN_SOURCES[name] || MODULE_IN_SOURCES[name];
 
   const _inShapeWarned = {};
   // Send the contract's SHAPE: bool goes as 0/1 (what turnL has always done), everything else as
@@ -340,12 +358,24 @@
   function buildUplink(st) {
     const v = {};
     for (const sig of CONTRACT_IN_SIGS) {
-      const src = inSource(sig.name);
-      if (!src) continue;                        // no source yet → omit (see IN_SOURCES header)
-      const val = coerceIn(sig, src(st));
+      const val = inValue(sig, st);
       if (val !== undefined) v[sig.name] = val;
     }
     return v;
+  }
+
+  // One signal's value, overrides first. The RAW value decides whether an override CLAIMED the
+  // signal, not the coerced one: coerceIn turns a bool's undefined into 0, so coercing before the
+  // test would read a declining override as a source saying "off" and the fall-through would never
+  // happen. No source at all → undefined → omitted (see the IN_SOURCES header).
+  function inValue(sig, st) {
+    const ov = UPLINK_OVERRIDES[sig.name];
+    if (ov) {
+      const raw = ov(st);
+      if (raw !== undefined) return coerceIn(sig, raw);
+    }
+    const src = IN_SOURCES[sig.name] || MODULE_IN_SOURCES[sig.name];
+    return src ? coerceIn(sig, src(st)) : undefined;
   }
 
   // Dev conformance: every field we send must be a contract "in" signal (plan §2 rule 4).
@@ -379,7 +409,34 @@
     }
     loaded = false;
     el.placeholder.style.display = 'none';
-    iframe.src = GAME_URL;
+    iframe.src = gameUrlWithVehicle();
+  }
+
+  // ── Asking the game for a particular vehicle ────────────────────────────────
+  // The game reads a DEEP LINK at boot - `?level=&vehicle=` on the web build, parsed by its
+  // BootParams - so this needs no new contract signal and no game-side change: it is the same
+  // link a bookmark would carry. `vehicle` names a VARIANT ("semi", "drone"), not the family the
+  // garage picks, and the game silently drops an id it does not know.
+  //
+  // IT IS A BOOT PARAM, so honouring it means RELOADING the iframe - the game restarts and the
+  // current drive is lost. That cost is the caller's to justify (drone.js asks first), which is
+  // why this function does no confirming of its own. The request is spent on the load it causes:
+  // a later Reload or a channel switch goes back to the game's own saved session rather than
+  // pinning it to whatever was asked for once.
+  let pendingVehicle = '';
+  function gameUrlWithVehicle() {
+    if (!pendingVehicle) return GAME_URL;
+    const v = pendingVehicle;
+    pendingVehicle = '';
+    const sep = GAME_URL.includes('?') ? '&' : '?';
+    return GAME_URL + sep + 'vehicle=' + encodeURIComponent(v);
+  }
+  // Returns false when there is no game to ask (window shut / iframe never built).
+  function carlitoSelectVehicle(variant) {
+    if (!variant || !win.classList.contains('open')) return false;
+    pendingVehicle = String(variant);
+    loadGame();
+    return true;
   }
 
   // ── Push loop: all RAMN controls → iframe (OUT), + render telemetry coming back (IN) ──
@@ -683,7 +740,27 @@
       slowTick = !slowTick;
       injectTelemetry(lastTel, slowTick);
     }
+    notifyTelemetry(lastTel);
   });
+  // ── Telemetry hook: "which machine is on the link" ───────────────────────────
+  // This file is the only place the game's telemetry arrives, and it knows no vehicle types -
+  // it builds the same uplink and packs the same frames whatever is being driven. A panel that
+  // is only meaningful for ONE machine (the drone pair) reads the answer out of WHICH signals
+  // the payload carries: the game publishes signals_for_vehicle(), so a drone-only "out" name
+  // being present IS the vehicle, and the contract's own `vehicles` field says which names
+  // those are. That test belongs to the panel, so this is a push and nothing more.
+  //
+  // Called with null when the link goes away (Carlito closed), because "no telemetry" is a
+  // transition a subscriber has to see - a panel that only ever hears about arrivals stays open
+  // over a dead readout.
+  let _telHookWarned = false;
+  function notifyTelemetry(t) {
+    if (!window.carlitoOnTelemetry) return;
+    try { window.carlitoOnTelemetry(t); }
+    catch (e) {
+      if (!_telHookWarned) { _telHookWarned = true; console.warn('Carlito: carlitoOnTelemetry threw, ignoring it:', e); }
+    }
+  }
   // ── The game's live telemetry, for the request servers ──────────────────────
   // A request-served parameter group is built at the moment somebody asks, not on the telemetry
   // tick, so its builder needs to reach the latest values rather than be handed them. STALE
@@ -739,6 +816,7 @@
       // Fully stop the game: tear down the iframe so audio + CPU stop. Reopen reloads fresh.
       if (iframe) { iframe.remove(); iframe = null; }
       loaded = false; lastTel = null;
+      notifyTelemetry(null);   // the link is gone - let a vehicle-specific panel close itself
       if (el.placeholder) el.placeholder.style.display = '';
     }
     if (window.updateTermTrafficWarn) window.updateTermTrafficWarn(); // refresh serial-tab warning (#9)
@@ -860,6 +938,7 @@
   })();
 
   window.carlitoToggle = carlitoToggle;
+  window.carlitoSelectVehicle = carlitoSelectVehicle;   // ← deep-link reload into a named variant
   window.carlitoIsOpen = carlitoIsOpen;   // ← used by the serial-tab traffic warning (#9)
   window.carlitoBusReady = carlitoBusReady; // ← core calls this when a bus/demo goes live
   // True only for a message whose source IS our game iframe. Lets the standalone bridge add the

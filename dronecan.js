@@ -1246,6 +1246,12 @@ let dcFailMask = 0;                                  // node_fail: bit i = roste
 const dcCtl = {
   mode: 0, led: 0, beep: false,                      // flight_mode / led (RGB565) / beep
   hook: false, gimbalPitch: 0, gimbalYaw: 0,         // hardpoint_cmd / gimbal_pitch / gimbal_yaw
+  // THE TWO WITH NO WIDGET IN #dronecanWrap. arm and climb are the flight controls rather than
+  // bench switches - they belong on the floating Drone Control panel (drone.js), where the
+  // sticks are, not in a tab you cannot watch the aircraft from. They live here anyway so that
+  // every one of the drone's inbound signals has ONE owner: the panel is a view over this
+  // object, and a second copy of the arm latch is how two switches stop agreeing.
+  arm: false, climb: 0,                              // arm (latched request) / climb (i8 %)
 };
 
 window.carlitoUplinkSources = window.carlitoUplinkSources || {};
@@ -1263,6 +1269,12 @@ Object.assign(window.carlitoUplinkSources, {
   hardpoint_cmd: () => (dcCtl.hook ? 1 : 0),
   gimbal_pitch:  () => dcCtl.gimbalPitch,
   gimbal_yaw:    () => dcCtl.gimbalYaw,
+  // arm and climb. SENT UNCONDITIONALLY, like the seven above and unlike the drone panel's
+  // stick overrides: an absent `arm` reads as 0 = disarmed at the game, which is the same thing
+  // a lowered switch says, so there is nothing to hand back by going quiet. The panel being
+  // closed is not an aircraft arming itself.
+  arm:   () => (dcCtl.arm ? 1 : 0),
+  climb: () => dcCtl.climb,
 });
 
 // BatteryInfo.average_power_10sec is a real 10-second mean of pack V * I, not a stand-in:
@@ -2489,6 +2501,74 @@ function dronecanToggleNodeFail(i) {
   dcTab.markDirty(); dcTab.render();
 }
 
+// ── The bench controls, from somewhere that is not the tab ────────────────────
+// drone.js drives the same aircraft from a floating panel, and it does it THROUGH THIS PAIR
+// rather than by keeping its own copy of the switches. One owner per signal is the rule the
+// uplink registry states; a panel with its own arm latch and mode index would be a second
+// owner, and the two would disagree the first time you touched the tab.
+//
+// The tab's widgets are re-read from dcCtl by dronecanOnShow, which switchViewTab already calls
+// on every show - so a panel change reaches them when you next look. The one case that needs
+// pushing is the tab being visible RIGHT NOW, behind the floating window.
+function dronecanCtl() {
+  return {
+    mode: dcCtl.mode, led: dcCtl.led, beep: dcCtl.beep, hook: dcCtl.hook,
+    gimbalPitch: dcCtl.gimbalPitch, gimbalYaw: dcCtl.gimbalYaw,
+    arm: dcCtl.arm, climb: dcCtl.climb, failMask: dcFailMask,
+  };
+}
+
+// Apply a partial patch. Only a CHANGE latches an indication command, the same rule
+// dronecanCtlChange follows - holding a slider still must not spam LightsCommand.
+function dronecanSetCtl(patch) {
+  const p = patch || {};
+  // No DroneCAN message behind these four (see the dcCtl header): they ride the uplink only.
+  if ('arm' in p) dcCtl.arm = !!p.arm;
+  if ('climb' in p) dcCtl.climb = dcClampToRange('climb', p.climb);
+  if ('mode' in p) dcCtl.mode = Math.max(0, Math.round(Number(p.mode)) || 0);
+  if ('failMask' in p) dcFailMask = (Number(p.failMask) | 0) & DC_ALL_ONLINE;
+  if ('led' in p) {
+    const led = (Number(p.led) | 0) & 0xFFFF;
+    if (led !== dcCtl.led) { dcCtl.led = led; (dcCmdPending = dcCmdPending || {}).led = led; }
+  }
+  if ('beep' in p && !!p.beep !== dcCtl.beep) {
+    dcCtl.beep = !!p.beep;
+    (dcCmdPending = dcCmdPending || {}).beep = dcCtl.beep;
+  }
+  if ('hook' in p && !!p.hook !== dcCtl.hook) {
+    dcCtl.hook = !!p.hook;
+    (dcCmdPending = dcCmdPending || {}).hook = dcCtl.hook;
+  }
+  // The gimbal's two axes latch ONE command between them - an orientation is both angles, so a
+  // patch carrying either has to send the pair (dronecanCtlChange's rule, and its reason).
+  if ('gimbalPitch' in p || 'gimbalYaw' in p) {
+    const pitch = dcClampToRange('gimbal_pitch', 'gimbalPitch' in p ? p.gimbalPitch : dcCtl.gimbalPitch);
+    const yaw = dcClampToRange('gimbal_yaw', 'gimbalYaw' in p ? p.gimbalYaw : dcCtl.gimbalYaw);
+    if (pitch !== dcCtl.gimbalPitch || yaw !== dcCtl.gimbalYaw) {
+      dcCtl.gimbalPitch = pitch;
+      dcCtl.gimbalYaw = yaw;
+      (dcCmdPending = dcCmdPending || {}).gimbal = { pitch: pitch, yaw: yaw };
+    }
+  }
+  if (window.dronecanScheduleSave) window.dronecanScheduleSave();
+  const wrap = document.getElementById('dronecanWrap');
+  if (wrap && wrap.style.display !== 'none') dronecanOnShow();   // tab is on screen: push now
+  else dcTab.markDirty();
+}
+
+// Which pre-arm checks refused, by name. A SET BIT IS A FAILED CHECK, and the seven names are
+// the contract's own bit order (prearm_fail's desc) - the same table the tab's arming pane
+// reads, exported so the panel cannot grow a second copy that drifts a bit out of step.
+function dronecanPrearmNames(mask) {
+  const m = (Number(mask) | 0) & 0xFFFF;
+  const out = [];
+  for (let i = 0; i < 16; i++) if ((m >> i) & 1) out.push(DC_PREARM_BITS[i] || ('bit ' + i));
+  return out;
+}
+
+// The node roster, copied out: name + DroneCAN id in node_health / node_fail bit order.
+function dronecanRoster() { return DC_ROSTER.map(r => ({ name: r.name, id: r.id })); }
+
 function dronecanOnShow() {
   const en = document.getElementById('dcTxEnabled');
   if (en) en.checked = dcCfg.txEnabled;
@@ -3289,6 +3369,18 @@ window.dronecanCfgChange = dronecanCfgChange;
 window.dronecanCtlChange = dronecanCtlChange;
 window.dronecanLedOff = dronecanLedOff;
 window.dronecanToggleNodeFail = dronecanToggleNodeFail;
+// The bench controls, reachable from the floating Drone Control panel (drone.js). dcCtl stays
+// the single owner of every drone "in" signal; these are its accessors.
+window.dronecanCtl = dronecanCtl;
+window.dronecanSetCtl = dronecanSetCtl;
+window.dronecanPrearmNames = dronecanPrearmNames;
+window.dronecanRoster = dronecanRoster;
+// Contract readers the panel would otherwise re-implement: enum labels come off the contract's
+// own tables, and RGB565 is the LED's real resolution rather than a rounding choice.
+window.dronecanEnumKeys = dcEnumKeys;
+window.dronecanEnumLabel = dcEnumLabel;
+window.dronecanRgb565FromHex = dcRgb565FromHex;
+window.dronecanHexFromRgb565 = dcHexFromRgb565;
 window.dronecanGetNodeInfo = dronecanGetNodeInfo;
 window.dronecanReadParams = dronecanReadParams;
 window.dronecanSetPeriod = dronecanSetPeriod;

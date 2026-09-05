@@ -146,14 +146,17 @@
 // ── Shared window mechanics ──────────────────────────────────────────────────
 // Drag (header, clamped to viewport) + resize (grip → uniform scale of body).
 // Returns applyScale(width). Adapted from the resize-handle idiom in sloppycan.js.
-function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW = 640 }) {
+// `closeSel` is the header button a drag must NOT start on; another module reusing this
+// (drone.js) names its own class rather than being made to borrow `.ramn-close`.
+function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW = 640,
+                        closeSel = '.ramn-close' }) {
   // Drag and resize each attach their window-level move/up listeners only while the
   // gesture is active and remove them on release, so no global listeners persist
   // between interactions (the windows are toggled, never destroyed - there is no
   // teardown hook to detach a permanent listener from).
   let sx = 0, sy = 0, sl = 0, st0 = 0;
   header.addEventListener('mousedown', e => {
-    if (e.target.closest('.ramn-close')) return;
+    if (e.target.closest(closeSel)) return;
     e.preventDefault();
     sx = e.clientX; sy = e.clientY;
     const r = win.getBoundingClientRect(); sl = r.left; st0 = r.top;
@@ -572,6 +575,15 @@ function ramnToggle() {
 // Single toggle for the Control Panel - used by its close button + Esc only.
 function ramnCtrlToggle() { setCtrlOpen(!ctrlWin.classList.contains('open')); }
 
+// Set both windows OUTRIGHT rather than toggle. For another control surface taking the vehicle
+// over (drone.js: a car's pedals and gearbox are not an aircraft's, so the two panels replace
+// each other rather than stack) - "put them back" must not be a guess about what was open.
+function ramnSetPairOpen(open) {
+  setDashOpen(open);
+  if (demoEnabled) setCtrlOpen(open);
+  else if (!open) setCtrlOpen(false);   // stray panel safety, ramnToggle's rule
+}
+
 // Demo started - remember it so the paired toggle includes the Control Panel. If the
 // dashboard was already opened (pre-demo, no bus), pair the Control Panel in now too.
 function ramnDemoStarted() {
@@ -728,6 +740,8 @@ window.ramnToggle = ramnToggle;
 window.ramnIsOpen = ramnIsOpen;       // ← used by carlito.js (#7)
 window.ramnCtrlPayload = ramnCtrlPayload;
 window.ramnCtrlToggle = ramnCtrlToggle;
+window.ramnSetPairOpen = ramnSetPairOpen;   // ← used by drone.js to hand the vehicle over
+window.makeFloating = makeFloating;         // ← shared window mechanics (drone.js reuses them)
 window.ramnDemoStarted = ramnDemoStarted;
 // Live interpreted signal state (decoded from CAN - hardware or demo). Read by carlito.js.
 window.ramnGetState = () => ({ ...ramnState });
