@@ -584,10 +584,12 @@ async function txSendOne(msg) {
     const id = parseInt(msg.id, 16);
     const dataBytes = txDataBytes(msg);
     recordTxFrame(id, msg.ext, msg.rtr, msg.dlc, dataBytes);
-    // Mirror the transmitted frame into the RAMN decoder, as an RX frame would, so the
-    // corresponding dashboard control updates. Carlito picks it up via ramnGetState next tick.
-    if (window.ramnIngestFrame)
-      ramnIngestFrame({ id, isExt: msg.ext, isRtr: msg.rtr, dlc: msg.dlc, data: dataBytes });
+    // Mirror the transmitted frame into the RAMN decoder and the Carlito uplink decoders, as an
+    // RX frame would, so a frame sent by hand drives the game exactly as one on the wire does.
+    // Carlito picks it up via ramnGetState / its uplink sources next tick.
+    const mirror = { id, isExt: msg.ext, isRtr: msg.rtr, dlc: msg.dlc, data: dataBytes };
+    if (window.ramnIngestFrame) ramnIngestFrame(mirror);
+    if (window.carlitoUplinkIngestFrame) carlitoUplinkIngestFrame(mirror);
     if (msg.enabled) {
       const el = document.getElementById(`txstat-${msg.seq}`);
       if (el) {
@@ -1488,6 +1490,7 @@ function ingestFrameBody(frame, opts) {
   if (window.dronecanIngestFrame) dronecanIngestFrame(frame); // ← DroneCAN hook
   if (window.graphIngestFrame) graphIngestFrame(frame); // ← Graph hook
   if (window.ramnIngestFrame) ramnIngestFrame(frame); // ← RAMN dashboard hook
+  if (window.carlitoUplinkIngestFrame) carlitoUplinkIngestFrame(frame); // ← Carlito uplink decoders
 }
 
 function updateStats() {
@@ -1546,7 +1549,7 @@ function toggleStatsCollapse() {
 // it's correct even though the buttons have different positioned offsetParents. The
 // deliberate full-width .header-sep break at ≤1200px is intentionally NOT counted.)
 function _buttonsWrap() {
-  const ids = ['connectBtn', 'demoBtn', 'ramnBtn', 'droneBtn', 'carlitoBtn', 'busPauseBtn', 'clearMainBtn', 'disconnectBtn'];
+  const ids = ['connectBtn', 'demoBtn', 'ramnBtn', 'droneBtn', 'truckBtn', 'tractorBtn', 'boatBtn', 'boatPilotBtn', 'carlitoBtn', 'busPauseBtn', 'clearMainBtn', 'disconnectBtn'];
   const tops = ids.map(id => document.getElementById(id))
                   .filter(b => b && b.offsetParent !== null)
                   .map(b => Math.round(b.getBoundingClientRect().top));
@@ -1845,9 +1848,9 @@ function switchViewTab(name) {
   if (name === 'xcp'   && window.xcpOnShow)   window.xcpOnShow();
   if (name === 'canopen' && window.canopenOnShow) window.canopenOnShow();
   if (name === 'dronecan' && window.dronecanOnShow) window.dronecanOnShow();
-  // The DroneCAN tab decodes the drone's bus, and a car publishes none of it - so offer to put
-  // one on the link. Asks first and stays quiet when there is nothing to change (see drone.js).
-  if (name === 'dronecan' && window.droneRequestVehicle) window.droneRequestVehicle();
+  // Showing this tab IS selecting a protocol, because it holds exactly one; the J1939 tab holds
+  // three and asks on its mode buttons instead. One table for both, in vehicle-panel.js.
+  if (name === 'dronecan' && window.vehiclePanelRequestForProto) window.vehiclePanelRequestForProto('dronecan');
   if (name === 'term')  { document.getElementById('termInput').focus(); updateTermTrafficWarn(); }
   if (name === 'isotp') { document.getElementById('isotpInput').focus(); obdOnShow(); }
   updateNotchBtn();

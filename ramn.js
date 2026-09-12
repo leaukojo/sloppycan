@@ -741,6 +741,8 @@ window.ramnIsOpen = ramnIsOpen;       // ← used by carlito.js (#7)
 window.ramnCtrlPayload = ramnCtrlPayload;
 window.ramnCtrlToggle = ramnCtrlToggle;
 window.ramnSetPairOpen = ramnSetPairOpen;   // ← used by drone.js to hand the vehicle over
+// The DASHBOARD alone - vehicle-panel.js's 'dash' handoff, for a machine the RAMN controls fit.
+window.ramnSetDashOpen = setDashOpen;
 window.makeFloating = makeFloating;         // ← shared window mechanics (drone.js reuses them)
 window.ramnDemoStarted = ramnDemoStarted;
 // Live interpreted signal state (decoded from CAN - hardware or demo). Read by carlito.js.

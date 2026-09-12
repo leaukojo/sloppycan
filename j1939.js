@@ -297,6 +297,14 @@ const N2K_TEMP_SRC = {
   14:'Exhaust Gas',
 };
 const N2K_DIR_REF = { 0:'True', 1:'Magnetic', 2:'Error', 3:'N/A' };
+// Lookups for 127237 Heading/Track Control - a Rudder/autopilot flavor packer (nmea2000.js)
+// needs these to name the frames it emits, so they live beside N2K_DIR_REF rather than inline.
+const N2K_YESNO      = { 0:'No', 1:'Yes', 2:'Error', 3:'Unavailable' };
+const N2K_STEER_MODE = { 0:'Main Steering', 1:'Non-Follow-up Device', 2:'Follow-up Device',
+                          3:'Heading Control Standalone', 4:'Heading Control', 5:'Track Control' };
+const N2K_TURN_MODE  = { 0:'Rudder Limit Controlled', 1:'Turn Radius Controlled', 2:'Rate of Turn Controlled' };
+// 130577 Direction Data.
+const N2K_DATA_MODE  = { 0:'Autonomous', 1:'Differential Enhanced', 2:'Estimated', 3:'Simulator', 4:'Manual' };
 
 // PGN dictionary, keyed by (decimal) PGN. Field def:
 //   { name, bo (bit offset, = byteIndex*8 for byte-aligned), bl (bit length),
@@ -338,6 +346,41 @@ const NMEA2K_DB = {
     { name:'Reference', bo:56, bl:2, map:N2K_DIR_REF } ]},
   127251:{ name:'Rate of Turn', abbr:'127251', fp:false, fields:[
     { name:'Rate of Turn', bo:8, bl:32, signed:true, scale:(1/32)*1e-6*RAD2DEG, unit:'°/s', dp:2 } ]},
+  // Single-frame. Layout (Instance / Direction Order + 5 reserved bits / Angle Order / Position
+  // / 2 reserved bytes) is ttlappalainen's NMEA2000 library (N2kMessages.cpp
+  // SetN2kPGN127245) - the closest thing to a public reference for a PGN NMEA's own documents
+  // keep behind a paywall, and the one the nmea2000.js flavor packer's Rudder frame is built
+  // against. Direction Order has no source in this game (only the resulting angle), so a packer
+  // leaves it at 7 = Unavailable rather than inventing "No Order".
+  127245:{ name:'Rudder', abbr:'127245', fp:false, fields:[
+    { name:'Instance', bo:0, bl:8 },
+    { name:'Direction Order', bo:8, bl:3, map:{0:'No Order',1:'Move to Starboard',2:'Move to Port'} },
+    { name:'Angle Order', bo:16, bl:16, signed:true, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Position', bo:32, bl:16, signed:true, scale:N2K_ANG, unit:'°', dp:1 } ]},
+  // Fast Packet, 21 bytes. Same source as 127245 (SetN2kPGN127237). Only Steering Mode and
+  // Heading-To-Steer have a source in this game (nav_mode_actual / heading_target); every other
+  // field - the three limit-exceeded flags, Override, Turn Mode, Heading Reference, Commanded
+  // Rudder Direction/Angle, Track, the two limits, the two turn orders and Off-Track Limit -
+  // stays "not available", because nothing here is a route/track-control system (the contract's
+  // own words: "HEADING HOLD AND NOTHING MORE - no routes and no cross-track error").
+  127237:{ name:'Heading/Track Control', abbr:'127237', fp:true, fields:[
+    { name:'Rudder Limit Exceeded', bo:0, bl:2, map:N2K_YESNO },
+    { name:'Off-Heading Limit Exceeded', bo:2, bl:2, map:N2K_YESNO },
+    { name:'Off-Track Limit Exceeded', bo:4, bl:2, map:N2K_YESNO },
+    { name:'Override', bo:6, bl:2, map:N2K_YESNO },
+    { name:'Steering Mode', bo:8, bl:3, map:N2K_STEER_MODE },
+    { name:'Turn Mode', bo:11, bl:3, map:N2K_TURN_MODE },
+    { name:'Heading Reference', bo:14, bl:2, map:N2K_DIR_REF },
+    { name:'Commanded Rudder Direction', bo:17, bl:3, map:{0:'No Order',1:'Move to Starboard',2:'Move to Port'} },
+    { name:'Commanded Rudder Angle', bo:24, bl:16, signed:true, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Heading-To-Steer (Course)', bo:40, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Track', bo:56, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Rudder Limit', bo:72, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Off-Heading Limit', bo:88, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Radius of Turn Order', bo:104, bl:16, signed:true, scale:1, unit:'m', dp:0 },
+    { name:'Rate of Turn Order', bo:120, bl:16, signed:true, scale:3.125e-5*RAD2DEG, unit:'°/s', dp:2 },
+    { name:'Off-Track Limit', bo:136, bl:16, signed:true, scale:1, unit:'m', dp:0 },
+    { name:'Vessel Heading', bo:152, bl:16, scale:N2K_ANG, unit:'°', dp:1 } ]},
   127257:{ name:'Attitude', abbr:'127257', fp:false, fields:[
     { name:'Yaw', bo:8, bl:16, signed:true, scale:N2K_ANG, unit:'°', dp:1 },
     { name:'Pitch', bo:24, bl:16, signed:true, scale:N2K_ANG, unit:'°', dp:1 },
@@ -395,6 +438,19 @@ const NMEA2K_DB = {
     { name:'# Items', bo:16, bl:16 },
     { name:'Database ID', bo:32, bl:16 },
     { name:'Route ID', bo:48, bl:16 } ]},
+  // Fast Packet, 14 bytes. Same source as 127245/127237 (SetN2kPGN130577). COG/SOG/Heading/
+  // Speed Through Water all stay "not available": each already has its own dedicated PGN
+  // (129026, 128259) with its own SA in nmea2000.js, and repeating the same number here under
+  // a second identity is the 'odo' problem isobus.js's speed messages already avoid.
+  130577:{ name:'Direction Data', abbr:'130577', fp:true, fields:[
+    { name:'Data Mode', bo:0, bl:4, map:N2K_DATA_MODE },
+    { name:'COG Reference', bo:4, bl:2, map:N2K_DIR_REF },
+    { name:'COG', bo:16, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'SOG', bo:32, bl:16, scale:0.01, unit:'m/s', dp:2 },
+    { name:'Heading', bo:48, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Speed Through Water', bo:64, bl:16, scale:0.01, unit:'m/s', dp:2 },
+    { name:'Set', bo:80, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
+    { name:'Drift', bo:96, bl:16, scale:0.01, unit:'m/s', dp:2 } ]},
   130306:{ name:'Wind Data', abbr:'130306', fp:false, fields:[
     { name:'Wind Speed', bo:8, bl:16, scale:0.01, unit:'m/s', dp:2 },
     { name:'Wind Angle', bo:24, bl:16, scale:N2K_ANG, unit:'°', dp:1 },
@@ -1120,17 +1176,26 @@ function j1939LampBit(state) {
     default: return 0;
   }
 }
-// The three lamps' STATES (not their bits). DM1's Malfunction Indicator Lamp is deliberately
+// The DM1 lamps' STATES (not their bits). DM1's Malfunction Indicator Lamp is deliberately
 // absent: the contract's `checkEngine` already IS the MIL, so a fourth entry here would be the
 // same lamp under a second name.
-const j1939Lamps = { red_stop: 0, amber_warn: 0, protect_lamp: 0 };
+//
+// The two TRAILER lamps share the pattern without being DM1: `trailer_ebs_fault` is the towed
+// unit's ISO 11992 fault report and `trailer_abs_lamp` is SAE J2497's power-line lamp. The contract
+// mirrors both verbatim with no local source, so a selector here is the fault injected from the
+// bench, which is the only way either lamp ever lights. Neither has a frame this side decodes:
+// J2497 has no CAN carrier at all (it is modulated onto the power line), and ISO 11992-2 is its
+// own point-to-point bus, with no packer here and no primary source reachable for its layout.
+const j1939Lamps = { red_stop: 0, amber_warn: 0, protect_lamp: 0, trailer_ebs_fault: 0, trailer_abs_lamp: 0 };
 window.carlitoUplinkSources = window.carlitoUplinkSources || {};
 Object.assign(window.carlitoUplinkSources, {
   red_stop:     () => j1939LampBit(j1939Lamps.red_stop),
   amber_warn:   () => j1939LampBit(j1939Lamps.amber_warn),
   protect_lamp: () => j1939LampBit(j1939Lamps.protect_lamp),
+  trailer_ebs_fault: () => j1939LampBit(j1939Lamps.trailer_ebs_fault),
+  trailer_abs_lamp:  () => j1939LampBit(j1939Lamps.trailer_abs_lamp),
 });
-// Read the three selectors out of the bar. No latch and no command to flush: these are lamp
+// Read the lamp selectors out of the bar. No latch and no command to flush: these are lamp
 // states sampled by the uplink, not messages sent on an edge.
 function j1939LampChange() {
   for (const name of Object.keys(j1939Lamps)) {
@@ -1398,6 +1463,10 @@ function j1939ProtoClick(mode) {
     j1939SetProto(mode);
     if (window.j1939ScheduleSave) window.j1939ScheduleSave();
   }
+  // Each mode is a different machine's bus; the mode → vehicle mapping is in vehicle-panel.js.
+  // ONLY IF THE MODE ACTUALLY TOOK: in demo, demoMaybeSwitch is two confirms of its own and can
+  // be declined, and a third dialog about a mode the user is not in would be wrong.
+  if (j1939ProtoMode === mode && window.vehiclePanelRequestForProto) window.vehiclePanelRequestForProto(mode);
 }
 window.j1939ProtoClick = j1939ProtoClick;
 

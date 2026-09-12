@@ -328,6 +328,33 @@
   const UPLINK_OVERRIDES = window.carlitoUplinkOverrides || {};
   const inSource = (name) => UPLINK_OVERRIDES[name] || IN_SOURCES[name] || MODULE_IN_SOURCES[name];
 
+  // ── Uplink DECODERS: a command that arrives as a FRAME ───────────────────────
+  // The fourth registry, and the inbound half of the three above: a module that owns a command
+  // signal also reads that command off the bus, so a frame from someone else's tooling drives the
+  // game exactly as the module's own widget does. A decoder is `frame => void` pushed onto
+  // window.carlitoUplinkDecoders before this file loads; it writes into its module's OWN state,
+  // and the value still leaves through that module's entry in carlitoUplinkSources - one signal,
+  // one source, whatever set it.
+  //
+  // THREE PLACES FEED IT, because a command can arrive three ways: sloppycan.js ingestFrameBody
+  // (the wire, and this file's own canForward telemetry echo), sloppycan.js txSendOne (a frame
+  // sent by hand from the TX scheduler, which never comes back as RX) and carlito-bridge.js
+  // ingestFrame (the standalone page, which has no module hook chain at all).
+  //
+  // THE OWN-ADDRESS RULE: a decoder never consumes a frame from the address its module itself
+  // transmits that message from. The telemetry echo above makes that load-bearing - nmea2000.js
+  // publishes 127237 with the pilot's ACTUAL mode, and reading it back as a command would latch
+  // the pilot to whatever it last did.
+  const UPLINK_DECODERS = window.carlitoUplinkDecoders || [];
+  window.carlitoUplinkIngestFrame = function (frame) {
+    if (!frame || !frame.data) return;
+    for (const d of UPLINK_DECODERS) {
+      // Runs per ingested frame, so a broken decoder warns once and then stays quiet.
+      try { d(frame); }
+      catch (e) { if (!d._warned) { d._warned = true; console.warn('Carlito: an uplink decoder threw:', e); } }
+    }
+  };
+
   const _inShapeWarned = {};
   // Send the contract's SHAPE: bool goes as 0/1 (what turnL has always done), everything else as
   // a Number, and a non-finite one is omitted rather than sent as NaN (absence is meaningful,
@@ -385,13 +412,12 @@
     const extra = Object.keys(v).filter(k => !CONTRACT_IN.has(k));
     if (extra.length) console.warn('Carlito: OUT fields not declared "in" by the contract: ' + extra.join(', '));
     // The inverse: declared "in" signals with no source. console.INFO, not warn, DELIBERATELY -
-    // most of the contract's controls (every flavored one with no module behind it yet: the ISOBUS
-    // hitch/PTO set, the boat's rudder, the trailer bus's injected fault …) have no sloppyCAN
-    // control built for them, so a warn would cry wolf on every page load and train everyone to
-    // ignore it. This is the checklist of what is left to wire, not a fault.
-    // The ones that ARE sourced by a module rather than by RAMN state: the drone's seven
-    // (dronecan.js) and the truck's three DM1 lamps (j1939.js), which is where the flash RATE
-    // lives - see j1939LampBit.
+    // what is left is a known list, not a fault, and a warn on every page load would train
+    // everyone to ignore it. In the full app that is the boat's `rudder` (steered on the RAMN
+    // steer axis, which the game accepts as the rudder), the plane's `elevator`/`flaps` and the
+    // train's `pantograph`/`doors`. carlito-bridge.html adds the ones whose owning module it does
+    // not load: the DM1 and trailer lamps (j1939.js) and the boat's `sheet` (boat-pilot.js).
+    // Everything else is sourced by a module rather than by RAMN state - see the four registries.
     const unsourced = CONTRACT_IN_SIGS.filter(s => !inSource(s.name)).map(s => s.name);
     if (unsourced.length) console.info(`Carlito: ${unsourced.length} contract "in" signals have no uplink source yet (omitted, so the game uses their defaults): ` + unsourced.join(', '));
   }
@@ -565,12 +591,16 @@
     { id: 0x52A, fast: true,  fields: [['roll_rate', t => enc.i16((+t.roll_rate || 0) * 1000)],   // rad/s x1000
                                        ['pitch_rate', t => enc.i16((+t.pitch_rate || 0) * 1000)], // rad/s x1000
                                        ['acc_vert', t => enc.i16((+t.acc_vert || 0) * 100)]] },   // m/s^2 x100
-    // SLOW vehicle state - altitude and vertical speed change over seconds; trim is a set-and-hold
-    // position and rudder_actual is its slow-moving feedback. None of the four needs 20 Hz.
+    // SLOW vehicle state - altitude and vertical speed change over seconds; sail_angle (a boom
+    // angle) is the same shape, a set-and-hold position with a slow-moving feedback, and stays
+    // here UNFLAVORED since NMEA 2000 has no sail PGN. rudder_actual and trim used to ride here
+    // too, before they had a flavor: both are `nmea2000`-flavored now (PGN 127245 Rudder / PGN
+    // 127488 Engine Rapid Update, packed by nmea2000.js), so packing them here as well would be
+    // the same signal on the wire twice under two identities.
     { id: 0x52B, fast: false, fields: [['altitude', t => enc.u16((+t.altitude || 0) * 10)],     // m x10 (0-500 m -> 0-5000)
                                        ['vspeed', t => enc.i16((+t.vspeed || 0) * 100)],        // m/s x100
-                                       ['rudder_actual', t => enc.i8(+t.rudder_actual || 0)],   // % (-100..100)
-                                       ['trim', t => enc.i8(+t.trim || 0)]] },                  // % (-100..100)
+                                       ['sail_angle', t => enc.i8(+t.sail_angle || 0)]] },      // deg (-90..90)
+
   ];
   // ── Declared coverage opt-outs ──────────────────────────────────────────────
   // Unflavored "out" signals this frame map deliberately does NOT carry, each with its reason.

@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 33,
+  "version": 42,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -14,6 +14,7 @@ window.CARLITO_CONTRACT = {
     "'j2497' is the REGIONAL CONTRAST to 'iso11992', and the contrast is a SUBTRACTION rather than a second set of messages: SAE J2497 (PLC4TRUCKS) is what North America put on the truck/trailer boundary, and it is not a bus at all — the ISO 7638 connector has no data pair over there, so trailer ABS status is modulated onto the POWER LINE and its payload is essentially LAMP ON / LAMP OFF to one dash telltale. So this flavor has exactly ONE signal (trailer_abs_lamp) and that single mirrored bit is the whole protocol. A tractor unit without the ISO 11992 data pair (VehicleSpec.trailer_bus_equipped false — the shipped 'semi-conventional') tows and brakes exactly the same trailer through the same pneumatic lines and publishes nothing about it: thin, thinner, and both are real.",
     "'j1939' and 'isobus' are parent and child: ISO 11783 (ISOBUS) is built on SAE J1939, so a handful of signals carry the isobus flavor and are shared with the truck — engine_load is J1939 SPN 92 whichever family reads it, and the tractor's was always the borrowed one. Signals the truck alone declares are flavored j1939.",
     "'train' is the one flavor that borrows PRACTICE, not a protocol: real trains run IEC 61375 (TCN/WTB/MVB, not CAN) and the CAN-adjacent CiA 421 profiles use an object dictionary that does not fit this flat (name, dir) model. The train signals are custom flat signals whose semantics are borrowed from rail practice / CiA 421.",
+    "'nmea2000' is J1939 at the wire (the same parent 'isobus' borrows from), its long messages ride Fast Packet rather than J1939 TP, and frame layout stays on the sloppyCAN side like every other flavor. The asymmetry is deliberate: N2K's 127257 Attitude and 127250 Vessel Heading are carried here by the unflavored shared 'pitch'/'roll'/'heading', because a flavor is a property of a signal and those signals also serve the plane and the drone. The flavor marks only what the boat alone declares.",
     "'count' (optional integer >= 1, added v20, default 1 when absent) makes a signal INSTANCED: its value is an array of exactly N elements of the declared 'type', and 'range'/'warn' apply PER ELEMENT. It exists because DroneCAN distinguishes instances with a field inside one message type (uavcan.equipment.esc.Status carries esc_index) rather than by defining esc1_rpm..esc4_rpm, and hand-listing the four would be exactly the duplicated signal list this file exists to prevent. The drone's four ESCs are the first consumer; the index order is the vehicle's own (DroneVehicle.MOTORS), zero-based, and the dashboard labels its bars with that same esc_index so a fault bit and a bar name agree. 'node_health' (v23) is the second, over a different index space (DroneBus.NODES) — which is the mechanism working as intended: an instanced signal's index means whatever the declaring subsystem says it means, and both are stated in their descs.",
     "'count' > 1 is REJECTED at parse on anything the readers cannot express: it is 'out'-only (the inbound path in bridge_source.gd normalizes each signal by hand, per name, and has no array concept), and it may not carry an 'enum' or be type 'bool' (both decode to one chip or one lamp, and an array would silently read as a truthy nothing). A parse error there is better than an instanced signal that publishes correctly and renders as a lie.",
     "'speed_limit' (added v21) is the file's first CONFIGURED 'out' signal: every other one is measured out of the sim or is a labelled model of something the sim did, and this one is a number the vehicle simply CARRIES. That is not a hole in standing rule 3 but the other side of it - the honest reading of a road-speed governor is the limit it is set to, read off VehicleSpec.speed_limit_kmh, and NOT something back-derived from the throttle. What the limiter does is separately visible in engine_load, which reads the governed throttle rather than the pedal, so cause and consequence are two signals that cannot drift apart.",
@@ -898,10 +899,10 @@ window.CARLITO_CONTRACT = {
       "unit": "h",
       "vehicles": [
         "tractor",
-        "truck"
+        "truck",
+        "boat"
       ],
-      "flavor": "isobus",
-      "desc": "Hour meter: engine running time, accumulated while the key is at Ignition. Deliberately range-less — an hour meter is a readout, not a bar. Survives respawn, like the odometer. Shared with the truck rather than duplicated: it is J1939 SPN 247 (Total Engine Hours), which ISOBUS inherits, and every commercial vehicle keeps one."
+      "desc": "Hour meter: engine running time, accumulated while the key is at Ignition. Deliberately range-less — an hour meter is a readout, not a bar. Survives respawn, like the odometer. It is J1939 SPN 247 (Total Engine Hours) — which ISOBUS inherits, hence the tractor and truck reading — and also N2K PGN 127489 (Engine Parameters, Dynamic), which the boat reads: one wire signal, two protocol homes. Deliberately UNFLAVORED despite naming both an SPN and a PGN, like 'speed_limit' and 'wheel_slip': a boat does not speak J1939/ISOBUS, so the flavor would misstate the wire the reading actually travels for that family. The SPN/PGN pair is the naming reference here, not a claim about which protocol owns the signal."
     },
     {
       "name": "draft_force",
@@ -960,7 +961,52 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "boat"
       ],
-      "desc": "Rudder request, negative = port/left. When present it overrides 'steer' in arbitration; the game's rudder IS the steer channel."
+      "flavor": "nmea2000",
+      "desc": "Rudder request, negative = port/left. When present it overrides 'steer' in arbitration; the game's rudder IS the steer channel. PGN 127245 Rudder."
+    },
+    {
+      "name": "nav_mode",
+      "dir": "in",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "STANDBY",
+        "1": "HEADING HOLD"
+      },
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "THE AUTOPILOT MODE THE HELMSMAN IS ASKING FOR (PGN 127237 Heading/Track Control). 0 STANDBY (the hand steers, the rudder is 'rudder'/'steer' and nothing else), 1 HEADING_HOLD (the pilot steers the rudder to hold a course). IT IS A REQUEST, NOT A STATE - what the pilot is ACTUALLY doing is the separate out signal 'nav_mode_actual', and the two disagreeing is the reading rather than a bug, exactly as 'flight_mode' sits beside the drone's 'mode_actual'. There is EXACTLY ONE thing that makes them differ here: a hand on the helm. Deflecting 'steer'/'rudder' past a small deadband overrides the pilot for as long as it is held and reads STANDBY back; RELEASING IT RE-ENGAGES AND CAPTURES THE NEW HEADING, so nudging the helm is how you change course under the pilot. That is a deliberate choice over a latched standby button: it is what makes the pilot drivable from a keyboard, and a latch would need a release rule of its own. HEADING HOLD AND NOTHING MORE - no routes and no cross-track error, because a route is a whole waypoint system while heading hold is the teaching object; do not propose adding one. Mirrored VERBATIM like every other in-value, with an ABSENT value meaning 0 = STANDBY, i.e. the boat is simply hand-steered; an out-of-range byte lands on STANDBY too rather than being rejected (the 'body_cmd' / 'flight_mode' rule - a peer describing a pilot with more modes than this one is describing a different pilot). IT ALSO HAS A LOCAL KEY, for the reason 'flight_mode' does: a feature you cannot reach from the keyboard cannot be driven, and driving is how this project verifies. THE KEY IS 2, NOT A LETTER - every letter is bound and 1 is already the drone's cargo hook, so this is the second control to land on a digit. It is owned by InputRouter like the lights and the PTO so keyboard and touch share one switch."
+    },
+    {
+      "name": "heading_cmd",
+      "dir": "in",
+      "type": "u16",
+      "unit": "deg",
+      "range": [
+        0,
+        360
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "THE COURSE THE AUTOPILOT IS COMMANDED TO STEER (PGN 127237 Heading/Track Control), a compass bearing, only meaningful while 'nav_mode' asks for HEADING HOLD. PRESENCE IS THE COMMAND, the same rule 'rudder' and 'guidance_curvature' follow: when the bus sends this signal the pilot steers the bearing in it, and WHEN THE BUS DOES NOT SEND IT AT ALL the pilot steers the heading it CAPTURED at the moment it engaged. The target is only ever re-taken on an ENGAGE EDGE, so a bus that commands a course and then goes quiet leaves the pilot holding that course rather than abandoning it for wherever the bow happens to be. There is deliberately no in-band 'no command' number on the wire - every value in the range is a legal bearing, so a sentinel here would be a heading someone could steer to by accident, and the -1 the game carries internally for 'nothing commanded' never reaches the bus. That capture is why 'heading_target' exists as an out signal: with no bridge attached the local key can engage the pilot, and the echo is the only way to see what it settled on. The reading is used modulo 360, so 360 and 0 are the same bearing."
+    },
+    {
+      "name": "sheet",
+      "dir": "in",
+      "type": "u8",
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "desc": "THE SHEET, how far the boom is allowed to swing off the centreline: 0 hauled in hard, 100 fully eased. IT IS A LIMIT, NOT A POSITION - a boom is a free-swinging spar and the wind pushes it to leeward until either the sheet stops it or it lines up with the airflow, so hauling in and easing out are not symmetric and easing PAST the apparent wind angle luffs the sail rather than easing it further. What the boom actually did comes back on the separate out signal 'sail_angle' rather than being echoed here, the 'nav_mode' / 'nav_mode_actual' shape. UNFLAVORED, and for a reason neither 'engine_hours' nor 'pitch' has: NMEA 2000 DEFINES NO SAIL PGN AT ALL, so any flavor here would name a wire that does not exist. Do not read the 'train' flavor as the precedent - that one borrows PRACTICE and is still a flavor; this is the 'engine_hours'/'speed_limit'/'wheel_slip' shape, a signal the game publishes with no protocol home. A RIG IS ANATOMY, NOT A FAMILY TRAIT: the signal is declared by the whole boat family because contract signals key on the family, but only 'boat-sail-a' carries a sail, and the two powerboats ignore this exactly as a truck with no refuse body ignores 'body_cmd'. Mirrored verbatim, absent = 0 = hauled in. IT ALSO HAS A LOCAL KEY, for the reason 'nav_mode' does - a feature you cannot reach from the keyboard cannot be driven, and driving is how this project verifies. THE KEY IS 3: every letter is bound, 1 is the drone's cargo hook and 2 is this boat's autopilot, so this is the third control to land on a digit. InputRouter owns the detent it walks so keyboard and touch share one switch, while the bus may send any value in the range."
     },
     {
       "name": "pitch",
@@ -1010,7 +1056,8 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "boat"
       ],
-      "desc": "Rudder as applied by the sim (slewed toward the request)."
+      "flavor": "nmea2000",
+      "desc": "Rudder as applied by the sim (slewed toward the request). PGN 127245 Rudder."
     },
     {
       "name": "trim",
@@ -1024,7 +1071,218 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "boat"
       ],
-      "desc": "Engine trim: modeled outdrive trim chasing forward throttle."
+      "flavor": "nmea2000",
+      "desc": "Engine trim: modeled outdrive trim chasing forward throttle. PGN 127488 Engine Parameters Rapid (tilt/trim)."
+    },
+    {
+      "name": "awa",
+      "dir": "out",
+      "type": "f32",
+      "unit": "deg",
+      "range": [
+        -180,
+        180
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Apparent wind angle: the bearing of the airflow over the hull measured from the bow, 0 = dead ahead, negative = from port, +-180 = dead astern. Read out of the sim's own wind vector and hull velocity, not modeled. Undefined when the apparent wind is calm (running dead downwind at exactly wind speed) and reads 0 there. PGN 130306 Wind Data."
+    },
+    {
+      "name": "aws",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m/s",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Apparent wind speed: the horizontal airflow over the hull, the magnitude of (hull velocity - true wind). No 'range', so it stays off the bar column: a full scale for wind speed would be an invention, and the reading that matters is the number. PGN 130306 Wind Data."
+    },
+    {
+      "name": "twd",
+      "dir": "out",
+      "type": "f32",
+      "unit": "deg",
+      "range": [
+        0,
+        360
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "True wind direction: the compass bearing the wind comes FROM, which is what every marine instrument reads. WindField.direction_deg is the heading the wind blows TOWARD (the reverse of aviation's comes-from), so the 180-degree inversion happens once, in BoatTelemetry.true_wind, and nowhere else. Reads 0 in dead calm. PGN 130306 Wind Data."
+    },
+    {
+      "name": "tws",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m/s",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "True wind speed, read straight out of the level's WindField - measured, not modeled. No 'range', like 'aws'. PGN 130306 Wind Data."
+    },
+    {
+      "name": "stw",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m/s",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Speed through the water: the magnitude of the hull's horizontal velocity relative to the level's CurrentField, which is what a paddlewheel log reads. Equals 'sog' in still water and differs from it by the set and drift of the tide. Unsigned, so backing down reads a positive number. No 'range', like 'aws': a full scale for boat speed would be an invention. PGN 128259 Speed, Water Referenced."
+    },
+    {
+      "name": "sog",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m/s",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Speed over ground: the magnitude of the hull's horizontal ground track. NOT a second name for 'speed'/'kmh', which are the SIGNED LONGITUDINAL component along the bow - a hull crabbing in a tide makes ground the bow is not pointing at, and only 'sog' counts it. No 'range', like 'aws'. PGN 129026 COG & SOG Rapid Update."
+    },
+    {
+      "name": "cog",
+      "dir": "out",
+      "type": "f32",
+      "unit": "deg",
+      "range": [
+        0,
+        360
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Course over ground: the compass bearing the hull is actually travelling. Distinct from 'heading' (where the bow points) by leeway and by the set of the tide, and the gap between the two IS the crab angle. A hull that is not moving has no course and reads 0, the same sentinel 'twd' uses in dead calm. PGN 129026 COG & SOG Rapid Update."
+    },
+    {
+      "name": "current_set",
+      "dir": "out",
+      "type": "f32",
+      "unit": "deg",
+      "range": [
+        0,
+        360
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Set: the compass bearing the tidal stream flows TOWARD, read straight out of the level's CurrentField - measured, not modeled. Deliberately NOT inverted the way 'twd' is, because marine practice names a wind by where it comes from and a current by where it goes; the two conventions genuinely differ and BoatTelemetry.flow_toward is where that is stated. Named 'current_set' rather than N2K's bare 'Set' because every telemetry member var is a wire signal and 'set' is GDScript's property-setter keyword. Slack water reads 0. PGN 130577 Direction Data."
+    },
+    {
+      "name": "current_drift",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m/s",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Drift: the rate of the tidal stream, read straight out of the level's CurrentField - measured, not modeled. It rides a slow sinusoid so the stream floods, goes slack and ebbs; the ebb reverses 'current_set' by 180 degrees rather than turning this negative. No 'range', like 'tws'. PGN 130577 Direction Data."
+    },
+    {
+      "name": "depth",
+      "dir": "out",
+      "type": "f32",
+      "unit": "m",
+      "range": [
+        -1,
+        10
+      ],
+      "warn_side": "low",
+      "warn": 1,
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Water depth below the transducer (PGN 128267 Water Depth). THE TRANSDUCER RIDES THE PROBE PLANE, the bottom the buoyancy model gives the hull (-float_depth, derived per variant rather than typed), so this is under-keel clearance and 0 is the bed reaching the hull - not a sensor mounted somewhere convenient with an offset to remember. The mesh's real keel is deeper still, which no runtime field carries; this is the plane the sim actually floats on. MEASURED, NOT MODELED: the level's HeightmapTerrain height under the transducer point against the WaterSurface plane the hull floats on, which is the same seabed the hull COLLIDES with (rule 2 - ground IS the heightmap), read through the terrain list every vehicle already collects for its wheels. No raycast and no second world model, so this reading and the aground bit in 'status' are two independent readings of ONE seabed and cannot drift apart: the alarm below fires with a metre still under the hull, the sounding passes 0 as the bed reaches the probes, and the ground bit sets once the bed has come up far enough to hold the hull off its rest depth. -1 IS THE INVALID READING AND THE ONLY ONE, published in exactly two cases: the transducer is outside every terrain's extent, and the hull is out of the water altogether. NEVER 0, which is precisely the value a shoal alarm would act on - so -1 IS NOT A SHOAL, and a reader has to test for it before comparing it as a number, exactly as the drone's 'agl' requires. It sits inside the range rather than beside it so the bar and the bridge agree on it, and THE RANGE FLOOR IS WHERE THE SENTINEL IS DECLARED: the cluster's echo sounder reads range[0] rather than carrying its own -1, so widening this range downward moves the value the readout blanks on. It draws '---' there instead of colouring it, which is the whole reason that widget exists - on the generated bar it pinned at the low end of a LOW-side warn and read as a permanent alarm over open water. Do not read 'off the terrain' as the open sea: level 6 is 560 m of water over 512 m of terrain, a 24 m ring you have to go looking for, and level 1 is the only map with real open water. warn 1.0 is the shoal threshold and it is a LOW-side one - a metre of water under the keel of a hull that draws 0.35 is shallow but still swimming."
+    },
+    {
+      "name": "fuel_rate",
+      "dir": "out",
+      "type": "f32",
+      "unit": "L/h",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Fuel consumption rate: a LABELLED HONEST MODEL off Drivetrain.applied_throttle (idle burn plus a load term), not liters actually drawn from the tank. It does not reconcile against 'fuel', which drains a percent-of-tank abstraction on its own clock — the same relationship engine_load has to the pedal. No 'range': a full scale for burn rate would be an invention. PGN 127489 Engine Parameters, Dynamic."
+    },
+    {
+      "name": "oil_press",
+      "dir": "out",
+      "type": "f32",
+      "unit": "kPa",
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Engine oil pressure: a LABELLED HONEST MODEL off the boat's own Drivetrain.rpm (reaches no other contract signal for the boat, since it drives no gearbox limiter here), rising off a low-idle floor to a nominal plateau. Zero with the key not at Ignition — gated on that directly rather than on rpm reaching 0, since the boat's inert engine model never actually zeros Drivetrain.rpm off-ignition (it lerps down to idle_rpm and holds). No 'range', like 'fuel_rate'. PGN 127489 Engine Parameters, Dynamic."
+    },
+    {
+      "name": "tank_level",
+      "dir": "out",
+      "type": "f32",
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "count": 3,
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "Fluid tank levels, index 0 = fresh water, 1 = waste, 2 = live-well — INSTANCED over a fourth index space after the drone's ESCs/nodes and the car's axles, meaning what this desc says exactly like those. Fresh water drains and waste rises together while the engine runs (one honest model, opposite directions); the live-well is held rather than modeled, since nothing in the sim fills or drains it. FUEL IS DELIBERATELY NOT IN THIS ARRAY: it is already the shared 'fuel' signal, and instancing it a second time would be two truths on one bus, the 'battery'/'pack_voltage' rule. No 'warn'/'warn_side': the three tanks have opposite dangerous directions (low fresh water, high waste) so no single threshold applies across the array, the same reason 'node_health' carries none. PGN 127505 Fluid Level."
+    },
+    {
+      "name": "nav_mode_actual",
+      "dir": "out",
+      "type": "u8",
+      "unit": "enum",
+      "enum": {
+        "0": "STANDBY",
+        "1": "HEADING HOLD"
+      },
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "WHAT THE AUTOPILOT IS ACTUALLY DOING, after the one thing that can override it. Same enum as the 'nav_mode' request, and the point of the pair is that they can differ. It reads STANDBY against a HEADING HOLD request in exactly two cases, both of them the same case: an out-of-range request byte, and A HAND ON THE HELM - a 'steer'/'rudder' deflection past the deadband hands the rudder straight back to the helmsman for as long as it is held, and releasing it re-engages the pilot on the NEW heading. BoatAutopilot.resolve_mode is the ONE place this is decided and nothing else may re-derive it. It carries an enum AND NO range, deliberately, for the reason 'mode_actual' and 'arming_state' do: a range would put it on the generated-bar path as a 0-1 bar with no meaningful full scale, while an enum plus a flavor lands it on the state-chip path beside the cluster's other readouts with no code change at all. PGN 127237 Heading/Track Control."
+    },
+    {
+      "name": "heading_target",
+      "dir": "out",
+      "type": "f32",
+      "unit": "deg",
+      "range": [
+        0,
+        360
+      ],
+      "vehicles": [
+        "boat"
+      ],
+      "flavor": "nmea2000",
+      "desc": "THE COURSE THE AUTOPILOT IS STEERING TO, read back. Not redundant with 'heading_cmd': the local key can engage the pilot with no bridge attached at all, and engaging CAPTURES the heading the boat is on, so without this echo there would be no way to see what a locally-engaged pilot settled on. When the bus does send 'heading_cmd' this is that value, modulo 360. IN STANDBY IT TRACKS 'heading', which is the course an engage would capture - deliberately NOT 0, which is a perfectly good bearing (due north) and would read as a real target the moment the pilot is off; the same sentinel trap 'depth' answers with -1 and 'cog' answers by only reading 0 when there is genuinely no course. The gap between this and 'heading' is the pilot's error, and the gap between this and 'cog' is the leeway and set it is not correcting for - a heading-hold pilot steers the BOW, so a tide will still carry the boat sideways off a held heading. PGN 127237 Heading/Track Control."
+    },
+    {
+      "name": "sail_angle",
+      "dir": "out",
+      "type": "f32",
+      "unit": "deg",
+      "vehicles": [
+        "boat"
+      ],
+      "desc": "THE BOOM ANGLE the sim actually settled on, degrees off the centreline. IT IS SIGNED IN THE SAME ROTATIONAL SENSE AS 'awa', which is what makes 'angle of attack = awa - sail_angle' true, and because a boom is an AFT-pointing spar a positive angle in that sense lays its far end to PORT. The wind always pushes the boom to leeward, so this always shares 'awa's sign: read the number as how far out the boom is and the sign as which side the wind is on. The readback half of 'sheet': the sheet says how far the boom MAY swing and this says where the wind put it, so they differ whenever the sail is eased further than the apparent wind angle - which is what luffing is. MEASURED, NOT MODELED, in the sense that matters: it is min(sheet travel, |awa|) on the side the wind is on, read out of the same apparent wind the four wind instruments publish. Reads 0 on a hull with no rig, which is both powerboats, and 0 is also the honest value there - a boom on the centreline. DELIBERATELY RANGE-LESS: a full scale would be this variant's own 'sheet_max_deg' rather than anything about the reading, and a range-less out signal lands on the readout line beside SOG/STW/BURN instead of taking a bar the boat's one-column cluster has no room to spare. Note that range-less AND unflavored means nothing draws it automatically - it is on the readout line because Dashboard.READOUT_EXTRAS names it. UNFLAVORED for the same reason 'sheet' is: NMEA 2000 defines no sail PGN."
     },
     {
       "name": "retarder",
@@ -1419,7 +1677,7 @@ window.CARLITO_CONTRACT = {
         "drone"
       ],
       "flavor": "dronecan",
-      "desc": "THE AIRCRAFT'S INDICATION LEDs, ONE PACKED RGB COLOUR (uavcan.equipment.indication.LightsCommand). The low 16 bits are RGB565 - red in bits 15-11, green in 10-5, blue in 4-0, exactly the LightsCommand wire layout; the type is u32 so the field has room for the light_id/command shape a real LightsCommand carries per lamp, and bits above 15 are ignored rather than rejected. 0 is BLACK, i.e. the LEDs are commanded off, which is also the absent-value default - the same 'an absent bit is off' rule every other in-bit follows. ONE COLOUR FOR ALL FOUR ARM TIPS: this airframe has one lamp group, so a per-light index would be a field with one legal value. Mirrored VERBATIM: sloppyCAN is the sole authority, there is no local blink timer, no fade and no pattern engine - if the LEDs pulse it is because the source is toggling the colour, exactly as the turn lamps blink because the source toggles the bit. THIS IS THE SHAPE EVERY FLASHING LAMP HERE TAKES: the source owns the toggle and the game mirrors the value - see 'beacon' and 'strobe', which closed the last local-clock hole in v30. WHY 'lights' IS NOT THE DRONE'S INDICATION CHANNEL: 'lights' is the shared OFF/CLEARANCE/LOW/HIGH headlight ladder, and a quadcopter has no headlamp - the ladder is a car's and reads wrong on the cluster. It is left alone rather than re-labelled per vehicle (the same cosmetic wart the plane already carries), because the level NUMBERS are the protocol and are shared by all seven vehicles; 'led' is the drone's real indication channel and the one the airframe lights from. BRIDGE-ONLY, with no local key, unlike 'node_fail' and 'flight_mode': an LED colour is not a control you fly with, so there is nothing a keyboard cycle would let you verify that sloppyCAN's colour picker does not. With no bridge the arm tips sit dark, which is the honest reading of a bus that has commanded nothing."
+      "desc": "THE AIRCRAFT'S INDICATION LEDs, ONE PACKED RGB COLOUR (uavcan.equipment.indication.LightsCommand). The low 16 bits are RGB565 - red in bits 15-11, green in 10-5, blue in 4-0, exactly the LightsCommand wire layout; the type is u32 so the field has room for the light_id/command shape a real LightsCommand carries per lamp, and bits above 15 are ignored rather than rejected. 0 is BLACK, i.e. the LEDs are commanded off, which is also the absent-value default - the same 'an absent bit is off' rule every other in-bit follows. ONE COLOUR FOR ALL FOUR ARM TIPS: this airframe has one lamp group, so a per-light index would be a field with one legal value. Mirrored VERBATIM: sloppyCAN is the sole authority, there is no local blink timer, no fade and no pattern engine - if the LEDs pulse it is because the source is toggling the colour, exactly as the turn lamps blink because the source toggles the bit. THIS IS THE SHAPE EVERY FLASHING LAMP HERE TAKES: the source owns the toggle and the game mirrors the value - see 'beacon' and 'strobe', which closed the last local-clock hole in v30. WHY 'lights' IS NOT THE DRONE'S INDICATION CHANNEL: 'lights' is the shared OFF/CLEARANCE/LOW/HIGH headlight ladder. On an airframe that carries a forward spotlight it drives that lamp on the plane's aircraft ladder (dark at CLEARANCE, LOW a wide short beam, HIGH a long narrow one), and on one that carries none it lights nothing. The level NUMBERS are the protocol and are shared by all seven vehicles, so the ladder is not re-labelled per vehicle; 'led' is the drone's indication channel and the one the arm tips light from. The airframe's OTHER status lights (flight controller, GNSS puck, one per ESC, the battery gauge) are not on this bus at all: each shows its own node's state, steady and with no timer, as the real hardware's own LEDs do. BRIDGE-ONLY, with no local key, unlike 'node_fail' and 'flight_mode': an LED colour is not a control you fly with, so there is nothing a keyboard cycle would let you verify that sloppyCAN's colour picker does not. With no bridge the arm tips sit dark, which is the honest reading of a bus that has commanded nothing."
     },
     {
       "name": "beep",

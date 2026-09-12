@@ -21,12 +21,13 @@
 // handed straight back when it is not.
 //
 // INTEGRATION POINTS - the only changes required in the other files:
-//   index.html         <script src="drone.js" defer>  (after ramn.js + dronecan.js, before carlito.js)
-//                      +  #droneBtn (paired toggle opens dashboard + control)
-//   sloppycan.js       _buttonsWrap(): 'droneBtn' in the id list
-//   carlito.js         window.carlitoOnTelemetry (push) + window.carlitoUplinkOverrides
-//   ramn.js            makeFloating's closeSel option (this file's close button is not .ramn-close)
-//                      + window.ramnSetPairOpen, so the RAMN pair can step aside for an aircraft
+//   index.html         <script src="drone.js" defer>  (after ramn.js + dronecan.js, before
+//                      carlito.js) + #droneBtn, shipped style="display:none"
+//   sloppycan.js       _buttonsWrap() id list; switchViewTab('dronecan') →
+//                      window.vehiclePanelRequestForProto('dronecan')
+//   vehicle-panel.js   fan-out, link detection, RAMN handoff, deep link, button visibility
+//   carlito.js         window.carlitoUplinkOverrides
+//   ramn.js            makeFloating's closeSel option (this close button is not .ramn-close)
 //   carlito-bridge.js  window.droneIsOpen = () => true;   (that page has no dashboards)
 // Live-only: no persistence of window position/state.
 
@@ -189,19 +190,9 @@
   const enumKeys = (name, dir) => (window.dronecanEnumKeys ? window.dronecanEnumKeys(name, dir) : []);
 
   // ── Which machine is on the link ────────────────────────────────────────────
-  // The game publishes signals_for_vehicle(), so the PRESENCE of a drone-only "out" signal is
-  // the vehicle - there is no vehicle_type on the wire and there does not need to be. Which
-  // names those are comes off the contract's own `vehicles` field rather than a list typed
-  // here: add a drone signal to the contract and this follows without an edit.
-  const DRONE_ONLY_OUT = SIGS
-    .filter(s => s.dir === 'out' && Array.isArray(s.vehicles) &&
-                 s.vehicles.length === 1 && s.vehicles[0] === 'drone')
-    .map(s => s.name);
-  if (!DRONE_ONLY_OUT.length) {
-    console.warn('Drone panel: the contract declares no drone-only "out" signal, so a drone can ' +
-      'never be detected - load carlito_contract.js before drone.js.');
-  }
-  const isDroneTelemetry = (t) => !!t && DRONE_ONLY_OUT.some(n => n in t);
+  // vehicle-panel.js's test, off the contract's `vehicles` field: a drone-only "out" signal
+  // being present IS the vehicle.
+  const isDroneTelemetry = (t) => !!(window.vehiclePanelIsFamily && window.vehiclePanelIsFamily('drone', t));
 
   // ── Small helpers ───────────────────────────────────────────────────────────
   // An INSTANCED contract signal (count > 1) arrives as an ARRAY, so `+t.sig || 0` - which
@@ -441,7 +432,7 @@
   // change, or the Carlito window closing, which arrives here as null. Only the AUTOMATIC open
   // is undone: someone who closed the window is not re-opened on the next frame, and someone who
   // opened it by hand is not closed out from under them.
-  window.carlitoOnTelemetry = function (t) {
+  window.vehiclePanelSubscribe(function (t) {
     tel = t;
     const live = isDroneTelemetry(t);
     if (live !== droneLive) {
@@ -450,7 +441,7 @@
       else if (!live && autoOpened) { autoOpened = false; setPairOpen(false); }
     }
     markDirty();
-  };
+  });
 
   // ── Window open / close ─────────────────────────────────────────────────────
   function setDashOpen(open) {
@@ -474,26 +465,11 @@
   }
 
   // ── The RAMN pair steps aside ───────────────────────────────────────────────
-  // These windows REPLACE the RAMN dashboard + Control rather than live beside them. A car's
-  // pedals, gearbox and instrument cluster describe nothing about a quadcopter, and while this
-  // panel is flying it has taken accel/brake/steer off the RAMN controls anyway - so leaving
-  // them up is two control surfaces for one aircraft, one of which does nothing.
-  //
-  // Restored on the way back, and only if they were up when we took over: carlito.js opens the
-  // RAMN pair whenever Carlito opens, so a car returning should find its cluster where it left
-  // it - but a pair the user had closed must stay closed.
-  let ramnWasOpen = false, handedOver = false;
+  // `takes` 'pair': while this panel is flying it has taken accel/brake/steer off the RAMN
+  // controls, so leaving them up is two control surfaces for one aircraft. A road vehicle's
+  // panel takes 'dash' instead. What was up before is remembered in vehicle-panel.js.
   function handoffRamn() {
-    const mine = dashOpen() || ctrlOpen();
-    if (mine === handedOver) return;
-    handedOver = mine;
-    if (!window.ramnSetPairOpen) return;
-    if (mine) {
-      ramnWasOpen = !!(window.ramnIsOpen && window.ramnIsOpen());
-      window.ramnSetPairOpen(false);
-    } else if (ramnWasOpen) {
-      window.ramnSetPairOpen(true);
-    }
+    if (window.vehiclePanelClaim) window.vehiclePanelClaim('drone', dashOpen() || ctrlOpen(), 'pair');
   }
 
   // Paired toolbar toggle, ramnToggle's shape: opens both, or closes both once everything is
@@ -506,30 +482,8 @@
   function droneIsOpen() { return dashOpen() || ctrlOpen(); }
   function droneCtrlToggle() { setCtrlOpen(!ctrlOpen()); }
 
-  // ── The other direction: opening the DroneCAN tab asks the game for a drone ──
-  // The link between the two sides is symmetric in intent but NOT in mechanism, and the asymmetry
-  // is worth knowing rather than papering over. Game → panel is free: the telemetry already says
-  // which machine is on the link, so the windows follow it silently. Panel → game costs a RELOAD,
-  // because the vehicle is a BOOT PARAM (the game's `?vehicle=` deep link) - there is no "change
-  // vehicle" signal in the contract, and there should not be: the contract carries a vehicle's
-  // CAN signals, not commands to the shell around it.
-  //
-  // So this ASKS FIRST. `demoMaybeSwitch`'s precedent, for the same reason: a tab click that
-  // restarts someone's drive without warning is a worse surprise than one extra dialog. It also
-  // stays quiet unless there is something to change - no Carlito window, or a drone already on
-  // the link, and there is nothing to ask about.
-  const DRONE_VARIANT = 'drone';   // VehicleCatalog.VARIANTS id, not the family
-  function droneRequestVehicle() {
-    if (droneLive) return false;                                    // already flying one
-    if (!window.carlitoIsOpen || !window.carlitoIsOpen()) return false;   // no game to ask
-    if (!window.carlitoSelectVehicle) return false;
-    if (!confirm('Fly the drone in Carlito?\n\nThe DroneCAN tab decodes the drone\'s bus, and a ' +
-                 'car publishes none of it. Switching vehicles is a boot parameter, so the game ' +
-                 'RELOADS and the current drive is lost.')) return false;
-    const asked = window.carlitoSelectVehicle(DRONE_VARIANT);
-    if (asked && window.log) window.log('Carlito: reloading into the drone for the DroneCAN tab.');
-    return asked;
-  }
+  // Asking the game for a drone is NOT here: switchViewTab('dronecan') calls
+  // vehiclePanelRequestForProto('dronecan'), the entry every protocol view shares.
 
   // ── Render ──────────────────────────────────────────────────────────────────
   function markDirty() {
@@ -916,6 +870,16 @@
       applyKeyAxis('climb', 0);
     });
 
+    if (window.vehiclePanelRegister) {
+      window.vehiclePanelRegister({
+        id: 'drone', family: 'drone', variant: 'drone', label: 'drone', verb: 'Fly',
+        // The toolbar button is vehicle-panel.js's to show and hide: it is up only while a drone
+        // is on the link, or while the windows it closes are open.
+        btn: 'droneBtn', isOpen: droneIsOpen,
+        close: () => { autoOpened = false; setPairOpen(false); },
+      });
+    }
+
     syncCtrlUI();
     syncBtn();
   })();
@@ -924,5 +888,4 @@
   window.droneToggle = droneToggle;
   window.droneIsOpen = droneIsOpen;
   window.droneCtrlToggle = droneCtrlToggle;
-  window.droneRequestVehicle = droneRequestVehicle;   // ← switchViewTab('dronecan') calls this
 })();

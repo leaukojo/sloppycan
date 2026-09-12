@@ -19,10 +19,17 @@
 <script src="canopen.js" defer></script><!-- CANopen module -->
 <script src="ramn.js" defer></script><!-- RAMN dashboard module -->
 <script src="carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
+<script src="vehicle-panel.js" defer></script><!-- shared vehicle-panel mechanism (telemetry fan-out, link detection, RAMN handoff, ?vehicle= deep link); needs carlito_contract.js and must precede every panel below -->
 <script src="dronecan.js" defer></script><!-- DroneCAN module (also the carlito dronecan-flavor packer; must precede carlito.js) -->
 <script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; frames decode in the J1939 tab's ISO 11783 mode. Must precede carlito.js -->
 <script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal); must precede carlito.js -->
+<script src="nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig); frames decode in the J1939 tab's nmea2000 mode. Must precede carlito.js -->
+<script src="cleanopen.js" defer></script><!-- the garbage truck's body command (CANopen RPDO decoder + uplink source); must precede carlito.js -->
 <script src="drone.js" defer></script><!-- Drone dashboard + control windows: needs ramn.js (makeFloating) and dronecan.js (dcCtl), and must precede carlito.js, which snapshots its uplink overrides -->
+<script src="truck.js" defer></script><!-- Truck dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
+<script src="tractor.js" defer></script><!-- Tractor dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
+<script src="boat.js" defer></script><!-- Boat dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
+<script src="boat-pilot.js" defer></script><!-- Boat autopilot control head: sources nav_mode/heading_cmd/sheet, needs vehicle-panel.js + ramn.js + boat.js -->
 <script src="carlito.js" defer></script><!-- Carlito game link module -->
 </head>
 <body>
@@ -150,9 +157,27 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16l4-4"/><circle cx="12" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg>
     <span>RAMN dashboard</span>
   </button>
-  <button class="btn" id="droneBtn" onclick="droneToggle()" title="Toggle the floating drone dashboard + control panel. Opens by itself when a drone is on the Carlito link - the RAMN controls do not fit an aircraft.">
+  <!-- Vehicle-panel buttons start HIDDEN; vehicle-panel.js shows the one whose machine is on the
+       Carlito link. The way to GET a machine is its protocol view (DroneCAN tab / J1939 modes). -->
+  <button class="btn" id="droneBtn" onclick="droneToggle()" style="display:none" title="Toggle the floating drone dashboard + control panel. Shown while a drone is on the Carlito link - the RAMN controls do not fit an aircraft.">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l4 4M17 7l-4 4M7 17l4-4M17 17l-4-4"/><rect x="10" y="10" width="4" height="4" rx="1"/><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/></svg>
     <span>Drone</span>
+  </button>
+  <button class="btn" id="truckBtn" onclick="truckToggle()" style="display:none" title="Toggle the floating truck dashboard. Shown while a truck is on the Carlito link and takes the RAMN cluster's place; the RAMN Control Panel keeps driving.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 3v3h-8z"/><circle cx="6" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>
+    <span>Truck</span>
+  </button>
+  <button class="btn" id="tractorBtn" onclick="tractorToggle()" style="display:none" title="Toggle the floating tractor dashboard. Shown while a tractor is on the Carlito link and takes the RAMN cluster's place; the RAMN Control Panel keeps driving.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V8h5l2 4"/><path d="M11 12h9"/><circle cx="7" cy="16" r="4"/><circle cx="18" cy="17" r="3"/></svg>
+    <span>Tractor</span>
+  </button>
+  <button class="btn" id="boatBtn" onclick="boatToggle()" style="display:none" title="Toggle the floating boat instruments - wind rose, echo sounder, COG against heading, tanks and the engine block, all off the boat's own telemetry. Shown while a boat is on the Carlito link and takes the RAMN cluster's place; the RAMN Control Panel keeps driving.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15h18l-3 5H6z"/><path d="M12 3v9M12 5l6 7H6z"/></svg>
+    <span>Boat</span>
+  </button>
+  <button class="btn" id="boatPilotBtn" onclick="boatPilotToggle()" style="display:none" title="Toggle the boat autopilot control head - Standby/Auto, a heading knob and the sheet. Shown while a boat is on the Carlito link. Claims nothing from the RAMN controls: the boat is still steered on the RAMN rudder axis.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12L12 5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+    <span>Autopilot</span>
   </button>
   <button class="btn" id="carlitoBtn" onclick="carlitoToggle()" title="Drive Carlito with RAMN controls - needs a live bus (Connect or Demo first).">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="16.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
@@ -405,7 +430,23 @@
             </button>
             <button class="onboard-chip" data-target="#droneBtn">
               <span class="oc-name">Drone</span>
-              <span class="oc-desc">Arm and fly Carlito's quad - opens itself when a drone is on the link</span>
+              <span class="oc-desc">Arm and fly Carlito's quad - the button is there while a drone is on the link</span>
+            </button>
+            <button class="onboard-chip" data-target="#truckBtn">
+              <span class="oc-name">Truck</span>
+              <span class="oc-desc">Heavy-vehicle cluster - the button is there while a truck is on the link</span>
+            </button>
+            <button class="onboard-chip" data-target="#tractorBtn">
+              <span class="oc-name">Tractor</span>
+              <span class="oc-desc">ISOBUS machine cluster - the button is there while a tractor is on the link</span>
+            </button>
+            <button class="onboard-chip" data-target="#boatBtn">
+              <span class="oc-name">Boat</span>
+              <span class="oc-desc">Wind rose, echo sounder and compass - the button is there while a boat is on the link</span>
+            </button>
+            <button class="onboard-chip" data-target="#boatPilotBtn">
+              <span class="oc-name">Autopilot</span>
+              <span class="oc-desc">Standby/Auto, heading knob and sheet - the button is there while a boat is on the link</span>
             </button>
             <button class="onboard-chip" data-target="#wsSelect">
               <span class="oc-name">Workspace</span>
@@ -652,6 +693,9 @@
     <label>Amber warn <select id="j1939Lamp_amber_warn" onchange="j1939LampChange()" title="contract amber_warn (DM1 Amber Warning Lamp)."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
     <label>Protect <select id="j1939Lamp_protect_lamp" onchange="j1939LampChange()" title="contract protect_lamp (DM1 Protect Lamp - a non-electronic fault)."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
     <span class="dc-note">DM1's MIL is the contract's own <code>checkEngine</code>, so it is not repeated here.</span>
+    <span class="dc-note">Trailer &rarr; Carlito:</span>
+    <label>EBS fault <select id="j1939Lamp_trailer_ebs_fault" onchange="j1939LampChange()" title="contract trailer_ebs_fault - the towed unit's ISO 11992 EBS fault, injected from here. Not DM1, but the same four states: the game mirrors the bit verbatim and nothing in it ever sets this lamp."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
+    <label>ABS (J2497) <select id="j1939Lamp_trailer_abs_lamp" onchange="j1939LampChange()" title="contract trailer_abs_lamp - the trailer ABS telltale SAE J2497 carries on the POWER LINE, the whole North American trailer protocol in one bit. No CAN frame carries it."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
   </div>
   <!-- The J1939-21 request client. A handful of parameter groups are sent ON REQUEST rather than
        periodically, which means the frame does not exist until somebody asks for it - so there is

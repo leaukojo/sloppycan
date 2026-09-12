@@ -1277,6 +1277,75 @@ Object.assign(window.carlitoUplinkSources, {
   climb: () => dcCtl.climb,
 });
 
+// ── The same commands, off the BUS ────────────────────────────────────────────
+// A LightsCommand / hardpoint.Command / camera_gimbal.AngularCommand from any node drives dcCtl
+// exactly as the tab's widgets and drone.js do - the one-owner rule above, so the uplink sources
+// need no second copy. It reassembles into its OWN state rather than the tab's dcRx, because it
+// runs on carlito-bridge.html too, where the tab's ingest is never called.
+//
+// THE OWN-ADDRESS RULE (carlito.js's decoder registry): dcFlushCommands emits these three from
+// dcCfg.fcNode and canForward ingests that echo, so a transfer from the FC node is this side
+// talking and is skipped.
+//
+// A bus command does NOT latch dcCmdPending: the FC relaying a command it just received would put
+// a second copy on the bus under its own id. And it holds until the next one, with no timeout -
+// all three are sent on change, and a light keeps its colour until it is told otherwise.
+const dcUpRx = dcNewRxState();
+function dcUplinkDecode(frame) {
+  if (!frame || !frame.isExt || frame.isRtr) return;
+  const done = dcFeedFrame(dcUpRx, frame.id, frame.data);
+  if (!done || done.kind !== 'msg' || done.crcOk === false || done.error) return;
+  if (done.srcNode === (dcCfg.fcNode & 0x7F)) return;
+  const m = DC_MSGS[done.dataTypeId];
+  if (!m || (m.id !== 1081 && m.id !== 1070 && m.id !== 1040)) return;
+  // A payload short of the message's fixed part would decode its missing bytes as zeros - an
+  // empty LightsCommand as "light 0 off", a truncated hardpoint.Command as RELEASE - a command
+  // nobody sent. LightsCommand's fixed part is ONE SingleLightCommand, so an empty array (legal,
+  // and a statement of nothing) is ignored too.
+  if (done.payload.length < (m.bits >> 3)) return;
+  const v = dcDecode(m, done.payload);
+  const was = [dcCtl.led, dcCtl.hook, dcCtl.gimbalPitch, dcCtl.gimbalYaw].join('|');
+  if (m.id === 1081) {
+    // The FIRST SingleLightCommand, and only for light 0 - the one lamp group this side itself
+    // commands (dcFlushCommands' light_id note).
+    if (v.light_id !== 0) return;
+    dcCtl.led = ((v.red & 0x1F) << 11) | ((v.green & 0x3F) << 5) | (v.blue & 0x1F);
+  } else if (m.id === 1070) {
+    if (v.hardpoint_id !== DC_HARDPOINT_ID) return;
+    dcCtl.hook = v.command !== DC_HOOK_RELEASE;   // DSDL: 0 release, 1+ hold
+  } else {
+    // Only the mode dcFlushCommands sends, ORIENTATION_BODY_FRAME: the other modes name a rate or
+    // a fixed frame, and reading one as body-frame angles would point the camera somewhere else.
+    if (v.gimbal_id !== DC_GIMBAL_ID || v.mode !== 2) return;
+    const a = dcPitchYawFromQuat(v.quaternion_x, v.quaternion_y, v.quaternion_z, v.quaternion_w);
+    dcCtl.gimbalPitch = dcClampToRange('gimbal_pitch', a.pitch);
+    dcCtl.gimbalYaw = dcClampToRange('gimbal_yaw', a.yaw);
+  }
+  // A repeated command changes nothing, and a sender streaming one must not re-render the tab (or
+  // pull a slider out from under the user) on every frame.
+  if ([dcCtl.led, dcCtl.hook, dcCtl.gimbalPitch, dcCtl.gimbalYaw].join('|') === was) return;
+  // The tab's widgets are re-read from dcCtl on show; push now only if it is on screen.
+  const wrap = document.getElementById('dronecanWrap');
+  if (wrap && wrap.style.display !== 'none') dronecanOnShow();
+  else dcTab.markDirty();
+}
+// The inverse of dcQuatFromPitchYaw (q = qz(yaw) * qy(pitch), NED), in degrees. Pan-then-tilt has
+// no roll, so the body RIGHT axis stays level at every pitch and yaw is read off it - which is what
+// keeps a mount pointing straight down (the contract's -90 stop) from losing its pan. Pitch is
+// atan2 against the forward axis's horizontal length rather than asin, whose slope is infinite at
+// that same stop (float16 rounding alone reads a commanded -90 as -88.8 through asin). Both are
+// quadratic in q, so q and -q - one rotation - decode alike. A quaternion carrying roll, which the
+// mount cannot follow, decodes to the pan of its right axis and the tilt of its forward axis.
+function dcPitchYawFromQuat(x, y, z, w) {
+  const fx = 1 - 2 * (y * y + z * z), fy = 2 * (w * z + x * y);   // forward axis, horizontal part
+  return {
+    pitch: Math.atan2(2 * (w * y - z * x), Math.hypot(fx, fy)) * 180 / Math.PI,
+    yaw: Math.atan2(2 * (w * z - x * y), 1 - 2 * (x * x + z * z)) * 180 / Math.PI,
+  };
+}
+window.carlitoUplinkDecoders = window.carlitoUplinkDecoders || [];
+window.carlitoUplinkDecoders.push(dcUplinkDecode);
+
 // BatteryInfo.average_power_10sec is a real 10-second mean of pack V * I, not a stand-in:
 // every slow tick pushes one sample and the window drops anything older than 10 s. It is a
 // plain sample mean rather than time-weighted because the slow tick is regular, so the two
@@ -3340,6 +3409,42 @@ function dronecanSelfTest() {
   let anonThrew = false;
   try { dcAnonTransfer(DC_ALLOC, new Array(9).fill(0), 0); } catch (e) { anonThrew = true; }
   eq('an oversized anonymous transfer is refused rather than truncated', anonThrew, true);
+
+  // The commands off the BUS (dcUplinkDecode): from another node they drive dcCtl, from the FC
+  // node they are this side's own echo, and a bus command latches no relay. Built with this
+  // module's own encoder, so a single-frame and a multi-frame (AngularCommand) transfer are both
+  // reassembled through the decoder's own state.
+  {
+    const savedCtl = Object.assign({}, dcCtl), savedPending = dcCmdPending;
+    dcCmdPending = null;
+    const feed = (m, node, vals) => { for (const fr of dcTransfer(m, node, dcEncode(m, vals))) dcUplinkDecode(fr); };
+    const other = (dcCfg.fcNode & 0x7F) === 100 ? 101 : 100;   // never the FC node, whatever it is set to
+    dcCtl.led = 0;
+    feed(DC_MSGS[1081], dcCfg.fcNode & 0x7F, { light_id: 0, red: 31, green: 0, blue: 0 });
+    eq('the FC node\'s own LightsCommand is its echo', dcCtl.led, 0);
+    feed(DC_MSGS[1081], other, { light_id: 0, red: 31, green: 0, blue: 0 });
+    eq('LightsCommand from another node sets led', dcCtl.led, 31 << 11);
+    feed(DC_MSGS[1081], other, { light_id: 5, red: 0, green: 63, blue: 0 });
+    eq('a light other than 0 is not this airframe\'s', dcCtl.led, 31 << 11);
+    dcCtl.hook = false;
+    feed(DC_MSGS[1070], other, { hardpoint_id: DC_HARDPOINT_ID, command: DC_HOOK_HOLD });
+    eq('hardpoint.Command hold', dcCtl.hook, true);
+    const gq = dcQuatFromPitchYaw(-30, 45);
+    feed(DC_MSGS[1040], other, { gimbal_id: DC_GIMBAL_ID, mode: 2,
+      quaternion_x: gq[0], quaternion_y: gq[1], quaternion_z: gq[2], quaternion_w: gq[3] });
+    eq('AngularCommand round-trips to whole degrees', [dcCtl.gimbalPitch, dcCtl.gimbalYaw], [-30, 45]);
+    const gd = dcQuatFromPitchYaw(-90, 45);
+    feed(DC_MSGS[1040], other, { gimbal_id: DC_GIMBAL_ID, mode: 2,
+      quaternion_x: gd[0], quaternion_y: gd[1], quaternion_z: gd[2], quaternion_w: gd[3] });
+    eq('a mount looking straight down keeps its pan', [dcCtl.gimbalPitch, dcCtl.gimbalYaw], [-90, 45]);
+    eq('a bus command latches no relay', dcCmdPending, null);
+    Object.assign(dcCtl, savedCtl);
+    dcCmdPending = savedPending;
+    // The feeds above pushed their values into the tab if it is on screen; put it back too, or
+    // the next widget touch would read the test's values out of it and send them.
+    const wrap = document.getElementById('dronecanWrap');
+    if (wrap && wrap.style.display !== 'none') dronecanOnShow();
+  }
 
   return { pass: failures.length === 0, failures };
 }

@@ -38,11 +38,17 @@ function log(msg, level) {
 }
 
 // Sink for every parsed RX frame: feed the RAMN decoder so ramnGetState() (which Carlito
-// reads each tick) stays current. Non-RAMN ids (incl. Carlito's own 0x520–0x52B echo) are
-// ignored by ramnIngestFrame, so this is safe for all traffic. Exposed on window too because
-// carlito.js's telemetry path early-returns unless window.ingestFrame exists.
+// reads each tick) stays current, and carlito.js's uplink decoders so a protocol command frame
+// (the tractor's hitch/PTO/guidance, the body command, the drone and autopilot commands) drives
+// the game from this page too. Each decoder ignores ids that are not its own, so this is safe for
+// all traffic. Exposed on window too because carlito.js's telemetry path early-returns unless
+// window.ingestFrame exists.
 let rxCount = 0, txCount = 0, dropCount = 0;   // live health counters (shown in the bar)
-function ingestFrame(frame) { rxCount++; if (window.ramnIngestFrame) window.ramnIngestFrame(frame); }
+function ingestFrame(frame) {
+  rxCount++;
+  if (window.ramnIngestFrame) window.ramnIngestFrame(frame);
+  if (window.carlitoUplinkIngestFrame) window.carlitoUplinkIngestFrame(frame);
+}
 window.ingestFrame = ingestFrame;
 
 // ── Connection (thin connectSerial/disconnectSerial, no SloppyCAN UI) ───────────

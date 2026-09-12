@@ -296,6 +296,131 @@ td.mono, th.mono { font-family: var(--mono); }
     attached.
   </p>
 
+  <h2>Worked Example: 127245 Rudder</h2>
+  <p>
+    Rudder is a single-frame PGN. sloppyCAN's own boat only ever has an applied position to
+    report, never a distinct commanded one, so the Direction Order and Angle Order fields stay
+    <em>not available</em> and only Position gets written:
+  </p>
+  <div class="frame">
+    <div class="cell">Inst<small>byte 0</small></div>
+    <div class="cell">Dir<small>byte 1</small></div>
+    <div class="cell">Ord<small>byte 2–3</small></div>
+    <div class="cell">Ord</div>
+    <div class="cell data">POS<small>byte 4–5</small></div>
+    <div class="cell data">POS</div>
+    <div class="cell">-<small>byte 6–7</small></div>
+    <div class="cell">-</div>
+  </div>
+  <div class="card">
+    <p style="margin-bottom:8px"><strong>Payload:</strong> <code>FF FF FF FF AF F1 FF FF</code></p>
+    <ul style="margin-bottom:0">
+      <li><strong>Position</strong> = bytes 4–5 LE = <code>0xF1AF</code> = a signed 16-bit
+        value, so subtract 65536: <code>61871 − 65536 = −3665</code> × 0.0001 rad =
+        −0.3665 rad = <strong>−21.0°</strong> (to port)</li>
+    </ul>
+  </div>
+  <p>
+    That −21° is exactly the contract's <code>rudder_actual</code> (−60%) converted through
+    <code>nmea2000.js</code>'s own hard-over constant — 35° of full throw — the one
+    percentage-to-degrees conversion this file declares, because PGN 127245 carries a real
+    angle and the contract's rudder signals are percentages.
+  </p>
+
+  <h2>Worked Example: 127237 Heading/Track Control</h2>
+  <p>
+    A 21-byte Fast Packet message (so it arrives as three CAN frames — the shape from the
+    Fast Packet section above). sloppyCAN's boat only ever fills two of its many fields: the
+    Steering Mode bits (which of the pilot's own two states it is in) and the
+    Heading-To-Steer, both of which double as the closest legal expression of the contract's
+    <code>nav_mode_actual</code> / <code>heading_target</code>. Every other field — the four
+    limit-exceeded flags, Turn Mode, both rudder-order fields, the track and cross-track
+    limits — stays <em>not available</em>, because this boat runs heading-hold alone and has
+    no route, no cross-track error, and no distinct rudder order to publish.
+  </p>
+  <div class="card">
+    <p style="margin-bottom:8px">
+      <strong>Reassembled payload</strong> (byte 0 and bytes 2–4, 7–20 all <code>0xFF</code>):
+    </p>
+    <ul style="margin-bottom:0">
+      <li>byte 1, bits 0–2 = <code>0xFB</code> → low 3 bits <code>011</code> = <strong>3,
+        Heading Control Standalone</strong> — the pilot is actively holding a course</li>
+      <li>bytes 5–6 LE = <code>0x14 0xB8</code> = <code>0xB814</code> = 47124 × 0.0001 rad =
+        4.7124 rad = <strong>270.0°</strong>, the Heading-To-Steer</li>
+    </ul>
+  </div>
+  <p>
+    In STANDBY the same two fields read <code>0</code> (Heading Control off) and the boat's
+    current heading — never a sentinel, because the contract wants a bus that engages the
+    pilot with no course of its own to capture whatever heading the boat is already on rather
+    than steer to an arbitrary bearing.
+  </p>
+
+  <h2>Worked Example: 130577 Direction Data</h2>
+  <p>
+    A 14-byte Fast Packet message. Like the Heading/Track Control message above, most of its
+    fields (Data Mode, COG Reference, SID, COG, SOG, Heading, Speed Through Water) stay
+    <em>not available</em> — each already has its own dedicated PGN above with its own
+    source address, so repeating them here would be the same value published twice from two
+    different "instruments." Only Set and Drift, the tidal-current pair with no PGN of their
+    own elsewhere, get written:
+  </p>
+  <div class="card">
+    <p style="margin-bottom:8px">
+      <strong>Reassembled payload</strong> (bytes 0–9 all <code>0xFF</code>):
+    </p>
+    <ul style="margin-bottom:0">
+      <li>bytes 10–11 LE = <code>0x5B 0x88</code> = <code>0x885B</code> = 34907 × 0.0001 rad =
+        3.4907 rad = <strong>200.0°</strong>, the Set (bearing the current flows <em>toward</em>)</li>
+      <li>bytes 12–13 LE = <code>0x28 0x00</code> = 40 × 0.01 m/s = <strong>0.40 m/s</strong>,
+        the Drift</li>
+    </ul>
+  </div>
+
+  <h2>What makes a marine dash different from a truck's</h2>
+  <p>
+    The same physical quantity has two names on a boat that a land vehicle never has to tell
+    apart, because a boat's medium moves under it:
+  </p>
+  <table>
+    <thead><tr><th>Pair</th><th>Through/apparent</th><th>Over/true</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Speed</td>
+        <td><strong>STW</strong> (128259) — through the WATER, what a paddlewheel log reads</td>
+        <td><strong>SOG</strong> (129026) — over the GROUND; the gap is the tide's own push
+          or drag</td>
+      </tr>
+      <tr>
+        <td>Wind</td>
+        <td><strong>AWA / AWS</strong> (130306, apparent) — what the hull actually feels,
+          bow-referenced</td>
+        <td><strong>TWD / TWS</strong> (130306, true) — the wind's real bearing and speed,
+          with the hull's own motion subtracted back out</td>
+      </tr>
+      <tr>
+        <td>Course</td>
+        <td><strong>Heading</strong> (127250) — where the bow POINTS</td>
+        <td><strong>COG</strong> (129026) — the course actually MADE; the gap is leeway plus
+          the set of the tide, exactly what 130577's Set/Drift describes</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Depth has its own version of the same trap: 128267 reports water <strong>under the
+    transducer</strong>, which rides wherever the hull floats it — not under the keel, and
+    not to the sea bed from the surface. A shoaling reading and a squatting hull both move
+    that number the same direction, and the PGN has no way to tell you which.
+  </p>
+  <div class="note">
+    The one boat reading with <strong>no PGN at all</strong> is the sail: the contract's
+    <code>sheet</code> (how far the boom may swing) and <code>sail_angle</code> (where the
+    wind put it) ride the base CAN map and the uplink respectively, because NMEA 2000 defines
+    no sail PGN — not an oversight in this project, but what the standard itself is. A real
+    marine bus carries what its committee thought worth standardising, and sail trim was
+    never that.
+  </div>
+
 </div>
 </main>
 

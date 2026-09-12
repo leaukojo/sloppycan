@@ -19,20 +19,22 @@
 // FOUR of those lookups contradicted what this repo already believed, and correcting j1939.js's
 // decode tables was part of the same change - each is called out at the point it bites below.
 //
-// ── WHAT IS NOT HERE ─────────────────────────────────────────────────────────
-// `scv_flow` and `guidance_curvature` are contract dir="in" signals. A flavor packer is handed
-// TELEMETRY, so there is nothing for it to pack: the real carriers exist (Auxiliary Valve
-// Command, PGNs 65072-65087, and Guidance System Command, PGN 44288) and are simply waiting
-// for a side that owns the control, the way dronecan.js owns its gimbal sliders. Naming them
-// here rather than leaving the omission silent.
+// ── THE COMMANDS ─────────────────────────────────────────────────────────────
+// This file also OWNS the tractor's seven contract dir="in" signals - hitch, PTO, PTO mode, diff
+// lock, MFWD, guidance curvature and SCV flow - the way dronecan.js owns its gimbal sliders: one
+// state per signal, fed by tractor.js's widgets (window.isobusSetCtl) AND by the real ISO 11783-7
+// command frames off the bus (65090 Hitch and PTO commands, 44288 Guidance System command, 65072
+// Auxiliary valve 0 command), leaving through carlito.js's uplink registry. See the section of
+// that name below for the freshness rule and for the two with no decoder.
 //
 // INTEGRATION POINTS - the only changes required in the main files:
 //   index.html           <script src="isobus.js" defer> after carlito_contract.js and BEFORE
-//                        carlito.js (the packer must be registered by the time carlito.js
-//                        evaluates its coverage check)
+//                        carlito.js (the packer, the uplink sources and the uplink decoder must
+//                        be registered by the time carlito.js evaluates)
 //   carlito-bridge.html  same script tag. That page loads neither sloppycan.js nor j1939.js,
 //                        so every cross-module read here is typeof-guarded.
 //   j1939.js             decode-table corrections, so the frames render named and scaled
+//   tractor.js / truck.js  their controls are views over window.isobusCtl / isobusSetCtl
 //
 // Telemetry TX rides carlito.js's canForward gateway, which is what puts these on the wire and
 // in the dump as FW entries. No transport code here.
@@ -366,6 +368,121 @@
     pack: ibPack,
   });
 
+  // ── THE COMMANDS (the tractor's contract dir="in" signals) ───────────────────
+  // One state per signal: { panel, bus, at }. The source is the bus value while it is FRESH, else
+  // the panel's, and a panel edit clears the bus value - so the last hand on the control wins.
+  // Every panel value starts at the game's own absent-default (hitch raised, everything off, 540),
+  // so loading this file changes nothing on the machine until someone touches a control.
+  //
+  // FRESHNESS: all three command messages are "100 ms when active" (isobus.net), so a command that
+  // stops arriving is a command withdrawn. IB_CMD_TTL_MS is this side's own timeout - three missed
+  // periods - not a number out of the standard. Each FIELD refreshes only its own signal, and a
+  // field reading "don't care" / "not available" refreshes nothing: a guidance computer sending
+  // only 44288 does not thereby lower the hitch.
+  //
+  // THE OWN-ADDRESS RULE (carlito.js's decoder registry) has nothing to filter: this file
+  // transmits none of the three command PGNs, only the status groups that answer them.
+  //
+  // `diff_lock` AND `fwd_drive` ARE PANEL-ONLY. The rear diff lock's real carrier is J1939 TC1
+  // (PGN 256), SPN 687 Disengage Differential Lock Request - Rear Axle 1, but TC1's field
+  // positions are J1939-71's: the Data Dictionary lists the SPN with none, and the local J1939-71
+  // is a scanned image the tools here cannot read. MFWD has no command in the ISO 11783-7
+  // messages decoded here (FWD, 64991, is the status this file packs).
+  const IB_CMD_TTL_MS = 300;
+  const IB_PGN_HPTOC = 65090;   // Hitch and PTO commands, prio 3, 100 ms when active
+  const IB_PGN_GSC   = 44288;   // Agricultural Guidance System command, PDU1 to the TECU, 100 ms
+  const IB_PGN_AV0C  = 65072;   // Auxiliary valve 0 command ("power beyond"), 100 ms when active
+  const ibCmd = {
+    hitch_pos:          { panel: 100, bus: undefined, at: 0 },
+    pto:                { panel: 0,   bus: undefined, at: 0 },
+    pto_mode:           { panel: 0,   bus: undefined, at: 0 },
+    diff_lock:          { panel: 0,   bus: undefined, at: 0 },
+    fwd_drive:          { panel: 0,   bus: undefined, at: 0 },
+    // PRESENCE overrides `steer` in the game, so the panel's resting value is NO value: the
+    // tractor panel sources a curvature only while its guidance switch is engaged.
+    guidance_curvature: { panel: undefined, bus: undefined, at: 0 },
+    scv_flow:           { panel: 0,   bus: undefined, at: 0 },
+  };
+  const ibFresh = (r) => r.bus !== undefined && Date.now() - r.at <= IB_CMD_TTL_MS;
+  const ibLive = (r) => ibFresh(r) ? r.bus : r.panel;
+  function ibHold(name, v) { const r = ibCmd[name]; r.bus = v; r.at = Date.now(); }
+
+  // The exact inverse of ibId. A PDU2 has no destination, so it reads as the global address.
+  function ibParseId(id) {
+    const dp = (id >>> 24) & 1, pf = (id >>> 16) & 0xFF, ps = (id >>> 8) & 0xFF;
+    return { pgn: (dp << 16) | (pf << 8) | (pf < 0xF0 ? 0 : ps), da: pf < 0xF0 ? ps : 0xFF, sa: id & 0xFF };
+  }
+  // A short frame reads as "not available" past its end, the same all-ones a sender leaves.
+  const ibByte = (d, i) => (d && i < d.length) ? (d[i] & 0xFF) : 0xFF;
+  const ibTwo = (d, b, bit) => (ibByte(d, b) >> bit) & 3;
+
+  function ibDecodeCommand(frame) {
+    if (!frame.isExt || frame.isRtr) return;
+    const { pgn, da } = ibParseId(frame.id >>> 0);
+    const d = frame.data;
+    if (pgn === IB_PGN_HPTOC) {
+      // Byte 2 SPN 1875 Rear hitch position command, 0.4 %/bit; raw 251-255 are a one-byte
+      // parameter's reserved, error and not-available codes. The FRONT hitch and PTO (SPNs 1874,
+      // 1886, 1893, 1895, 1897) have no contract signal, and SPN 1887, the rear shaft SPEED set
+      // point, is not `pto_mode`'s - a mode picks a gearing, not a speed.
+      const h = ibByte(d, 1);
+      if (h <= 250) ibHold('hitch_pos', Math.min(100, h * 0.4));
+      // 7.5 SPN 1894 Rear PTO engagement: 00 disengage, 01 engage, 10 reserved, 11 don't care.
+      const e = ibTwo(d, 6, 4);
+      if (e <= 1) ibHold('pto', e);
+      // 8.5 SPN 1896 Rear PTO mode: 00 select 540, 01 select 1000 - the contract's own enum values.
+      const m = ibTwo(d, 7, 4);
+      if (m <= 1) ibHold('pto_mode', m);
+    } else if (pgn === IB_PGN_GSC) {
+      // PDU1: addressed to the steering system, which the TECU represents, or to everyone.
+      if (da !== SA_TECU && da !== 0xFF) return;
+      // 3.1 SPN 5239 Curvature command status: 00 not intended to steer, 01 intended to steer,
+      // 10 reserved, 11 not available. "Not intended" is the guidance system letting go of the
+      // wheel, so it clears the bus value rather than holding one.
+      const st = ibTwo(d, 2, 0);
+      if (st === 0) { ibCmd.guidance_curvature.bus = undefined; return; }
+      if (st !== 1) return;
+      // Bytes 1-2 SPN 5237 Curvature command, 0.25 km^-1/bit, offset -8032, + = turning to the
+      // driver's right - the contract's own sign. Raw above 0xFAFF is reserved. The contract's i8
+      // saturates at full lock (127 km^-1, a 7.9 m radius), so a tighter command clamps there.
+      const raw = ibByte(d, 0) | (ibByte(d, 1) << 8);
+      if (raw > 0xFAFF) return;
+      ibHold('guidance_curvature', Math.max(-127, Math.min(127, Math.round(raw * 0.25 - 8032))));
+    } else if (pgn === IB_PGN_AV0C) {
+      // Valve 0, "power beyond", is the tractor's one remote. 3.1 SPN 1908 state: 0 block,
+      // 1 extend, 2 retract, 3 float, 15 don't care. The game's `scv_flow` is how far the
+      // spreader's gate ram is OPENED, so only EXTEND carries byte 1's SPN 1907 port flow
+      // (0.4 %/bit); block, retract and float all command a closed gate. The extended-resolution
+      // flow (bytes 4-5, SPN 7856) is not read: byte 1 already resolves the contract's whole percent.
+      const s = ibByte(d, 2) & 0x0F;
+      if (s > 3) return;
+      if (s !== 1) { ibHold('scv_flow', 0); return; }
+      const f = ibByte(d, 0);
+      if (f <= 250) ibHold('scv_flow', Math.min(100, f * 0.4));
+    }
+  }
+
+  window.carlitoUplinkDecoders = window.carlitoUplinkDecoders || [];
+  window.carlitoUplinkDecoders.push(ibDecodeCommand);
+  window.carlitoUplinkSources = window.carlitoUplinkSources || {};
+  for (const name of Object.keys(ibCmd)) window.carlitoUplinkSources[name] = () => ibLive(ibCmd[name]);
+
+  // The panels' view: every live value, plus which ones a frame is holding right now.
+  window.isobusCtl = () => {
+    const o = { bus: {} };
+    for (const k of Object.keys(ibCmd)) { o[k] = ibLive(ibCmd[k]); o.bus[k] = ibFresh(ibCmd[k]); }
+    return o;
+  };
+  window.isobusSetCtl = (p) => {
+    for (const k of Object.keys(p || {})) {
+      const r = ibCmd[k];
+      if (!r) continue;
+      const v = p[k];
+      r.panel = (v === undefined || v === null) ? undefined : Number(v);
+      r.bus = undefined;
+    }
+  };
+
   // ── Self-test ───────────────────────────────────────────────────────────────
   // Run from the console: window.isobusSelfTest(). Covers the things that are easy to get
   // backwards and impossible to eyeball - the 29-bit id build, each SPN's scale and offset,
@@ -481,6 +598,61 @@
     eq('detach is silence', ibClaim({ implement_connected: false, implement_type: 0 }).length, 0);
     eq('no implement signal, no claim', ibClaim({}).length, 0);
     ibLastClaim = saved;
+
+    // 7. The commands: each message decodes into its own signals, a "don't care" field refreshes
+    //    nothing, the guidance status gates the curvature, a withdrawn command expires back to the
+    //    panel, and a panel edit clears a bus value. Built with this file's own encoder primitives,
+    //    so the field positions are checked against the same {b, bit} vocabulary the packer uses.
+    const savedCmd = JSON.parse(JSON.stringify(ibCmd));
+    const src = (n) => window.carlitoUplinkSources[n]();
+    const cmdFrame = (pgn, sa, da, d) => ({ id: ibId(pgn, 3, sa, da), isExt: true, data: d });
+    for (const k of Object.keys(ibCmd)) ibCmd[k].bus = undefined;
+    eq('resting: hitch raised, guidance absent', [src('hitch_pos'), src('guidance_curvature')], [100, undefined]);
+
+    let d = ibBlank();
+    ibPut(d, 1, 1, 62, 0.4, 0);       // rear hitch 62 %
+    ibBits(d, 6, 4, 2, 1);            // engage the rear PTO
+    ibBits(d, 7, 4, 2, 1);            // 1000 r/min
+    ibDecodeCommand(cmdFrame(IB_PGN_HPTOC, 0x80, null, d));
+    eq('HPTOC hitch / PTO / mode', [src('hitch_pos'), src('pto'), src('pto_mode')], [62, 1, 1]);
+    d = ibBlank();                    // every field "don't care" / not available
+    ibDecodeCommand(cmdFrame(IB_PGN_HPTOC, 0x80, null, d));
+    eq('an all-ones HPTOC changes nothing', [src('hitch_pos'), src('pto'), src('pto_mode')], [62, 1, 1]);
+
+    const gsc = (curv, status, da) => {
+      const g = ibBlank();
+      ibPut(g, 0, 2, curv, 0.25, -8032);
+      ibBits(g, 2, 0, 2, status);
+      return cmdFrame(IB_PGN_GSC, 0x1C, da, g);
+    };
+    ibDecodeCommand(gsc(40, 1, SA_TECU));
+    eq('GSC +40 1/km, intended to steer', src('guidance_curvature'), 40);
+    ibDecodeCommand(gsc(-300, 1, 0xFF));
+    eq('GSC to the global address, clamped to full lock', src('guidance_curvature'), -127);
+    ibDecodeCommand(gsc(10, 1, 0x80));
+    eq('GSC addressed to someone else is not ours', src('guidance_curvature'), -127);
+    ibDecodeCommand(gsc(10, 0, SA_TECU));
+    eq('"not intended to steer" lets go of the wheel', src('guidance_curvature'), undefined);
+
+    const av = (flowPct, state) => {
+      const a = ibBlank();
+      ibPut(a, 0, 1, flowPct, 0.4, 0);
+      ibBits(a, 2, 0, 4, state);
+      return cmdFrame(IB_PGN_AV0C, 0x80, null, a);
+    };
+    ibDecodeCommand(av(40, 1));
+    eq('AV0C extend 40 %', src('scv_flow'), 40);
+    ibDecodeCommand(av(40, 15));
+    eq('AV0C "don\'t care" changes nothing', src('scv_flow'), 40);
+    ibDecodeCommand(av(40, 2));
+    eq('AV0C retract closes the gate', src('scv_flow'), 0);
+
+    ibCmd.hitch_pos.at = Date.now() - IB_CMD_TTL_MS - 1;
+    eq('a withdrawn command expires back to the panel', src('hitch_pos'), 100);
+    ibDecodeCommand(av(50, 1));
+    window.isobusSetCtl({ scv_flow: 20 });
+    eq('a panel edit clears the bus value', [src('scv_flow'), window.isobusCtl().bus.scv_flow], [20, false]);
+    for (const k of Object.keys(ibCmd)) Object.assign(ibCmd[k], savedCmd[k]);
 
     if (failures.length) console.error('ISOBUS self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
     else console.log('ISOBUS self-test: all checks passed.');

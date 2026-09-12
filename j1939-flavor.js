@@ -188,6 +188,26 @@
     pack: jfPack,
   });
 
+  // ── The retarder REQUEST (contract `retarder`, dir "in") ─────────────────────
+  // This file owns the truck's retarder stalk, the inbound twin of the ERC1 it packs: truck.js's
+  // slider is a view over this state through window.j1939FlavorCtl / j1939FlavorSetCtl, and the
+  // value leaves through the uplink registry. A stalk has a position whether or not anyone is
+  // touching it, so it is always sent, and its resting 0 is the game's own absent-default.
+  //
+  // NO FRAME DRIVES IT. The real carrier is TSC1 (PGN 0, Torque/Speed Control 1) addressed to the
+  // driveline retarder at SA_RETARDER, its requested-torque field carrying the negative
+  // percentage. TSC1's field positions are J1939-71's: the ISOBUS Data Dictionary lists its SPNs
+  // with none, and the local copy of J1939-71 is a scanned image the tools here cannot read. A
+  // decoder written from memory is exactly what this file's primary-source rule forbids, so the
+  // stalk is panel-only until those positions come off the document.
+  const jfCmd = { retarder: 0 };
+  window.carlitoUplinkSources = window.carlitoUplinkSources || {};
+  Object.assign(window.carlitoUplinkSources, { retarder: () => jfCmd.retarder });
+  window.j1939FlavorCtl = () => ({ retarder: jfCmd.retarder });
+  window.j1939FlavorSetCtl = (p) => {
+    if (p && 'retarder' in p) jfCmd.retarder = Math.max(0, Math.min(100, Math.round(Number(p.retarder)) || 0));
+  };
+
   // ── Self-test ───────────────────────────────────────────────────────────────
   // Run from the console: window.j1939FlavorSelfTest(). Covers the things that are easy to get
   // backwards and impossible to eyeball - the 29-bit id build, each SPN's scale and offset, the
