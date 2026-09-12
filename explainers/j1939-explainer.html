@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J1939 Interactive Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+.toolbar-label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+input[type=text] {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  padding: 4px 7px;
+  transition: border-color .15s;
+}
+input[type=text]:focus { border-color: var(--border2); }
+input.invalid { border-color: var(--red) !important; background: var(--red-dim); }
+.intro-strip {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.bar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 32px;
+}
+main { flex: 1; overflow-y: auto; }
+
+/* ── Decoder panel ── */
+.config-strip {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+}
+.config-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.config-group { display: flex; align-items: center; gap: 6px; }
+
+/* Bit-field strip */
+.bitstrip {
+  display: flex;
+  gap: 3px;
+  margin: 16px 0 6px;
+  font-family: var(--mono);
+  flex-wrap: wrap;
+}
+.bf {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  text-align: center;
+  min-width: 52px;
+  cursor: help;
+}
+.bf .bf-name { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-family: var(--sans); font-weight: 600; }
+.bf .bf-bits { font-size: 10px; color: var(--text3); font-family: var(--sans); margin-top: 1px; }
+.bf .bf-val  { font-size: 14px; margin-top: 3px; }
+.bf.f-p   { border-color: var(--purple); background: var(--purple-dim); } .bf.f-p .bf-name { color: var(--purple); }
+.bf.f-r   { border-color: var(--border2); }                              .bf.f-r .bf-name { color: var(--text3); }
+.bf.f-pf  { border-color: var(--amber); background: var(--amber-dim); }  .bf.f-pf .bf-name { color: var(--amber); }
+.bf.f-ps  { border-color: var(--blue); background: var(--blue-dim); }    .bf.f-ps .bf-name { color: var(--blue); }
+.bf.f-sa  { border-color: var(--green); background: var(--green-dim); }  .bf.f-sa .bf-name { color: var(--green); }
+
+.derived {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+.dcard {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 130px;
+}
+.dcard .d-label { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--text3); font-weight: 600; }
+.dcard .d-val   { font-family: var(--mono); font-size: 15px; margin-top: 3px; color: var(--text); }
+.dcard .d-sub   { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+/* Signal decode table */
+.sig-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0 4px;
+  font-size: 13px;
+}
+.sig-table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text3); padding: 5px 10px; border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.sig-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
+.sig-table tr:last-child td { border-bottom: none; }
+.sig-table td.mono { font-family: var(--mono); color: var(--text); white-space: nowrap; }
+.sig-table td.val  { color: var(--green); font-weight: 600; }
+.sig-na { color: var(--text3) !important; font-weight: 400 !important; }
+
+.byte-view { font-family: var(--mono); font-size: 14px; letter-spacing: .1em; margin: 8px 0 2px; }
+.byte-view span { cursor: help; padding: 1px 2px; border-radius: 3px; }
+.byte-view span:hover { text-decoration: underline dotted; }
+.bv-sig { color: var(--text); }
+.bv-hl  { color: var(--green); background: var(--green-dim); }
+.bv-na  { color: var(--text3); }
+
+.decode-note { font-size: 13px; color: var(--text2); margin-top: 8px; line-height: 1.6; }
+.error-msg {
+  background: var(--red-dim); border: 1px solid var(--red); color: var(--red);
+  border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-top: 10px;
+}
+
+/* ── BAM ladder ── */
+.frame-table {
+  width: 100%; border-collapse: collapse; margin-top: 10px;
+  font-family: var(--mono); font-size: 13px;
+}
+.frame-table th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text3); padding: 6px 10px; border-bottom: 1px solid var(--border);
+  font-weight: 500; font-family: var(--sans);
+}
+.frame-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: top; }
+.frame-table tr:last-child td { border-bottom: none; }
+.frame-table td.id   { color: var(--text); white-space: nowrap; }
+.frame-table td.data { color: var(--text); letter-spacing: .06em; white-space: nowrap; }
+.frame-table td.note { font-family: var(--sans); font-size: 12px; }
+.badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 11px; font-weight: 600; font-family: var(--mono);
+}
+.badge.cm { color: var(--amber); background: var(--amber-dim); }
+.badge.dt { color: var(--blue);  background: var(--blue-dim); }
+.b-ctrl { color: var(--amber); cursor: help; }
+.b-len  { color: var(--purple); cursor: help; }
+.b-pgn  { color: var(--red); cursor: help; }
+.b-seq  { color: var(--amber); cursor: help; }
+.b-data { color: var(--text); cursor: help; }
+.b-pad  { color: var(--text3); cursor: help; }
+[data-tip]:hover { text-decoration: underline dotted; }
+
+/* ── Tooltip ── */
+#tip {
+  position: fixed; z-index: 9999; display: none;
+  background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 10px 14px; font-size: 13px; font-family: var(--sans); color: var(--text);
+  max-width: 340px; line-height: 1.65; pointer-events: none;
+  box-shadow: 0 8px 28px #0009;
+}
+#tip .tip-title { font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+#tip .tip-row   { color: var(--text2); font-size: 12px; }
+#tip .tip-mono  { font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+/* ── Prose ── */
+.prose-section {
+  max-width: 900px;
+  margin: 40px auto 0;
+  padding: 28px 0 80px;
+  border-top: 1px solid var(--border);
+}
+.prose-section h2 { font-size: 18px; font-weight: 600; margin: 30px 0 10px; }
+.prose-section h2:first-child { margin-top: 0; }
+.prose-section p { line-height: 1.7; color: var(--text); margin-bottom: 10px; font-size: 13.5px; }
+.prose-section code {
+  font-family: var(--mono); font-size: 0.9em; background: var(--bg3);
+  padding: 1px 5px; border-radius: 4px; color: var(--green);
+}
+.prose-section .ex-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; margin: 10px 0 18px; display: flex; align-items: center;
+  justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+.prose-section .ex-desc { font-size: 13px; color: var(--text2); flex: 1; min-width: 220px; }
+.prose-section .ex-desc strong { color: var(--text); }
+.prose-section table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 18px; }
+.prose-section th, .prose-section td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--border); }
+.prose-section th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+.prose-section td.mono, .prose-section th.mono { font-family: var(--mono); }
+.prose-section a { color: var(--blue); text-decoration: none; }
+.prose-section a:hover { text-decoration: underline; }
+.ex-btn {
+  background: var(--green-dim); border: 1px solid var(--green); color: var(--green);
+  border-radius: 6px; cursor: pointer; font-family: var(--sans); font-size: 13px;
+  font-weight: 600; padding: 6px 14px; white-space: nowrap; transition: background .15s;
+}
+.ex-btn:hover { background: var(--green); color: #000; }
+.section-title {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text3); margin: 28px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+<!-- remove from here -->
+<div style="background:#b00020;color:#fff;text-align:center;padding:10px;font-family:sans-serif;font-size:14px;font-weight:bold;">AI-generated text still pending human review/editing.</div>
+<!-- remove until here -->
+
+<div id="tip"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">J1939 Explainer</div>
+      <div class="logo-sub">Interactive ID &amp; PGN Decoder</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="nmea2000-explainer.html" target="_blank" class="btn">NMEA 2000 ↗</a>
+  <a href="iso11783-explainer.html" target="_blank" class="btn">ISOBUS ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+  <div class="intro-strip">
+    <div class="bar-inner">
+      A heavy-duty truck broadcasts its engine speed in a CAN frame with the 29-bit ID
+      <span style="font-family:var(--mono)">0CF00400</span>. Everything about that frame's meaning, who sent it,
+      what it carries, how urgent it is, lives inside that ID. Type any 29-bit ID and payload below and take
+      it apart. Hover any field or byte for what it means.
+    </div>
+  </div>
+
+  <!-- Decoder inputs -->
+  <div class="config-strip">
+    <div class="bar-inner">
+      <div class="config-row">
+        <div class="config-group">
+          <span class="toolbar-label">29-bit CAN ID (hex)</span>
+          <input type="text" id="canId" value="0CF00400" maxlength="8" style="width:96px" oninput="decode()">
+        </div>
+        <div class="config-group" style="flex:1;min-width:260px">
+          <span class="toolbar-label">Data bytes</span>
+          <input type="text" id="canData" value="FF FF 7D 68 13 00 FF FF" style="flex:1;min-width:200px" oninput="decode()">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar-inner">
+    <div id="decodeOut"></div>
+
+    <div class="prose-section">
+      <h2>Reading the ID: the 29-bit split</h2>
+      <p>
+        Classic CAN gives an 11-bit identifier; the extended format gives 29. On a car those extra
+        bits are mostly unused. J1939 instead assigns every one of them a job, so the ID itself is a
+        small structured record. Take the running example <code>0CF00400</code> apart from the top:
+      </p>
+      <p>
+        The top 3 bits are the priority. <code>0C</code> in the first hex digit pair is
+        <code>0000 1100</code> in binary, and the ID is only 29 bits wide, so the priority sits in
+        bits 28 to 26: <code>011</code>, priority 3. Lower wins arbitration, exactly as raw CAN IDs
+        do; 0 is reserved for the most urgent traffic and 6 is the default for routine broadcasts.
+        Two single bits follow: the Extended Data Page (still 0 in practice, reserved by the standard)
+        and the Data Page, which effectively acts as bit 17 of the PGN. Then come three whole bytes:
+        PDU Format <code>F0</code>, PDU Specific <code>04</code>, and Source Address <code>00</code>.
+      </p>
+      <p>
+        The source address is the simplest of the three: it is the sender's claimed bus address,
+        and <code>00</code> is the standard address of Engine #1. Which leaves the two bytes in
+        the middle, and those are where the interesting rule lives.
+      </p>
+
+      <h2>PDU1 vs PDU2: one byte, two jobs</h2>
+      <p>
+        J1939 messages are named by their <strong>PGN</strong> (Parameter Group Number), and the
+        PGN comes out of the PDU Format and PDU Specific bytes. But the PDU Specific byte means two
+        different things depending on the PDU Format value, and the cutoff is 240 (<code>0xF0</code>):
+      </p>
+      <p>
+        If PDU Format is below 240 (called PDU1), the message is addressed to one node: PDU Specific
+        is a destination address, and the PGN is just the PDU Format byte shifted up
+        (<code>PF &lt;&lt; 8</code>, low byte zero). If PDU Format is 240 or above (PDU2), there is
+        no destination, the frame is a broadcast for anyone who cares, and PDU Specific becomes a
+        Group Extension that is part of the PGN itself (<code>PF &lt;&lt; 8 | PS</code>).
+      </p>
+      <p>
+        In <code>0CF00400</code>, PDU Format is <code>F0</code>, exactly at the cutoff, so this is
+        PDU2: broadcast, and the PGN is <code>0xF004</code>, decimal 61444. That number has a name
+        in SAE J1939-71: EEC1, Electronic Engine Controller 1, the message that carries engine
+        speed. No request needed, no destination, the engine just shouts it onto the bus every few
+        tens of milliseconds.
+      </p>
+      <div class="ex-card">
+        <span class="ex-desc">A PDU1 counter-example: the <strong>Request PGN</strong> (59904,
+          PDU Format <code>EA</code>), sent by a tool at address <code>F9</code> <em>to</em> the
+          engine at <code>00</code>, asking it to send PGN 65260 (the VIN). The 3-byte payload is
+          the requested PGN, little-endian.</span>
+        <button class="ex-btn" onclick="loadExample('18EA00F9','EC FE 00')">Try it</button>
+      </div>
+      <p>
+        Note what changed in the decoder: with PDU Format below 240, the blue byte flipped from
+        "Group Extension" to "Destination", and the PGN's low byte went to zero. That one comparison
+        (PF &lt; 240) is the single most load-bearing rule in J1939 ID parsing.
+      </p>
+
+      <h2>SPNs: from bytes to physical values</h2>
+      <p>
+        Inside a PGN's 8 data bytes live <strong>SPNs</strong> (Suspect Parameter Numbers), the
+        individual signals. Each SPN has a fixed position, width, scale and offset, published in
+        J1939-71 (unlike a car's proprietary DBC, the dictionary is standard, which is why one
+        J1939 tool works across truck brands). Decode the running example's payload
+        <code>FF FF 7D 68 13 00 FF FF</code> by hand:
+      </p>
+      <p>
+        Engine speed is SPN 190: bytes 3 and 4, 16 bits little-endian, 0.125 rpm per bit. Bytes 3
+        and 4 are <code>68 13</code>, so the raw value is <code>0x1368</code> = 4968, and
+        4968 × 0.125 = <strong>621 rpm</strong>. An idling diesel. Byte 2 is the actual engine
+        torque, one byte with a −125 offset: <code>0x7D</code> = 125, 125 − 125 = 0 % torque, which
+        is what idle should read.
+      </p>
+      <p>
+        And the <code>FF</code> bytes are not garbage. J1939 reserves the top of every SPN's range
+        to mean <em>not available</em>: <code>0xFF</code> for a byte, <code>0xFFFF</code> for a
+        word. This ECU simply doesn't populate those signals, and a decoder must show "n/a" rather
+        than a nonsense value. The decoder above greys them out for exactly that reason.
+      </p>
+      <div class="ex-card">
+        <span class="ex-desc"><strong>Engine Temperature 1</strong> (PGN 65262): coolant at byte 0
+          with a −40 °C offset, so <code>5A</code> = 90 − 40 = 50 °C, and an oil temperature scaled
+          at 1/32 °C per bit with a −273 offset (yes, it counts from absolute zero).</span>
+        <button class="ex-btn" onclick="loadExample('18FEEE00','5A FF 40 25 FF FF FF FF')">Try it</button>
+      </div>
+      <div class="ex-card">
+        <span class="ex-desc"><strong>Cruise Control / Vehicle Speed</strong> (PGN 65265): wheel-based
+          speed in bytes 1 and 2 at 1/256 km/h per bit. <code>00 50</code> little-endian is
+          <code>0x5000</code> = 20480, ÷ 256 = 80 km/h.</span>
+        <button class="ex-btn" onclick="loadExample('18FEF100','FF 00 50 FF FF FF FF FF')">Try it</button>
+      </div>
+
+      <h2>When 8 bytes aren't enough: the Transport Protocol</h2>
+      <p>
+        A VIN is 17 characters and a frame holds 8 bytes, so J1939 needs its own multi-frame layer
+        (it predates ISO-TP and works differently: no flow-control frame per block, and everything
+        travels in ordinary broadcast PGNs). Two PGNs do all the work. <strong>TP.CM</strong>
+        (PGN 60416, PDU Format <code>EC</code>) manages the connection, and <strong>TP.DT</strong>
+        (PGN 60160, PDU Format <code>EB</code>) carries the data, 7 bytes per frame after a 1-byte
+        sequence number. That 7-byte stride caps a message at 255 packets × 7 = 1785 bytes.
+      </p>
+      <p>
+        For broadcasts there is no handshake at all. The sender transmits a single TP.CM with
+        control byte <code>0x20</code>, a <strong>BAM</strong> (Broadcast Announce Message), saying
+        "a message of this size and PGN is coming in this many packets", then streams the TP.DT
+        frames with 50 to 200 ms between them. Receivers reassemble or ignore; nobody replies.
+        Point-to-point transfers use the same TP.DT frames but wrap them in an RTS/CTS handshake
+        (control bytes <code>0x10</code>/<code>0x11</code>, closed by an End-of-Message ACK
+        <code>0x13</code>), which lets the receiver pace the sender the way ISO-TP flow control does.
+      </p>
+      <p>
+        Type a VIN below and watch the BAM sequence build. Hover the bytes: the TP.CM payload packs
+        the control byte, the total size (little-endian), the packet count, and the PGN being
+        carried (also little-endian, 3 bytes).
+      </p>
+
+      <div class="section-title">BAM simulator: send a VIN (PGN 65260)</div>
+      <div class="config-row" style="margin-bottom:4px">
+        <div class="config-group" style="flex:1;min-width:280px">
+          <span class="toolbar-label">VIN text</span>
+          <input type="text" id="vinText" value="1XKWD49X1KJ211825" maxlength="60" style="flex:1;min-width:220px" oninput="bam()">
+        </div>
+      </div>
+      <div id="bamOut"></div>
+
+      <h2>Who's talking: addresses and the address claim</h2>
+      <p>
+        Every sender needs a source address, and J1939 hands them out two ways. Well-known
+        functions have fixed addresses from SAE J1939 (0 Engine #1, 3 Transmission #1, 11 Brakes,
+        23 Instrument Cluster, and so on up through the standard list; 249 is the customary
+        service-tool address, 255 is the global broadcast destination, 254 the null address).
+        Everything else claims one at startup: the device broadcasts PGN 60928, Address Claimed,
+        whose 8-byte payload is a 64-bit NAME encoding who it is (manufacturer code, function,
+        industry group, a unique identity number). If two devices claim the same address, the one
+        with the numerically lower NAME wins and the loser must claim a different address or fall
+        silent. The result is plug-and-play addressing with no central allocator, which is why the
+        same standard scaled from trucks to <a href="nmea2000-explainer.html">boats (NMEA 2000)</a>
+        and <a href="iso11783-explainer.html">tractors (ISOBUS)</a>.
+      </p>
+      <div class="ex-card">
+        <span class="ex-desc">An <strong>Address Claimed</strong> frame: PGN 60928 is PDU1, sent to
+          the global destination <code>FF</code>, source <code>00</code>. The payload is the 64-bit
+          NAME; the decoder breaks out its fields.</span>
+        <button class="ex-btn" onclick="loadExample('18EEFF00','25 03 60 04 00 81 00 20')">Try it</button>
+      </div>
+
+      <h2>Practical notes</h2>
+      <p>
+        The classic J1939 bus runs at 250 kbit/s (J1939-14 later added a 500 kbit/s profile), so
+        set the speed before connecting a real adapter. In sloppyCAN, the J1939 / N2K tab does live
+        what this page does statically: it splits every 29-bit ID, names the PGN, decodes the
+        byte-aligned SPNs, reassembles TP transfers, and tracks address claims. The
+        <strong>Demo</strong> button generates J1939 traffic (including periodic BAM transfers) so
+        you can watch all of it with no hardware attached.
+      </p>
+      <p>
+        One honest caveat: the J1939-71 dictionary is huge and this page decodes only a handful of
+        common PGNs. An ID that parses cleanly but shows "unknown PGN" is still a perfectly valid
+        J1939 frame; the split and the PDU1/PDU2 rule apply to every 29-bit ID on the bus.
+      </p>
+    </div>
+  </div>
+</main>
+
+<script>
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function h2x(v) { return v.toString(16).toUpperCase().padStart(2, '0'); }
+function escAttr(s) { return s.replace(/"/g, '&quot;'); }
+function parseHexBytes(str) {
+  if (!str.trim()) return [];
+  const tokens = str.trim().split(/[\s,]+/).filter(Boolean);
+  const bytes = [];
+  for (const t of tokens) {
+    if (!/^[0-9a-fA-F]{1,2}$/.test(t)) return null;
+    bytes.push(parseInt(t, 16));
+  }
+  return bytes;
+}
+
+// ── Reference tables (small, curated) ────────────────────────────────────────
+const SA_NAMES = {
+  0x00:'Engine #1', 0x03:'Transmission #1', 0x0B:'Brakes - System Controller',
+  0x17:'Instrument Cluster', 0x19:'Steering Column Unit', 0x21:'Body Controller',
+  0x27:'Management Computer #1', 0x31:'Cab Controller', 0xF9:'Service Tool',
+  0xFE:'Null (cannot claim)', 0xFF:'Global (broadcast)'
+};
+const PGN_NAMES = {
+  61444:'EEC1 - Electronic Engine Controller 1',
+  61443:'EEC2 - Electronic Engine Controller 2',
+  65262:'ET1 - Engine Temperature 1',
+  65265:'CCVS - Cruise Control / Vehicle Speed',
+  65260:'VI - Vehicle Identification (VIN)',
+  65226:'DM1 - Active Diagnostic Trouble Codes',
+  60928:'Address Claimed',
+  59904:'Request PGN',
+  60416:'TP.CM - Transport Protocol Connection Mgmt',
+  60160:'TP.DT - Transport Protocol Data Transfer'
+};
+const INDUSTRY_GROUPS = { 0:'Global', 1:'On-Highway', 2:'Agriculture/Forestry', 3:'Construction', 4:'Marine', 5:'Industrial' };
+
+// ── Field tooltips ───────────────────────────────────────────────────────────
+function tipField(title, color, rows) {
+  return `<div class="tip-title" style="color:var(${color})">${title}</div>` +
+    rows.map(r => `<div class="tip-row">${r}</div>`).join('');
+}
+
+// ── SPN decoders for the curated PGNs ────────────────────────────────────────
+// Each returns rows: [name, spn, bytesDesc, rawStr, value, na]
+function u16le(b, i) { return b[i] | (b[i+1] << 8); }
+
+function decodeSpns(pgn, b) {
+  const rows = [];
+  const push = (name, spn, pos, raw, val, na) => rows.push({ name, spn, pos, raw, val, na });
+  if (pgn === 61444 && b.length >= 8) {
+    const dd = b[1], at = b[2], spd = u16le(b, 3);
+    push('Driver demand torque', 512, 'byte 1', '0x'+h2x(b[1]), dd === 0xFF ? 'n/a' : (dd - 125) + ' %', dd === 0xFF);
+    push('Actual engine torque', 513, 'byte 2', '0x'+h2x(b[2]), at === 0xFF ? 'n/a' : (at - 125) + ' %', at === 0xFF);
+    push('Engine speed', 190, 'bytes 3-4 LE', '0x'+spd.toString(16).toUpperCase().padStart(4,'0'),
+         spd === 0xFFFF ? 'n/a' : (spd * 0.125).toFixed(1) + ' rpm', spd === 0xFFFF);
+    push('Controlling source addr', 1483, 'byte 5', '0x'+h2x(b[5]), b[5] === 0xFF ? 'n/a' : '0x'+h2x(b[5]) + (SA_NAMES[b[5]] ? ' ('+SA_NAMES[b[5]]+')' : ''), b[5] === 0xFF);
+  } else if (pgn === 65262 && b.length >= 4) {
+    const oil = u16le(b, 2);
+    push('Coolant temperature', 110, 'byte 0', '0x'+h2x(b[0]), b[0] === 0xFF ? 'n/a' : (b[0] - 40) + ' °C', b[0] === 0xFF);
+    push('Fuel temperature', 174, 'byte 1', '0x'+h2x(b[1]), b[1] === 0xFF ? 'n/a' : (b[1] - 40) + ' °C', b[1] === 0xFF);
+    push('Engine oil temperature', 175, 'bytes 2-3 LE', '0x'+oil.toString(16).toUpperCase().padStart(4,'0'),
+         oil === 0xFFFF ? 'n/a' : (oil / 32 - 273).toFixed(1) + ' °C', oil === 0xFFFF);
+  } else if (pgn === 65265 && b.length >= 3) {
+    const spd = u16le(b, 1);
+    push('Wheel-based vehicle speed', 84, 'bytes 1-2 LE', '0x'+spd.toString(16).toUpperCase().padStart(4,'0'),
+         spd === 0xFFFF ? 'n/a' : (spd / 256).toFixed(1) + ' km/h', spd === 0xFFFF);
+  } else if (pgn === 59904 && b.length >= 3) {
+    const reqPgn = b[0] | (b[1] << 8) | (b[2] << 16);
+    push('Requested PGN', '-', 'bytes 0-2 LE', '0x'+reqPgn.toString(16).toUpperCase(),
+         reqPgn + (PGN_NAMES[reqPgn] ? ' ('+PGN_NAMES[reqPgn]+')' : ''), false);
+  } else if (pgn === 60928 && b.length >= 8) {
+    const idNum = b[0] | (b[1] << 8) | ((b[2] & 0x1F) << 16);
+    const mfg = (b[2] >> 5) | (b[3] << 3);
+    const func = b[5];
+    const vsys = (b[6] >> 1) & 0x7F;
+    const ig = (b[7] >> 4) & 0x07;
+    const aac = (b[7] >> 7) & 1;
+    push('Identity number', '-', 'bits 0-20', idNum, idNum + ' (unique serial)', false);
+    push('Manufacturer code', '-', 'bits 21-31', mfg, mfg, false);
+    push('Function', '-', 'bits 40-47', func, func, false);
+    push('Vehicle system', '-', 'bits 49-55', vsys, vsys, false);
+    push('Industry group', '-', 'bits 60-62', ig, ig + (INDUSTRY_GROUPS[ig] ? ' ('+INDUSTRY_GROUPS[ig]+')' : ''), false);
+    push('Arbitrary-address capable', '-', 'bit 63', aac, aac ? 'yes (can move if it loses)' : 'no', false);
+  } else if (pgn === 60416 && b.length >= 8) {
+    const ctrl = b[0];
+    const names = { 0x10:'RTS (Request To Send)', 0x11:'CTS (Clear To Send)', 0x13:'End of Message ACK', 0x20:'BAM (Broadcast Announce)', 0xFF:'Connection Abort' };
+    const size = u16le(b, 1);
+    const carried = b[5] | (b[6] << 8) | (b[7] << 16);
+    push('Control byte', '-', 'byte 0', '0x'+h2x(ctrl), names[ctrl] || 'unknown', false);
+    if (ctrl === 0x20 || ctrl === 0x10) {
+      push('Total message size', '-', 'bytes 1-2 LE', size, size + ' bytes', false);
+      push('Number of packets', '-', 'byte 3', b[3], b[3], false);
+      push('Carried PGN', '-', 'bytes 5-7 LE', '0x'+carried.toString(16).toUpperCase(),
+           carried + (PGN_NAMES[carried] ? ' ('+PGN_NAMES[carried]+')' : ''), false);
+    }
+  } else if (pgn === 60160 && b.length >= 1) {
+    push('Sequence number', '-', 'byte 0', b[0], 'packet #' + b[0] + ' → message bytes ' + ((b[0]-1)*7) + '-' + ((b[0]-1)*7+6), false);
+  }
+  return rows;
+}
+
+// ── Main decoder ─────────────────────────────────────────────────────────────
+function decode() {
+  const out = document.getElementById('decodeOut');
+  const idEl = document.getElementById('canId');
+  const dataEl = document.getElementById('canData');
+  const idStr = idEl.value.trim();
+  const idOk = /^[0-9a-fA-F]{1,8}$/.test(idStr);
+  idEl.classList.toggle('invalid', !idOk);
+  const bytes = parseHexBytes(dataEl.value);
+  dataEl.classList.toggle('invalid', bytes === null);
+  if (!idOk) { out.innerHTML = '<div class="error-msg">Enter a hex CAN ID (up to 8 hex digits).</div>'; return; }
+  if (bytes === null) { out.innerHTML = '<div class="error-msg">Data bytes must be hex pairs separated by spaces.</div>'; return; }
+
+  const id = parseInt(idStr, 16) & 0x1FFFFFFF;
+  const p   = (id >>> 26) & 0x7;
+  const edp = (id >>> 25) & 0x1;
+  const dp  = (id >>> 24) & 0x1;
+  const pf  = (id >>> 16) & 0xFF;
+  const ps  = (id >>> 8)  & 0xFF;
+  const sa  = id & 0xFF;
+  const pdu1 = pf < 240;
+  const pgn = (edp << 17) | (dp << 16) | (pf << 8) | (pdu1 ? 0 : ps);
+
+  const fields = [
+    { cls:'f-p',  name:'Priority', bits:'28-26', val:p, tip: tipField('Priority', '--purple', [
+        `Value: <span class="tip-mono">${p}</span> (3 bits)`,
+        'Lower wins CAN arbitration. 0 is most urgent; 6 is the default for routine broadcasts; 3 is common for control messages.']) },
+    { cls:'f-r',  name:'EDP', bits:'25', val:edp, tip: tipField('Extended Data Page', '--text2', [
+        `Value: <span class="tip-mono">${edp}</span>`,
+        'Reserved; 0 on every J1939 bus in practice. Together with DP it extends the PGN space.']) },
+    { cls:'f-r',  name:'DP', bits:'24', val:dp, tip: tipField('Data Page', '--text2', [
+        `Value: <span class="tip-mono">${dp}</span>`,
+        'Acts as bit 16 of the PGN. Page 0 holds nearly all defined PGNs; page 1 adds more (NMEA 2000 uses it heavily).']) },
+    { cls:'f-pf', name:'PDU Format', bits:'23-16', val:'0x'+h2x(pf), tip: tipField('PDU Format (PF)', '--amber', [
+        `Value: <span class="tip-mono">0x${h2x(pf)}</span> = ${pf}`,
+        pf < 240 ? '<b>Below 240 → PDU1.</b> The next byte is a destination address and the PGN is PF&nbsp;&lt;&lt;&nbsp;8.'
+                 : '<b>240 or above → PDU2.</b> Broadcast; the next byte joins the PGN as a Group Extension.']) },
+    { cls:'f-ps', name: pdu1 ? 'Destination' : 'Group Ext.', bits:'15-8', val:'0x'+h2x(ps), tip: tipField('PDU Specific (PS)', '--blue', [
+        `Value: <span class="tip-mono">0x${h2x(ps)}</span>`,
+        pdu1 ? `PDU1, so this is the <b>destination address</b>: ${SA_NAMES[ps] || 'address ' + ps}.`
+             : 'PDU2, so this is a <b>Group Extension</b>: it is part of the PGN, not an address.']) },
+    { cls:'f-sa', name:'Source Addr', bits:'7-0', val:'0x'+h2x(sa), tip: tipField('Source Address (SA)', '--green', [
+        `Value: <span class="tip-mono">0x${h2x(sa)}</span> = ${sa}`,
+        SA_NAMES[sa] ? `Well-known address: <b>${SA_NAMES[sa]}</b>.` : 'Not a well-known fixed address; assigned via address claim.']) },
+  ];
+
+  let html = '<div class="bitstrip">' + fields.map(f =>
+    `<div class="bf ${f.cls}" data-tip="${escAttr(f.tip)}">` +
+    `<div class="bf-name">${f.name}</div><div class="bf-bits">bits ${f.bits}</div>` +
+    `<div class="bf-val">${f.val}</div></div>`).join('') + '</div>';
+
+  html += '<div class="derived">';
+  html += `<div class="dcard"><div class="d-label">PGN</div><div class="d-val">${pgn} (0x${pgn.toString(16).toUpperCase()})</div>` +
+          `<div class="d-sub">${PGN_NAMES[pgn] || 'unknown PGN (not in this page’s small dictionary)'}</div></div>`;
+  html += `<div class="dcard"><div class="d-label">PDU type</div><div class="d-val">${pdu1 ? 'PDU1' : 'PDU2'}</div>` +
+          `<div class="d-sub">${pdu1 ? 'point-to-point (PS = destination)' : 'broadcast (PS = group extension)'}</div></div>`;
+  html += `<div class="dcard"><div class="d-label">${pdu1 ? 'Destination' : 'Audience'}</div>` +
+          `<div class="d-val">${pdu1 ? '0x'+h2x(ps) : 'all nodes'}</div>` +
+          `<div class="d-sub">${pdu1 ? (SA_NAMES[ps] || 'claimed address') : 'no destination in PDU2'}</div></div>`;
+  html += `<div class="dcard"><div class="d-label">Source</div><div class="d-val">0x${h2x(sa)}</div>` +
+          `<div class="d-sub">${SA_NAMES[sa] || 'claimed address'}</div></div>`;
+  html += '</div>';
+
+  const rows = decodeSpns(pgn, bytes);
+  if (bytes.length) {
+    html += '<div class="byte-view">' + bytes.map((b, i) =>
+      `<span class="${b === 0xFF ? 'bv-na' : 'bv-sig'}" data-tip="${escAttr(
+        tipField('Data byte ' + i, '--text2', [
+          `Value: <span class="tip-mono">0x${h2x(b)}</span> = ${b}`,
+          b === 0xFF ? 'All-ones usually means <b>not available</b> in J1939.' : ''
+        ]))}">${h2x(b)}</span>`).join(' ') + '</div>';
+  }
+  if (rows.length) {
+    html += '<table class="sig-table"><thead><tr><th>Signal</th><th>SPN</th><th>Position</th><th>Raw</th><th>Decoded</th></tr></thead><tbody>';
+    for (const r of rows) {
+      html += `<tr><td>${r.name}</td><td class="mono">${r.spn}</td><td class="mono">${r.pos}</td>` +
+              `<td class="mono">${r.raw}</td><td class="val ${r.na ? 'sig-na' : ''}">${r.val}</td></tr>`;
+    }
+    html += '</tbody></table>';
+  } else if (bytes.length) {
+    html += '<div class="decode-note">No SPN decode for this PGN in this page’s dictionary. The ID split above still applies; the payload layout would come from J1939-71 (or the manufacturer).</div>';
+  }
+  out.innerHTML = html;
+}
+
+function loadExample(id, data) {
+  document.getElementById('canId').value = id;
+  document.getElementById('canData').value = data;
+  decode();
+  document.querySelector('.config-strip').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── BAM simulator ────────────────────────────────────────────────────────────
+function bam() {
+  const out = document.getElementById('bamOut');
+  const txt = document.getElementById('vinText').value;
+  if (!txt.length) { out.innerHTML = '<div class="decode-note">Enter some text to send.</div>'; return; }
+  const payload = [...txt].map(c => c.charCodeAt(0) & 0x7F);
+  // VIN PGN 65260 payload is the ASCII characters terminated by '*'
+  payload.push(0x2A);
+  const size = payload.length;
+  const nPkts = Math.ceil(size / 7);
+  const pgn = 65260;
+  const sa = 0x00;
+
+  function td(cls, v, tip) { return `<span class="${cls}" data-tip="${escAttr(tip)}">${h2x(v)}</span>`; }
+
+  const cm = [0x20, size & 0xFF, (size >> 8) & 0xFF, nPkts, 0xFF, pgn & 0xFF, (pgn >> 8) & 0xFF, (pgn >> 16) & 0xFF];
+  const cmTips = [
+    tipField('Control byte', '--amber', ['<span class="tip-mono">0x20</span> = BAM, Broadcast Announce Message. No handshake follows; data starts immediately.']),
+    tipField('Total size (low byte)', '--purple', [`Message is <b>${size} bytes</b> (16-bit little-endian).`]),
+    tipField('Total size (high byte)', '--purple', [`Message is <b>${size} bytes</b>.`]),
+    tipField('Packet count', '--purple', [`<b>${nPkts} TP.DT packets</b> will follow (${size} bytes ÷ 7 per packet, rounded up).`]),
+    tipField('Reserved', '--text2', ['Always <span class="tip-mono">0xFF</span>.']),
+    tipField('Carried PGN (low)', '--red', [`The PGN being transported: <b>${pgn}</b> (0x${pgn.toString(16).toUpperCase()}), the VIN message. 3 bytes, little-endian.`]),
+    tipField('Carried PGN (mid)', '--red', [`PGN ${pgn}, byte 2 of 3.`]),
+    tipField('Carried PGN (high)', '--red', [`PGN ${pgn}, byte 3 of 3.`]),
+  ];
+  let html = '<table class="frame-table"><thead><tr><th>#</th><th>CAN ID</th><th>Type</th><th>Data</th><th>Meaning</th></tr></thead><tbody>';
+  html += `<tr><td>0</td><td class="id">1CECFF${h2x(sa)}</td><td><span class="badge cm">TP.CM</span></td>` +
+          `<td class="data">${cm.map((v, i) => td(i === 0 ? 'b-ctrl' : (i >= 5 ? 'b-pgn' : (i === 4 ? 'b-pad' : 'b-len')), v, cmTips[i])).join(' ')}</td>` +
+          `<td class="note">BAM: announcing ${size} bytes of PGN ${pgn} in ${nPkts} packets, destination FF (everyone)</td></tr>`;
+
+  for (let i = 0; i < nPkts; i++) {
+    const chunk = payload.slice(i * 7, i * 7 + 7);
+    const cells = [td('b-seq', i + 1, tipField('Sequence number', '--amber',
+      [`Packet <b>#${i + 1}</b> of ${nPkts}. Lands at message bytes ${i * 7}-${i * 7 + chunk.length - 1}.`]))];
+    chunk.forEach((v, j) => {
+      const off = i * 7 + j;
+      const ch = v >= 32 && v < 127 ? String.fromCharCode(v) : '·';
+      cells.push(td('b-data', v, tipField('Payload byte ' + off, '--text2',
+        [`Value: <span class="tip-mono">0x${h2x(v)}</span> = '${ch}'`])));
+    });
+    for (let j = chunk.length; j < 7; j++)
+      cells.push(td('b-pad', 0xFF, tipField('Padding', '--text2', ['Fills the last packet to 8 bytes. Not part of the message.'])));
+    html += `<tr><td>${i + 1}</td><td class="id">1CEBFF${h2x(sa)}</td><td><span class="badge dt">TP.DT</span></td>` +
+            `<td class="data">${cells.join(' ')}</td>` +
+            `<td class="note">${i === 0 ? 'sequence byte, then 7 payload bytes; 50-200 ms gap between packets' : ''}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  html += `<div class="decode-note">Both IDs use PDU1 formats EC (TP.CM) and EB (TP.DT) with destination ` +
+          `<span style="font-family:var(--mono)">FF</span>, so even the "connection management" frames are ordinary ` +
+          `broadcasts. The trailing <span style="font-family:var(--mono)">2A</span> ('*') terminates the VIN string per J1939-71.</div>`;
+  out.innerHTML = html;
+}
+
+// ── Tooltip engine ───────────────────────────────────────────────────────────
+const tipEl = document.getElementById('tip');
+document.addEventListener('mouseover', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tipEl.style.display = 'none'; return; }
+  tipEl.innerHTML = t.dataset.tip;
+  tipEl.style.display = 'block';
+});
+document.addEventListener('mousemove', e => {
+  if (tipEl.style.display !== 'block') return;
+  const pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  const r = tipEl.getBoundingClientRect();
+  if (x + r.width > innerWidth - 8)  x = e.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+  tipEl.style.left = x + 'px';
+  tipEl.style.top = y + 'px';
+});
+document.addEventListener('mouseout', e => {
+  if (e.target.closest && e.target.closest('[data-tip]')) tipEl.style.display = 'none';
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+decode();
+bam();
+</script>
+</body>
+</html>

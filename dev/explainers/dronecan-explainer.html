@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DroneCAN (UAVCAN v0) Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose h3 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose li { margin-bottom: 4px; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.prose em { color: var(--text2); font-style: italic; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+.warn { border-left-color: var(--amber); }
+.warn strong { color: var(--amber); }
+
+/* Frame byte strips */
+.frame { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-family: var(--mono); }
+.cell { min-width: 38px; text-align: center; padding: 6px 4px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.cell small { display: block; font-size: 9px; color: var(--text3); margin-top: 2px; }
+.cell.id   { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.cell.crc  { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.cell.data { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.cell.tail { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.lane { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+
+/* 29-bit ID field diagrams */
+/* Field boxes are flex-grown by their bit WIDTH, so the diagram is to scale: the 16-bit
+   message type id really is three times the 5-bit priority. */
+.bits { display:flex; gap:4px; margin:10px 0; font-family:var(--mono); align-items:flex-start; }
+.bitgrp { text-align:center; flex-basis:0; min-width:0; }
+.bitgrp .b { padding:6px 4px; border-radius:4px; border:1px solid var(--border); font-size:12px; white-space:nowrap; overflow:hidden; }
+.bitgrp .lbl { font-size:10px; color:var(--text3); margin-top:5px; text-transform:uppercase; letter-spacing:.04em; line-height:1.35; white-space:normal; }
+@media (max-width:620px) { .bits { flex-wrap:wrap; } .bitgrp { flex-basis:auto; } }
+.bitgrp.prio .b { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.bitgrp.type .b { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue); }
+.bitgrp.flag .b { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.bitgrp.node .b { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.bitgrp.dead .b { background: var(--bg3); color: var(--text3); }
+
+/* Sequences */
+.states { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
+.pill { padding:5px 11px; border-radius:14px; font-size:12px; background:var(--bg2); border:1px solid var(--border); }
+.pill .k { color: var(--blue); font-weight:600; font-family:var(--mono); }
+.arrow { color: var(--text3); align-self:center; }
+.chip { display:inline-block; padding:2px 10px; border-radius:11px; font-size:12px; font-weight:600; }
+.chip.ok   { background: var(--green-dim); color: var(--green); }
+.chip.warn { background: var(--amber-dim); color: var(--amber); }
+.chip.off  { background: var(--bg3);       color: var(--text3); }
+</style>
+</head>
+<body>
+<!-- remove from here -->
+<div style="background:#b00020;color:#fff;text-align:center;padding:10px;font-family:sans-serif;font-size:14px;font-weight:bold;">AI-generated text still pending human review/editing.</div>
+<!-- remove until here -->
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">DroneCAN Explainer</div>
+      <div class="logo-sub">UAVCAN v0 &middot; drone &amp; UAV peripherals</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="can-signals-explainer.html" target="_blank" class="btn">How CAN works ↗</a>
+  <a href="j1939-explainer.html" target="_blank" class="btn">J1939 ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>DroneCAN - the bus inside an aircraft</h1>
+  <p class="lede">
+    DroneCAN is the protocol a flight controller speaks to its own hardware: the four ESCs, the
+    GPS receiver, the power monitor, the rangefinder, the camera mount, the cargo hook. It is
+    <strong>UAVCAN v0</strong> under an older name, still the version ArduPilot and PX4 ship, and
+    it is what sloppyCAN implements most completely - a real transfer encoder, a decoder that
+    reassembles multi-frame transfers off the wire, an eight-node roster, and both halves of the
+    request/response services. This page is the map of what you are looking at in the DroneCAN
+    tab.
+  </p>
+
+  <h2>The ID is a routing header</h2>
+  <p>
+    DroneCAN rides 29-bit extended CAN identifiers, and like <a href="j1939-explainer.html">J1939</a>
+    it treats those 29 bits as a structured record rather than a name. The two cut the bits up
+    completely differently, though, because they are solving different problems. J1939 spends them
+    on a parameter group number and a source address. DroneCAN spends them on a <em>data type</em>,
+    a <em>priority</em>, and - depending on what kind of transfer this is - one or two <em>node
+    IDs</em>.
+  </p>
+  <p>
+    There are three kinds, and <strong>one bit decides which</strong>: bit 7,
+    <strong>service-not-message</strong>. Get that bit wrong and every other field in the ID lands
+    somewhere else, which produces a plausible-looking data type ID built out of half a service ID
+    and half a destination address. Nothing about the frame will look broken.
+  </p>
+
+  <h3>A message: someone is publishing something</h3>
+  <div class="card">
+    <div class="bits">
+      <div class="bitgrp prio" style="flex-grow:5"><div class="b">28 &hellip; 24</div><div class="lbl">priority (5)</div></div>
+      <div class="bitgrp type" style="flex-grow:16"><div class="b">23 &hellip; 8</div><div class="lbl">message type ID (16)</div></div>
+      <div class="bitgrp flag" style="flex-grow:1"><div class="b">7</div><div class="lbl">svc = 0</div></div>
+      <div class="bitgrp node" style="flex-grow:7"><div class="b">6 &hellip; 0</div><div class="lbl">source node ID (1-127)</div></div>
+    </div>
+    <p style="margin-bottom:0">
+      A broadcast. There is no destination, because there is nobody in particular to send it to -
+      an ESC reports its own RPM and current to whoever is listening. Sixteen bits of type ID is
+      generous, and that is the point: the type is the only thing identifying the payload, so it
+      has to be unambiguous.
+    </p>
+  </div>
+  <p>
+    Priority is five bits and <strong>lower wins</strong>, exactly as raw CAN arbitration does -
+    the ID with more leading zeros gets the bus. libcanard names four levels: 0 highest, 8 high,
+    16 medium, 24 low. Telemetry in sloppyCAN goes out at 20, arming and the cargo hook at 16
+    (they are safety statements, and a hook release must not queue behind a battery report), and
+    the diagnostic services at 24.
+  </p>
+
+  <h3>A service: someone is asking, or answering</h3>
+  <div class="card">
+    <div class="bits">
+      <div class="bitgrp prio" style="flex-grow:5"><div class="b">28 &hellip; 24</div><div class="lbl">priority (5)</div></div>
+      <div class="bitgrp type" style="flex-grow:8"><div class="b">23 &hellip; 16</div><div class="lbl">service type ID (8)</div></div>
+      <div class="bitgrp flag" style="flex-grow:1"><div class="b">15</div><div class="lbl">req = 1</div></div>
+      <div class="bitgrp node" style="flex-grow:7"><div class="b">14 &hellip; 8</div><div class="lbl">destination node (7)</div></div>
+      <div class="bitgrp flag" style="flex-grow:1"><div class="b">7</div><div class="lbl">svc = 1</div></div>
+      <div class="bitgrp node" style="flex-grow:7"><div class="b">6 &hellip; 0</div><div class="lbl">source node ID (7)</div></div>
+    </div>
+    <p style="margin-bottom:0">
+      An addressed exchange. The type ID shrinks to eight bits to make room for a
+      <strong>second node ID</strong>, so both ends of the conversation are on the wire and a
+      listener who saw neither participant can still tell who asked whom.
+    </p>
+  </div>
+  <p class="note">The extra node ID is not free, and it changes how a decoder has to buffer.
+    A message is reassembled per <code>(type, source)</code>. A service has to be reassembled per
+    <code>(type, source, destination, direction)</code> - two nodes answering two ground stations
+    are <strong>four independent transfers</strong> sharing one service type ID, and a buffer keyed
+    without the destination will splice two of them into one payload that passes its own CRC.</p>
+
+  <h3>An anonymous message: someone has no ID yet</h3>
+  <div class="card">
+    <div class="bits">
+      <div class="bitgrp prio" style="flex-grow:5"><div class="b">28 &hellip; 24</div><div class="lbl">priority (5)</div></div>
+      <div class="bitgrp type" style="flex-grow:14"><div class="b">23 &hellip; 10</div><div class="lbl">discriminator (14)</div></div>
+      <div class="bitgrp dead" style="flex-grow:2"><div class="b">9 &hellip; 8</div><div class="lbl">low 2 bits of type ID</div></div>
+      <div class="bitgrp flag" style="flex-grow:1"><div class="b">7</div><div class="lbl">svc = 0</div></div>
+      <div class="bitgrp node" style="flex-grow:7"><div class="b">6 &hellip; 0</div><div class="lbl">source = 0</div></div>
+    </div>
+    <p style="margin-bottom:0">
+      A node with no node ID has nothing to put in the source field, so it puts zero - and now the
+      sixteen-bit type ID will not fit beside it. v0 keeps only the <strong>low two bits</strong>
+      and spends the freed fourteen on a <strong>discriminator</strong>.
+    </p>
+  </div>
+  <p>
+    Two bits of type ID is not identification, it is a filter, which is why anonymous transfers are
+    only usable for a protocol both ends already agree on. The discriminator is not identification
+    either: it is random padding, there purely so that two anonymous nodes shouting at the same
+    instant do not transmit <em>byte-identical</em> IDs and destroy each other under arbitration.
+    The spec's own recommendation is to fill it with any 14 bits of the payload's CRC, and that is
+    what sloppyCAN does. There is exactly one thing anonymous frames are for, and it is
+    <a href="#allocation">dynamic node ID allocation</a>, at the bottom of this page.
+  </p>
+
+  <h2>The tail byte, and why transfers are not frames</h2>
+  <p>
+    A CAN frame carries at most 8 bytes. Almost nothing DroneCAN wants to say fits in 8 bytes, so
+    the <strong>last byte of every frame</strong> is a header rather than data, and the real unit of
+    the protocol is the <strong>transfer</strong>: one or more frames that reassemble into one
+    payload.
+  </p>
+  <div class="frame">
+    <div class="cell tail">bit 7<small>start</small></div>
+    <div class="cell tail">bit 6<small>end</small></div>
+    <div class="cell tail">bit 5<small>toggle</small></div>
+    <div class="cell tail">bits 4-0<small>transfer ID</small></div>
+  </div>
+  <p>
+    A payload of <strong>7 bytes or fewer is a single frame</strong>: start and end both set, toggle
+    0, no CRC. Here is a real one - <code>uavcan.protocol.NodeStatus</code>, the heartbeat, from the
+    GNSS node at ID 20 after 137 seconds of uptime:
+  </p>
+  <div class="card">
+    <div class="lane">18015514 &nbsp;&middot;&nbsp; priority 24, type 341, node 20</div>
+    <div class="frame">
+      <div class="cell data">89</div><div class="cell data">00</div>
+      <div class="cell data">00</div><div class="cell data">00<small>uptime_sec</small></div>
+      <div class="cell data">00<small>health/mode</small></div>
+      <div class="cell data">00</div><div class="cell data">00<small>vendor code</small></div>
+      <div class="cell tail">C0<small>tail</small></div>
+    </div>
+    <p style="margin-bottom:0"><code>0x89</code> = 137, and <code>uptime_sec</code> is a
+      byte-aligned <code>uint32</code>, so it comes out plain little-endian. The tail is
+      <code>0xC0</code>: start <em>and</em> end, toggle 0, transfer ID 0.</p>
+  </div>
+  <p>
+    Anything longer is split into 7-byte chunks, preceded by a <strong>2-byte transfer CRC</strong>,
+    with the <strong>toggle bit alternating from 0</strong>. That starting value is a v0 rule and it
+    is the first thing to check when a v1 implementation refuses your frames: UAVCAN v1 starts the
+    toggle at 1. The transfer ID is a 5-bit rolling counter kept per data type and source, so a
+    receiver can tell a retransmission from the next reading.
+  </p>
+  <p>
+    Here is <code>esc.Status</code> from the first ESC at node 11, 14 bytes of payload plus the CRC
+    across three frames:
+  </p>
+  <div class="card">
+    <div class="lane">14040A0B &nbsp;&middot;&nbsp; priority 20, type 1034, node 11</div>
+    <div class="frame">
+      <div class="cell crc">73</div><div class="cell crc">71<small>transfer CRC</small></div>
+      <div class="cell data">00</div><div class="cell data">00</div><div class="cell data">00</div>
+      <div class="cell data">00<small>error_count</small></div><div class="cell data">66</div>
+      <div class="cell tail">83<small>start, tog 0</small></div>
+    </div>
+    <div class="frame">
+      <div class="cell data">4B<small>voltage</small></div>
+      <div class="cell data">80</div><div class="cell data">4B<small>current</small></div>
+      <div class="cell data">BD</div><div class="cell data">5C<small>temp K</small></div>
+      <div class="cell data">64</div><div class="cell data">19</div>
+      <div class="cell tail">23<small>tog 1</small></div>
+    </div>
+    <div class="frame">
+      <div class="cell data">09</div><div class="cell data">00<small>rpm/pct/index</small></div>
+      <div class="cell tail">43<small>end, tog 0</small></div>
+    </div>
+  </div>
+
+  <h3>The CRC is seeded with the data type signature</h3>
+  <p class="note warn"><strong>This is the thing that will bite you.</strong> The transfer CRC is
+    CRC-16-CCITT-FALSE, but it does not start on the payload. It starts on the <strong>eight
+    little-endian bytes of the data type's 64-bit signature</strong>, and only then eats the
+    payload. The signature is a hash of the type's <em>normalised DSDL definition</em> - its field
+    names, widths and order - so two nodes that disagree about a message's layout produce CRCs that
+    cannot match, and the mismatch is caught at the transport layer instead of being decoded into
+    a plausible number.</p>
+  <p>
+    <code>esc.Status</code>'s signature is <code>0xA9AF28AEA2FBB254</code>, so its CRC is seeded
+    with <code>54 B2 FB A2 AE 28 AF A9</code>. Get one of those bytes wrong and the consequence is
+    strange: <strong>single-frame transfers still work perfectly</strong>, because they carry no
+    CRC at all, while every multi-frame transfer is rejected by every real tool - and accepted by
+    your own decoder, which is making the same mistake. That asymmetry is why signatures are worth
+    deriving from the DSDL rather than copying from a document, and why sloppyCAN's self-test
+    re-derives every one it uses.
+  </p>
+
+  <h3>DSDL packs bits MSB-first</h3>
+  <p>
+    Fields are laid out little-endian by <em>byte</em> and <strong>most-significant-first by
+    bit</strong>. A byte-aligned <code>uint32</code> therefore looks like ordinary little-endian and
+    nothing seems unusual - until a field is not a whole number of bytes. NodeStatus is the
+    canonical case: after the 32-bit uptime come <code>health</code> (2 bits),
+    <code>mode</code> (3) and <code>sub_mode</code> (3), and they fill byte 4 <em>from the top</em>.
+  </p>
+  <div class="card">
+    <p style="margin-bottom:8px">The same GNSS node one second later, with its health degraded to
+      <span class="chip warn">WARNING</span>:</p>
+    <div class="frame">
+      <div class="cell data">8A</div><div class="cell data">00</div>
+      <div class="cell data">00</div><div class="cell data">00<small>uptime 138</small></div>
+      <div class="cell tail">40<small>health = 01</small></div>
+      <div class="cell data">00</div><div class="cell data">00</div>
+      <div class="cell tail">C1<small>tail, tid 1</small></div>
+    </div>
+    <p style="margin-bottom:0">Health 1 in a 2-bit field is <code>0b01</code> at the
+      <strong>top</strong> of the byte: <code>0b01000000</code> = <code>0x40</code>. Read it from
+      the bottom and you get 0, which is <span class="chip ok">OK</span> - a fault that decodes as
+      healthy.</p>
+  </div>
+  <p>
+    Two more DSDL rules show up constantly in real payloads. A <strong>fixed-size array</strong>
+    (<code>float16[4]</code> for a quaternion) is just its elements back to back, no length prefix.
+    A <strong>variable-length array</strong> normally carries a length prefix of
+    <code>ceil(log2(max+1))</code> bits - but if it is the <em>last</em> field and its elements are
+    at least 8 bits wide, the <strong>tail array optimization</strong> drops the prefix entirely.
+    The array is then literally the bytes that are left. That is why an empty trailing array costs
+    zero bits, and why a node's name at the end of a GetNodeInfo response is just ASCII running to
+    the end of the transfer.
+  </p>
+
+  <h2>NodeStatus: everyone announces themselves</h2>
+  <p>
+    Every DroneCAN node publishes <code>uavcan.protocol.NodeStatus</code> (type 341) about once a
+    second, <strong>from its own node ID, with its own health</strong>. That is the whole discovery
+    mechanism. There is no enumeration step, no master polling a list; you learn the bus by
+    listening to it for a second.
+  </p>
+  <p>The four health values and the mode are the node's own judgement of itself:</p>
+  <table>
+    <thead><tr><th class="mono">health</th><th>Meaning</th><th class="mono">mode</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">0</td><td><span class="chip ok">OK</span> functioning properly</td><td class="mono">0</td><td>OPERATIONAL</td></tr>
+      <tr><td class="mono">1</td><td><span class="chip warn">WARNING</span> a parameter out of range, or a minor failure</td><td class="mono">1</td><td>INITIALIZATION</td></tr>
+      <tr><td class="mono">2</td><td>ERROR - a major failure</td><td class="mono">2</td><td>MAINTENANCE</td></tr>
+      <tr><td class="mono">3</td><td>CRITICAL - a fatal malfunction</td><td class="mono">3</td><td>SOFTWARE_UPDATE</td></tr>
+    </tbody>
+  </table>
+  <p>
+    sloppyCAN's simulated airframe carries eight nodes, and the tab's roster is built from their
+    heartbeats rather than from any internal list - it is a bus monitor, so it shows what was said,
+    not what it knows would have been said:
+  </p>
+  <table>
+    <thead><tr><th class="mono">Node</th><th>Name</th><th>Publishes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">11-14</td><td>ESC1-ESC4</td><td><code>esc.Status</code></td></tr>
+      <tr><td class="mono">20</td><td>GNSS</td><td><code>gnss.Fix2</code></td></tr>
+      <tr><td class="mono">21</td><td>POWER</td><td><code>power.BatteryInfo</code></td></tr>
+      <tr><td class="mono">22</td><td>AHRS</td><td><code>ahrs.Solution</code></td></tr>
+      <tr><td class="mono">23</td><td>RANGE</td><td><code>range_sensor.Measurement</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>What a node going quiet looks like</h2>
+  <p>
+    Here is the part worth actually internalising, and it is not a feature of the protocol so much
+    as a consequence of its shape.
+  </p>
+  <p>
+    <strong>There is no "node offline" message.</strong> There cannot be: the node that would have
+    to send it is the one that has stopped working. A node's absence is signalled by
+    <em>nothing at all</em> - the heartbeats stop, and after a while you notice. The DSDL fixes
+    "a while" at <code>OFFLINE_TIMEOUT_MS = 3000</code>, three missed beats at the recommended 1 Hz,
+    and that is the whole detection mechanism.
+  </p>
+  <p class="note warn"><strong>Which means the dangerous failure is not silence.</strong> It is a
+    node that keeps publishing its last good reading. Click a roster row in the DroneCAN tab to
+    take that node off the bus and watch what happens: its frames stop, its row goes
+    <span class="chip off">silent</span>, and - if it is an ESC - the aircraft starts fighting for
+    control on three motors. Now imagine the same failure with the frames still flowing. Four
+    healthy ESCs at 6500 RPM, a clean battery report, a nominal attitude solution, and an aircraft
+    dropping out of the sky. Every number on the bus would be self-consistent and none of it would
+    be true.</p>
+  <p>
+    So sloppyCAN's simulated nodes genuinely stop transmitting when they are failed, rather than
+    re-broadcasting held values. Silence is the reading. A listener that treats a missing heartbeat
+    as a display problem, and paints the last known value grey instead of raising an alarm, has
+    turned the one honest signal on the bus back into noise.
+  </p>
+
+  <h2>The sensor messages</h2>
+  <p>
+    Everything above is framing. The actual traffic is a set of standard equipment messages, each
+    published by the peripheral that owns the measurement. The ones sloppyCAN emits are the ones a
+    real quadcopter emits:
+  </p>
+  <table>
+    <thead><tr><th class="mono">ID</th><th>Type</th><th>Carries</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1034</td><td><code>equipment.esc.Status</code></td><td>RPM, current, voltage, temperature (in <strong>Kelvin</strong>), a power-rating percentage, an error count and the ESC's own index</td></tr>
+      <tr><td class="mono">1092</td><td><code>equipment.power.BatteryInfo</code></td><td>pack voltage, current, temperature, 10-second mean power, state of charge</td></tr>
+      <tr><td class="mono">1063</td><td><code>equipment.gnss.Fix2</code></td><td>latitude and longitude at 1e-8 degrees, both heights, fix status, satellite count, PDOP</td></tr>
+      <tr><td class="mono">1000</td><td><code>equipment.ahrs.Solution</code></td><td>attitude as a quaternion, angular velocity, linear acceleration</td></tr>
+      <tr><td class="mono">1050</td><td><code>equipment.range_sensor.Measurement</code></td><td>range, beam orientation, sensor type, and whether the reading is valid or out of range</td></tr>
+      <tr><td class="mono">1028 / 1027</td><td><code>equipment.air_data.*</code></td><td>static pressure as a real <code>float32</code>, and the raw air-data set</td></tr>
+      <tr><td class="mono">1071</td><td><code>equipment.hardpoint.Status</code></td><td>whether the cargo hook is holding, and the payload weight in <strong>newtons</strong></td></tr>
+      <tr><td class="mono">1044</td><td><code>equipment.camera_gimbal.Status</code></td><td>where the camera mount is actually pointing, as a quaternion</td></tr>
+      <tr><td class="mono">1100</td><td><code>equipment.safety.ArmingStatus</code></td><td>DISARMED or FULLY_ARMED. Two states, and no third one</td></tr>
+    </tbody>
+  </table>
+  <p>
+    A few of those carry a lesson in their own right. <strong>Longitude comes before latitude</strong>
+    in Fix2, which is the sort of mistake that still decodes as a plausible position. Temperatures
+    are Kelvin and forces are newtons, because DSDL is uncompromisingly SI. And DSDL has a
+    convention for <em>"I do not know this"</em>: a float field is set to <strong>NaN</strong>
+    rather than to zero. That distinction matters more than it sounds - a battery that reports
+    <code>remaining_capacity_wh = 0</code> is claiming to be flat, while one that reports NaN is
+    saying it has no way to tell you.
+  </p>
+  <p class="note"><strong>ArmingStatus having only two states is a real limitation, not a
+    simplification.</strong> A flight controller that was asked to arm and refused has a third
+    thing to say - <em>blocked, and here is which pre-arm check failed</em> - and DroneCAN has no
+    field for it. So a real FC publishes DISARMED and reports the refusal somewhere else entirely.
+    Not every piece of state a system has is on its bus, and pretending otherwise is how a
+    dashboard ends up lying.</p>
+
+  <h2>The command messages, going the other way</h2>
+  <p>
+    Every message above is a peripheral reporting on itself. A handful flow in the opposite
+    direction - <strong>from the flight controller toward the peripherals</strong> - and they are
+    published from the FC's node ID rather than from any sensor's:
+  </p>
+  <table>
+    <thead><tr><th class="mono">ID</th><th>Type</th><th>Says</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1081</td><td><code>indication.LightsCommand</code></td><td>a light ID and a colour, packed <strong>RGB565</strong></td></tr>
+      <tr><td class="mono">1080</td><td><code>indication.BeepCommand</code></td><td>a frequency and a duration</td></tr>
+      <tr><td class="mono">1070</td><td><code>hardpoint.Command</code></td><td>0 to release the cargo hook, 1 or more to hold</td></tr>
+      <tr><td class="mono">1040</td><td><code>camera_gimbal.AngularCommand</code></td><td>an orientation for the mount, in a named reference frame</td></tr>
+      <tr><td class="mono">1010</td><td><code>actuator.ArrayCommand</code></td><td>positions for actuators, addressed by actuator ID, in radians</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Note that the last two describe the same intent in two vocabularies. AngularCommand is how you
+    command a <em>camera mount</em>: an orientation, addressed to a gimbal. ArrayCommand is how you
+    command <em>two actuators</em>: raw positions, addressed by actuator ID. Which one a given
+    peripheral answers to is a property of that peripheral, so a ground station with no idea what
+    is fitted sends both, and sloppyCAN does exactly that.
+  </p>
+  <p>
+    Commands are <strong>aperiodic</strong>. They go out on a change and not on a clock, because a
+    command spammed at 10 Hz is not what a real bus looks like - and because a command is an event,
+    not a state. Here is a LightsCommand turning the arm tips red, one frame, published from the FC
+    at node 1:
+  </p>
+  <div class="card">
+    <div class="lane">14043901 &nbsp;&middot;&nbsp; priority 20, type 1081, node 1</div>
+    <div class="frame">
+      <div class="cell data">00<small>light_id</small></div>
+      <div class="cell data">F8</div><div class="cell data">00<small>RGB565</small></div>
+      <div class="cell tail">C0<small>tail</small></div>
+    </div>
+    <p style="margin-bottom:0">Red is 5 bits, green 6, blue 5, MSB-first:
+      <code>11111 000000 00000</code> = <code>0xF800</code>. The round trip through 16 bits
+      <strong>quantises</strong> - a colour comes back a shade off, which is the LEDs' real
+      resolution and not a rounding bug.</p>
+  </div>
+
+  <h2>Services: asking, and being answered</h2>
+  <p>
+    Everything so far is one-way. A node decides something is worth publishing, publishes it, and
+    a listener either heard it or did not. <strong>Services are the other shape</strong>: a request
+    addressed to one node, and that node's answer addressed back. They are the only two-way traffic
+    on the bus.
+  </p>
+  <p>
+    The pairing rule is short and load-bearing: <strong>a response copies the request's transfer
+    ID</strong>, and by convention its priority as well. It does not allocate its own. On a bus
+    where four other nodes may be mid-transfer, that copied 5-bit counter is the only thing
+    connecting an answer to its question.
+  </p>
+
+  <h3>GetNodeInfo (service 1) - who are you?</h3>
+  <p>
+    The request is <strong>empty</strong>. Zero bits of payload; the frame is one tail byte and
+    nothing else, and the question is entirely carried by the ID:
+  </p>
+  <div class="card">
+    <div class="lane">180194FF &nbsp;&middot;&nbsp; service 1, request, tool 127 &rarr; node 20</div>
+    <div class="frame"><div class="cell tail">C3<small>tail only</small></div></div>
+  </div>
+  <p>
+    The answer is the widest transfer on the bus - about 67 bytes across ten frames. It carries the
+    node's <strong>NodeStatus</strong> (the same five fields as the heartbeat, so you get the
+    current health without waiting a second for it), its <strong>software version</strong>, its
+    <strong>hardware version and 128-bit unique ID</strong> - the number burned in at manufacture,
+    which is the node's real identity, since its node ID may have been handed to it five minutes
+    ago - and finally its <strong>name</strong>, an ASCII string in reversed-domain style such as
+    <code>org.sloppycan.carlito.gnss</code>, riding the tail array optimization at the end of the
+    transfer.
+  </p>
+  <p class="note">A node that is not publishing does not answer either. Fail a roster node and then
+    ask it who it is: nothing comes back. That is the same reading its missing heartbeat gives, and
+    a request that goes unanswered is not a bug in the requester.</p>
+
+  <h3>param.GetSet (service 11) - read and write configuration</h3>
+  <p>
+    Nodes have parameters - a CAN bitrate, an ESC index, a publication period - and GetSet is how
+    you read and change them. It is the most structurally interesting message in DroneCAN, because
+    a parameter value is a <strong>DSDL union</strong>: empty, an <code>int64</code>, a
+    <code>float32</code>, a <code>bool</code> or a string, prefixed with a 3-bit tag saying which.
+    Its width depends on its contents, so unlike every other message here it cannot be described as
+    a flat list of fixed-width fields.
+  </p>
+  <p>
+    Two conventions do the work, and both are the kind of thing you would never guess:
+  </p>
+  <ul>
+    <li><strong>An empty value means "read"</strong>; a non-empty one means "write, then tell me
+      what it is now". There is no separate get and set. And because the response always reports
+      the <em>actual</em> value after the operation, a write that was refused - out of range, or
+      read-only - is visible as an answer that did not change.</li>
+    <li><strong>Index access is only for enumerating.</strong> There is no "how many parameters do
+      you have" query. You ask for index 0, then 1, then 2, until a response comes back with an
+      empty name and an empty value, which is the DSDL's way of saying <em>there is no such
+      parameter</em>. Then you address everything you found by name, because the DSDL warns that
+      the ordering is not guaranteed to be stable.</li>
+  </ul>
+  <p>
+    Watch for the <code>void5</code> and <code>void6</code> padding fields in the response. They
+    look like clutter, and they are what makes every union variant land on a byte boundary - which
+    is in turn what lets the parameter name at the end be a tail array of whole bytes.
+  </p>
+
+  <h3>RestartNode (service 5) - and a magic number</h3>
+  <p>
+    The request is a single <code>uint40</code> field, and the DSDL says outright that it must equal
+    <code>0xACCE551B1E</code> or the request should be rejected:
+  </p>
+  <div class="card">
+    <div class="lane">140594FF &nbsp;&middot;&nbsp; service 5, request, tool 127 &rarr; node 20</div>
+    <div class="frame">
+      <div class="cell data">1E</div><div class="cell data">1B</div><div class="cell data">55</div>
+      <div class="cell data">CE</div><div class="cell data">AC<small>magic_number</small></div>
+      <div class="cell tail">C4<small>tail, tid 4</small></div>
+    </div>
+    <div class="lane">14057F94 &nbsp;&middot;&nbsp; the answer, node 20 &rarr; tool 127, same transfer ID</div>
+    <div class="frame">
+      <div class="cell data">80<small>ok = true</small></div>
+      <div class="cell tail">C4<small>tid 4</small></div>
+    </div>
+  </div>
+  <p>
+    That constant is not security - it is sitting on the wire in the clear, and anyone can copy it.
+    It is a guard against an <em>accident</em>: a corrupted frame, a mis-addressed tool, a fuzzer.
+    Rebooting a node mid-flight is a physical event, and it should take more than a frame landing
+    on the right ID by chance. (<code>ok = true</code> is a single bit, MSB-first, which is why it
+    reads <code>0x80</code> and not <code>0x01</code>.)
+  </p>
+  <p>
+    And what a restart <em>looks like</em> on the bus is worth watching once, because it is not what
+    a status field would show you. The node acknowledges, and then it goes away: its heartbeats
+    stop, its roster row goes silent for a moment, and it returns with
+    <code>uptime_sec</code> back at 0. There is no "restarting" flag anywhere - a reboot is an
+    absence followed by a counter that went backwards, and the fact that uptime <em>can</em> go
+    backwards is exactly how the DSDL suggests you detect one.
+  </p>
+
+  <h2 id="allocation">Dynamic node ID allocation</h2>
+  <p>
+    Every node ID so far was <strong>declared</strong>: somebody sat down and decided the GNSS
+    receiver is node 20. That is fine for one airframe and untenable for a fleet sharing spare
+    parts, so DroneCAN defines a way for a node with no ID to be given one.
+  </p>
+  <p>
+    Which is a genuine bootstrapping problem, because the bus's addressing is <em>built out of</em>
+    node IDs. This is what anonymous frames exist for - and an anonymous frame leaves only
+    <strong>seven payload bytes</strong>. A unique ID is sixteen. Hence the DSDL's
+    <code>MAX_LENGTH_OF_UNIQUE_ID_IN_REQUEST = 6</code>, and hence a handshake that dribbles the
+    identity across in six-byte instalments while the allocator echoes back how much it has heard:
+  </p>
+  <div class="card">
+    <div class="lane">Stage 1 - anonymous, source node 0, six bytes of unique ID</div>
+    <div class="frame">
+      <div class="cell tail">01<small>node_id 0, first = 1</small></div>
+      <div class="cell data">5A</div><div class="cell data">21</div><div class="cell data">9C</div>
+      <div class="cell data">04</div><div class="cell data">E7</div><div class="cell data">33</div>
+      <div class="cell tail">C0<small>tail</small></div>
+    </div>
+    <div class="lane">The allocator answers - not anonymous, from node 1 - echoing what it heard</div>
+    <div class="frame">
+      <div class="cell tail">00<small>node_id 0: nothing granted yet</small></div>
+      <div class="cell data">5A</div><div class="cell data">21</div><div class="cell data">9C</div>
+      <div class="cell data">04</div><div class="cell data">E7</div><div class="cell data">33</div>
+      <div class="cell tail">C0</div>
+    </div>
+    <div class="lane">&hellip; two more instalments later, the grant: all sixteen bytes, and an ID</div>
+    <div class="frame">
+      <div class="cell crc">D6</div><div class="cell crc">85<small>CRC</small></div>
+      <div class="cell tail">FA<small>node_id 125</small></div>
+      <div class="cell data">5A</div><div class="cell data">21</div><div class="cell data">9C</div>
+      <div class="cell data">04</div>
+      <div class="cell tail">82<small>start</small></div>
+    </div>
+  </div>
+  <p>
+    Two details in that first byte. <code>node_id</code> is a <code>uint7</code> sitting in the
+    <strong>top seven bits</strong> with <code>first_part_of_unique_id</code> underneath it, so
+    granting ID 125 writes <code>125 &lt;&lt; 1</code> = <code>0xFA</code> - libcanard's own
+    allocatee builds that byte by hand as <code>(PREFERRED_NODE_ID &lt;&lt; 1) | 1</code>. And
+    <code>unique_id</code> is a tail array, which is what lets a 6-byte request and a 16-byte grant
+    be the same message with the same fields at two different lengths.
+  </p>
+  <p>The allocator's search order is spelled out in the DSDL, and it is deliberately backwards:</p>
+  <div class="states">
+    <span class="pill"><span class="k">1</span> no preference &rarr; start at <b>125</b></span>
+    <span class="arrow">&rarr;</span>
+    <span class="pill"><span class="k">2</span> search <b>up</b> to 125</span>
+    <span class="arrow">&rarr;</span>
+    <span class="pill"><span class="k">3</span> then <b>down</b> from the preference</span>
+    <span class="arrow">&rarr;</span>
+    <span class="pill"><span class="k">4</span> 126 and 127 never handed out</span>
+  </div>
+  <p>
+    A node with no preference gets the <em>highest</em> free ID rather than the lowest, which keeps
+    dynamically allocated nodes out of the way of declared ones. The top two are reserved for
+    network maintenance tools - which is why the DroneCAN tab's service client claims 127 for
+    itself rather than picking a spare number.
+  </p>
+  <p>
+    The last property is the one that makes this survivable in flight: the allocator keys its table
+    on the <strong>unique ID</strong>, so the same device asking twice gets the same node ID back.
+    A peripheral that browns out mid-flight and reboots rejoins <em>as itself</em>, not as a new
+    device with a new address and a new set of subscriptions.
+  </p>
+  <p class="note warn">Collisions are expected here rather than prevented. Two anonymous nodes
+    starting together will occasionally pick the same 14-bit discriminator - the DSDL puts it at
+    roughly 0.006% - so the protocol is written around detecting and retrying rather than around
+    never colliding. Both ends randomise their timers for the same reason: a fixed follow-up delay
+    would keep two devices that booted together in lockstep forever.</p>
+
+  <h2>Try it with no hardware</h2>
+  <p>
+    Press <strong>Demo</strong> and open the <strong>DroneCAN</strong> tab. A simulated quadcopter
+    starts publishing through the real encoder, and every frame it produces is fed back through the
+    real decoder - so the transfer log is showing you an actual encode &rarr; reassemble &rarr;
+    verify round trip, not a rendering of what it intended to send.
+  </p>
+  <ul>
+    <li><strong>Click a roster row</strong> to take that node off the bus. Its frames stop, its row
+      goes silent, and nothing anywhere reports an error - that is the point.</li>
+    <li><strong>Get node info</strong> on a live node, then on the one you just failed.</li>
+    <li><strong>Read parameters</strong> and watch the index walk stop on a nameless answer. Then
+      set <code>uavcan.node.status_period_ms</code> to 4000 and watch that node's row go stale
+      while its neighbours stay green - the parameter really is its publication period.</li>
+    <li><strong>Restart</strong> a node, and try it once with the wrong magic number.</li>
+    <li><strong>New node asks for an ID</strong>, and follow the three anonymous transfers and the
+      grant through the log.</li>
+  </ul>
+  <p>
+    The transfer log shows one row per <em>reassembled transfer</em>, with the frame count and the
+    CRC verdict as columns, so a multi-frame message appears once rather than as a pile of
+    fragments. Everything on that bus is also visible as raw frames in the Traffic Dump, and the
+    &#8862; link on each row will take you there.
+  </p>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+</script>
+</body>
+</html>
