@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 46,
+  "version": 47,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -251,7 +251,7 @@ window.CARLITO_CONTRACT = {
       "vehicles": [
         "car"
       ],
-      "desc": "Traction control off request. Absent or false, a car fitted with TC holds each driven wheel's drive slip at the grip peak (an ideal TC: it only ever removes drive); true, the drive spins the tyres as far as the pedal asks. The race cars carry no TC either way."
+      "desc": "Traction control off request. Absent or false, a car fitted with TC holds each driven wheel's drive slip at the grip peak (an ideal TC: it only ever removes drive); true, the drive spins the tyres as far as the pedal asks. Every car but race-future carries TC."
     },
     {
       "name": "speed",
