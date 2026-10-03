@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 43,
+  "version": 46,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -242,6 +242,16 @@ window.CARLITO_CONTRACT = {
         "tractor"
       ],
       "desc": "Rear stop-lamp state, from the RAMN 0x1BB brake bit. Drives STOP in the tri-state rear lamps."
+    },
+    {
+      "name": "tcs_off",
+      "dir": "in",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "car"
+      ],
+      "desc": "Traction control off request. Absent or false, a car fitted with TC holds each driven wheel's drive slip at the grip peak (an ideal TC: it only ever removes drive); true, the drive spins the tyres as far as the pedal asks. The race cars carry no TC either way."
     },
     {
       "name": "speed",
@@ -843,7 +853,7 @@ window.CARLITO_CONTRACT = {
         "tractor"
       ],
       "flavor": "isobus",
-      "desc": "Front axle actually driven, read out of the driveline (not echoed from the request)."
+      "desc": "Front axle actually driven, read out of the driveline (not echoed from the request). Also true while the foot brake is down: the tractor's brakes sit on the rear axle and the pedal engages MFWD so the shaft brakes the fronts, as a 40 km/h tractor's do."
     },
     {
       "name": "wheel_speed",
@@ -902,7 +912,7 @@ window.CARLITO_CONTRACT = {
         "truck",
         "boat"
       ],
-      "desc": "Hour meter: engine running time, accumulated while the key is at Ignition. Deliberately range-less — an hour meter is a readout, not a bar. Survives respawn, like the odometer. It is J1939 SPN 247 (Total Engine Hours) — which ISOBUS inherits, hence the tractor and truck reading — and also N2K PGN 127489 (Engine Parameters, Dynamic), which the boat reads: one wire signal, two protocol homes. Deliberately UNFLAVORED despite naming both an SPN and a PGN, like 'speed_limit' and 'wheel_slip': a boat does not speak J1939/ISOBUS, so the flavor would misstate the wire the reading actually travels for that family. The SPN/PGN pair is the naming reference here, not a claim about which protocol owns the signal."
+      "desc": "Hour meter: engine running time, accumulated while the key is at Ignition. Deliberately range-less — an hour meter is a readout, not a bar. Reseeds to 0 on respawn, like the odometer. It is J1939 SPN 247 (Total Engine Hours) — which ISOBUS inherits, hence the tractor and truck reading — and also N2K PGN 127489 (Engine Parameters, Dynamic), which the boat reads: one wire signal, two protocol homes. Deliberately UNFLAVORED despite naming both an SPN and a PGN, like 'speed_limit' and 'wheel_slip': a boat does not speak J1939/ISOBUS, so the flavor would misstate the wire the reading actually travels for that family. The SPN/PGN pair is the naming reference here, not a claim about which protocol owns the signal."
     },
     {
       "name": "draft_force",
@@ -1548,7 +1558,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "iso11992",
-      "desc": "Trailer ABS active (ISO 11992-2 EBS21, towed-to-towing — the RETURN direction, which no other signal group in this contract has). READ OUT OF THE SIM and not faked: the trailer carries its own unmodified RayWheels, so it can really lock them, and this is its worst wheel's longitudinal slip crossing TruckTelemetry.TRAILER_ABS_SLIP. A semi-trailer axle is undriven, so any slip on it is a wheel being braked toward a lock — there is no traction case to separate out, which is why one unsigned slip threshold is the whole predicate. No timer and no local blink. A real false while bobtail."
+      "desc": "Trailer ABS active (ISO 11992-2 EBS21, towed-to-towing — the RETURN direction, which no other signal group in this contract has). READ OUT OF THE SIM and not faked: the trailer carries its own unmodified RayWheels and its own anti-lock, which holds a wheel's brake back once its braking slip reaches RayWheel.ABS_SLIP (the grip peak), and this is true on any tick that happened to any trailer wheel (TowedBody.abs_active). So it lights when the demand outruns the trailer's grip — a hard stop, or ordinary braking on a slippery patch — and stays dark under braking the tyres can carry. Off while the spring brakes hold, which no ABS modulates. No timer and no local blink. A real false while bobtail."
     },
     {
       "name": "trailer_abs_lamp",
