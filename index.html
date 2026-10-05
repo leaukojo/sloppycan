@@ -733,11 +733,12 @@
   <div class="dc-config">
     <span class="dc-note">Request a PGN (59904):</span>
     <label>PGN <input type="text" id="j1939ReqPgn" value="65261" style="width:72px" title="The parameter group to ask for. Decimal, or 0x-prefixed hex."></label>
-    <label>from <select id="j1939ReqDa" title="Destination address. Global asks every ECU on the bus; a specific address asks one.">
-      <option value="255">every ECU (global)</option>
-      <option value="0">0x00 Engine #1</option>
-      <option value="240">0xF0 Tractor ECU</option>
-    </select></label>
+    <label>from <input type="text" id="j1939ReqDa" list="j1939ReqDaList" value="255" style="width:140px" title="Destination address (0-255, decimal or 0x-prefixed hex). 255 / 0xFF = global broadcast.">
+    <datalist id="j1939ReqDaList">
+      <option value="255">every ECU (global / 0xFF)</option>
+      <option value="0x00">0x00 Engine #1</option>
+      <option value="0xF0">0xF0 Tractor ECU</option>
+    </datalist></label>
     <button type="button" onclick="j1939SendRequest()" title="Put a real PGN 59904 request on the bus from the diagnostic tool address 0xF9. The answer arrives as an ordinary broadcast and lands in the PGN Monitor.">Send request</button>
     <label>Answerable here <select id="j1939ReqPreset" onchange="j1939ReqPreset()" title="The request-only parameter groups this side answers out of the game's telemetry.">
       <option value="">-</option>

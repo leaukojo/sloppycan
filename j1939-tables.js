@@ -412,7 +412,11 @@ function j1939DecodeSPN(def, data) {
 function j1939DecodeDTC(b0, b1, b2, b3) {
   const spn = b0 | (b1 << 8) | ((b2 >> 5) << 16);
   const fmi = b2 & 0x1F;
-  return { spn, fmi, oc: b3 & 0x7F, cm: (b3 >> 7) & 1, fmiDesc: J1939_FMI[fmi] || `FMI ${fmi}` };
+  return {
+    spn, fmi, oc: b3 & 0x7F, cm: (b3 >> 7) & 1,
+    fmiDesc: J1939_FMI[fmi] || `FMI ${fmi}`,
+    raw: [b0, b1, b2, b3],
+  };
 }
 function j1939DecodeDTCs(data) {
   const dtcs = [];

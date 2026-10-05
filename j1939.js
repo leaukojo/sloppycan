@@ -731,12 +731,21 @@ function isoEtpIngestDT(parsed, data, ts) {
 function j1939DispatchPGN(pgn, sa, da, data, ts, fromTP) {
   const pgnKey = `${pgn}:${sa}`;
 
+  // Handle Address Claim if dispatched here
+  if (pgn === 0xEE00) {
+    const name = j1939DecodeName(data);
+    if (name) {
+      j1939AddrMap.set(sa, { sa, ts, data: Array.from(data), ...name });
+      j1939Dirty = true;
+    }
+  }
+
   // Handle DM1/DM2
   if (pgn === 0xFECA || pgn === 0xFECB) {
     const dtcs = j1939DecodeDTCs(data);
     const entry = j1939DmMap.get(sa) || {};
-    if (pgn === 0xFECA) { entry.dm1 = dtcs; entry.dm1ts = ts; }
-    else                { entry.dm2 = dtcs; entry.dm2ts = ts; }
+    if (pgn === 0xFECA) { entry.dm1 = dtcs; entry.dm1ts = ts; entry.dm1Data = Array.from(data); }
+    else                { entry.dm2 = dtcs; entry.dm2ts = ts; entry.dm2Data = Array.from(data); }
     j1939DmMap.set(sa, entry);
   }
 
@@ -770,7 +779,7 @@ function j1939IngestFrame(frame) {
   if (pgn === 0xEE00) {
     const name = j1939DecodeName(data);
     if (name) {
-      j1939AddrMap.set(sa, { sa, ts, ...name });
+      j1939AddrMap.set(sa, { sa, ts, data: Array.from(data), ...name });
       j1939Dirty = true;
     }
     return;
@@ -1111,7 +1120,20 @@ function j1939SendRequest() {
   const daEl  = document.getElementById('j1939ReqDa');
   const pgn = window.canParseIntAuto ? window.canParseIntAuto(pgnEl ? pgnEl.value : '') : NaN;
   if (!Number.isFinite(pgn) || pgn > 0xFFFFFF) { j1939ReqNote(0, 'not a PGN'); return; }
-  const da = daEl ? (parseInt(daEl.value, 10) & 0xFF) : 0xFF;
+
+  let da = 0xFF;
+  if (daEl) {
+    const raw = (daEl.value || '').trim();
+    if (!raw || /^(every|global)/i.test(raw)) {
+      da = 0xFF;
+    } else {
+      const m = raw.match(/^(0x[0-9a-fA-F]+|\d+)/);
+      const token = m ? m[1] : raw;
+      const v = window.canParseIntAuto ? window.canParseIntAuto(token) : parseInt(token, 10);
+      if (!Number.isFinite(v) || v < 0 || v > 255) { j1939ReqNote(pgn, 'invalid destination address'); return; }
+      da = v & 0xFF;
+    }
+  }
   // The readout is set BEFORE the frame goes out, because the frame comes straight back through
   // ingestFrame and the server writes the OUTCOME over it in the same call stack. Noting it
   // afterwards would report "requested" every time and hide the answer.
@@ -1287,16 +1309,20 @@ function j1939RenderDM() {
     <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;font-family:var(--sans)">
       SA 0x${j1939H(sa)} - ${saName}
     </div>`;
-    for (const [type, dtcs, ts] of [['dm1',entry.dm1,entry.dm1ts],['dm2',entry.dm2,entry.dm2ts]]) {
+    for (const [type, dtcs, ts, rawMsgData] of [
+      ['dm1', entry.dm1, entry.dm1ts, entry.dm1Data],
+      ['dm2', entry.dm2, entry.dm2ts, entry.dm2Data]
+    ]) {
       if (!dtcs) continue;
       html += `<div style="margin-bottom:8px">
       <span class="j1939-fault-badge ${type}">${type.toUpperCase()}</span>
-      <span style="font-size:10px;color:var(--text3);margin-left:6px;font-family:var(--sans)">${ts ? j1939RelTs(ts) : ''} - ${dtcs.length} fault${dtcs.length!==1?'s':''}</span>`;
+      <span style="font-size:10px;color:var(--text3);margin-left:6px;font-family:var(--sans)">${ts ? j1939RelTs(ts) : ''} - ${dtcs.length} fault${dtcs.length!==1?'s':''}</span>
+      <span class="j-raw" style="margin-left:10px" title="Raw message payload">Raw: ${rawMsgData ? j1939BytesHtml(rawMsgData) : '-'}</span>`;
       if (!dtcs.length) {
         html += `<span style="font-size:11px;color:var(--green);margin-left:10px;font-family:var(--sans)">No active faults</span>`;
       } else {
         html += `<table class="j1939-tbl" style="margin-top:4px">
-        <thead><tr><th>SPN</th><th>FMI</th><th>Description</th><th>Count</th></tr></thead>
+        <thead><tr><th>SPN</th><th>FMI</th><th>Description</th><th>Count</th><th>Raw Data</th></tr></thead>
         <tbody>` + dtcs.map(d => {
           // Deep-link the SPN to dtc.html (reconstruct the 4-byte DM record).
           const rec = [d.spn & 0xFF, (d.spn >> 8) & 0xFF, (((d.spn >> 16) & 0x7) << 5) | (d.fmi & 0x1F), d.oc & 0x7F];
@@ -1306,6 +1332,7 @@ function j1939RenderDM() {
           <td class="j-ts">${d.fmi}</td>
           <td class="j-name">${d.fmiDesc}</td>
           <td class="j-ts">${d.oc}</td>
+          <td class="j-raw" title="Raw 4-byte DTC record (hex)">${d.raw ? j1939BytesHtml(d.raw) : rec.map(x => j1939H(x)).join(' ')}</td>
         </tr>`; }).join('') + '</tbody></table>';
       }
       html += '</div>';
@@ -1315,15 +1342,40 @@ function j1939RenderDM() {
   el.innerHTML = html;
 }
 
+// Keep the PGN request destination dropdown options in sync with claimed CAs
+function j1939UpdateDaList() {
+  const dl = document.getElementById('j1939ReqDaList');
+  if (!dl) return;
+  const staticOpts = [
+    { val: '255', label: 'every ECU (global / 0xFF)' },
+    { val: '0x00', label: '0x00 Engine #1' },
+    { val: '0xF0', label: '0xF0 Tractor ECU' },
+  ];
+  const seen = new Set(['255', '0', '0x00', '240', '0xF0', '0xf0']);
+  const dynamicOpts = [];
+  if (typeof j1939AddrMap !== 'undefined' && j1939AddrMap.size) {
+    for (const [sa, info] of j1939AddrMap.entries()) {
+      const saHex = '0x' + j1939H(sa);
+      if (seen.has(String(sa)) || seen.has(saHex) || seen.has(saHex.toLowerCase())) continue;
+      seen.add(String(sa));
+      seen.add(saHex);
+      const name = info.fnName || j1939SaLabel(sa) || 'ECU';
+      dynamicOpts.push({ val: saHex, label: `${saHex} ${name}` });
+    }
+  }
+  dl.innerHTML = [...staticOpts, ...dynamicOpts].map(o => `<option value="${o.val}">${o.label}</option>`).join('');
+}
+
 // Address Claim - SA → device identity table
 function j1939RenderAddr() {
+  j1939UpdateDaList();
   const el = document.getElementById('j1939-addr');
   if (!j1939AddrMap.size) { el.innerHTML = '<div class="j1939-empty">No Address Claim (PGN 0xEE00) messages received.<br>Devices broadcast their identity when joining the bus.</div>'; return; }
 
   el.innerHTML = `<table class="j1939-tbl">
   <thead><tr>
     <th>SA</th><th>Function</th><th>Industry</th><th>ECU Instance</th>
-    <th>Mfr Code</th><th>Arb. Addr</th><th>Last seen</th>
+    <th>Mfr Code</th><th>Arb. Addr</th><th>Last seen</th><th>Raw Data</th>
   </tr></thead>
   <tbody>` +
   [...j1939AddrMap.values()].sort((a,b)=>a.sa-b.sa).map(e => `<tr>
@@ -1338,6 +1390,7 @@ function j1939RenderAddr() {
     <td class="j-ts">0x${j1939H(e.mfrCode,3)}</td>
     <td class="j-ts">${e.arbitrary ? 'Yes' : 'No'}</td>
     <td class="j-ts">${j1939RelTs(e.ts)}</td>
+    <td class="j-raw" title="Raw 8-byte NAME (hex)">${e.data ? j1939BytesHtml(e.data) : '-'}</td>
   </tr>`).join('') +
   '</tbody></table>';
 }
