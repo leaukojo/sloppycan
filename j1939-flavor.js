@@ -111,8 +111,9 @@
   // ── Telemetry presence ──────────────────────────────────────────────────────
   // Gated per SIGNAL, never per vehicle - isobus.js's rule, and it holds here for the same
   // reason: the game publishes signals_for_vehicle, so an absent key is a real absence and not a
-  // zero. Today all four of these are the truck's alone, but a vehicle gate would be a second
-  // place the contract's `vehicles` list is written down, and it would be the one that rots.
+  // zero. axle_load is already the tractor's as well as the truck's (the other three are the
+  // truck's alone), and a vehicle gate would be a second place the contract's `vehicles` list is
+  // written down, and it would be the one that rots.
   const has = (t, k) => t && t[k] !== undefined && t[k] !== null;
 
   const BAR_TO_KPA = 100;   // the contract's unit for both air pressures -> the SPNs' unit

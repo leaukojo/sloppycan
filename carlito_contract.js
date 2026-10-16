@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 47,
+  "version": 49,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -62,7 +62,7 @@ window.CARLITO_CONTRACT = {
         "drone",
         "train"
       ],
-      "desc": "Foot brake. Never throttle; slightly stronger than accel (full+full = stop)."
+      "desc": "Foot brake. Never throttle. Full pedal asks the brake hardware's whole capacity, past the tyre (a lock, or ABS at the peak); on a wheeled road vehicle, half pedal asks about 0.5 g whatever its capacity. Full brake with full accel holds it still, and the brake-throttle override cuts the throttle on one that still creeps."
     },
     {
       "name": "steer",
@@ -95,7 +95,7 @@ window.CARLITO_CONTRACT = {
         "plane",
         "train"
       ],
-      "desc": "Parking brake. Weaker than accel: holds only below ~25% throttle. Every vehicle that has something to hold: the plane's is its tricycle-gear park brake (handbrake_torque on three RayWheels), the train's is read by TrainSim rather than by wheels. Absent on the boat and the drone, which have no wheels and read the field nowhere."
+      "desc": "Parking brake: the rear wheels' own hardware (a truck's spring brakes), a mechanical hold no ABS modulates. It locks the rears at speed and parks the laden vehicle on its regulation grade. It is a brake, not an interlock: a strong enough drive pulls through it (most easily on a front-driven car, whose driven wheels it does not hold). Every vehicle that has something to hold: the plane's is its tricycle-gear park brake (handbrake_torque on three RayWheels), the train's is read by TrainSim rather than by wheels. Absent on the boat and the drone, which have no wheels and read the field nowhere."
     },
     {
       "name": "key",
@@ -147,6 +147,7 @@ window.CARLITO_CONTRACT = {
       "unit": "enum",
       "enum": {
         "0": "N",
+        "254": "P",
         "255": "R",
         "1-6": "D1-D6"
       },
@@ -157,7 +158,7 @@ window.CARLITO_CONTRACT = {
         "plane",
         "train"
       ],
-      "desc": "RAMN gear byte. While bridge active and not N, the gear owns direction."
+      "desc": "RAMN gear byte. While bridge active and not N, the gear owns direction. 254 (P) is not a RAMN value, so every byte RAMN sends keeps its meaning: it engages the gearbox's park pawl where one is fitted (cars, vans, the tractor's powershift), locking the gearbox output below walking pace (the driven wheels hold through the diffs; an open one still lets its two wheels turn against each other), and reads as N on a gearbox without one (the trucks park on their spring brakes)."
     },
     {
       "name": "turnL",
@@ -319,6 +320,7 @@ window.CARLITO_CONTRACT = {
       "unit": "enum",
       "enum": {
         "0": "N",
+        "254": "P",
         "255": "R",
         "1-6": "D1-D6"
       },
@@ -329,7 +331,7 @@ window.CARLITO_CONTRACT = {
         "plane",
         "train"
       ],
-      "desc": "Currently engaged gear (same byte semantics as the 'in' gear)."
+      "desc": "Currently engaged gear (same byte semantics as the 'in' gear): P only where a park pawl is fitted, N where a P request found none."
     },
     {
       "name": "throttle",
@@ -1403,10 +1405,11 @@ window.CARLITO_CONTRACT = {
       "warn_side": "high",
       "warn": 11500,
       "vehicles": [
+        "tractor",
         "truck"
       ],
       "flavor": "j1939",
-      "desc": "Drive-axle load (J1939 SPN 582). READ OUT OF THE SIM: the summed RayWheel suspension force on the rear axle converted to kilograms, never a mass lookup — so weight transfer under braking, a laden body and (from the trailer phases) a coupled trailer all move it as consequences. 'warn' 11500 is the real EU 11.5 t drive-axle limit."
+      "desc": "Drive-axle load (J1939 SPN 582, which ISOBUS inherits). The drive axle is the REAR on both families: the truck's driven axle, and the tractor's, which is always driven (MFWD only adds the front). READ OUT OF THE SIM: the summed RayWheel suspension force on the rear axle converted to kilograms, never a mass lookup — so weight transfer under braking, a laden body, a coupled trailer and a carried implement all move it as consequences. On the tractor an implement's carried weight reaches the chassis through the three-point linkage: lifting a ground-supported implement (plough, harrow, mower) hands its weight from the ground to the linkage, which loads the rear axle and lightens the front; attaching the spreader, which never touches the ground, is what moves its load. 'warn' 11500 is the real EU 11.5 t drive-axle limit, the truck's figure: a signal carries one warn, and the tractor never reaches it."
     },
     {
       "name": "body_cmd",
@@ -1547,7 +1550,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "iso11992",
-      "desc": "The braking demand the towing unit SENDS to the trailer (ISO 11992-2 EBS11, towing-to-towed). Blended on the tractor from the foot brake and the retarder: a driveline brake acts on the tractor's driven axle alone, so without a share of it going down the bus the trailer would be left pushing. The retarder's share is arithmetic rather than taste — a retarder at full is Drivetrain.RETARDER_MAX_FRAC of the tractor's own brake torque, so it asks the trailer for that same fraction of the trailer's brakes, and it inherits the retarder's speed fade because the blend reads retarder_state (what ran) and not the request. This signal is a REPORT of what was sent: the blend behind it is what the trailer's RayWheels actually brake with, and the number here is read off that rather than driving anything. A real 0 while bobtail."
+      "desc": "The braking demand the towing unit SENDS to the trailer (ISO 11992-2 EBS11, towing-to-towed). Blended on the tractor from the foot brake and the retarder: a driveline brake acts on the tractor's driven axle alone, so without a share of it going down the bus the trailer would be left pushing. The retarder's share is arithmetic rather than taste — a retarder at full is Drivetrain.retarder_fraction of the tractor's own brake capacity, so it asks the trailer for that same fraction of the trailer's brakes, and it inherits the retarder's speed fade because the blend reads retarder_state (what ran) and not the request. This signal is a REPORT of what was sent: the blend behind it is what the trailer's RayWheels actually brake with, and the number here is read off that rather than driving anything. A real 0 while bobtail."
     },
     {
       "name": "trailer_abs",
