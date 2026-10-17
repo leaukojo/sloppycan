@@ -246,6 +246,7 @@
   const SA_SHIFT_CONSOLE = 0x05;   // Shift Console - Primary (isobus.net SourceAddress table)
   const PGN_EEC2 = 61443, PGN_EBC1 = 61441, PGN_VDC2 = 61449, PGN_TC1 = 256, PGN_CCVS = 65265;
   const GEAR_R_BYTE = 0xFF;        // the contract's reverse byte
+  const GEAR_P_BYTE = 0xFE;        // the contract's park byte (v48)
   const jfDrive = {
     accel:     { bus: undefined, at: 0 },
     brake:     { bus: undefined, at: 0 },
@@ -267,12 +268,14 @@
     return { pgn: (dp << 16) | (pf << 8) | (pf < 0xF0 ? 0 : ps), da: pf < 0xF0 ? ps : 0xFF, sa: id & 0xFF };
   }
 
-  // Contract gear byte -> SPN 525 raw, and back. Park reads as N: the parking brake is SPN 70's.
-  // The contract's byte 0 is "no gear opinion" to an automatic (D once the pedal is down), so a
-  // bus asking for Park or Neutral with a pedal still moves forward - the RAMN gear byte's rule,
-  // not this map's. Forward Drive maps to 1, which a MANUAL gearbox holds as first gear.
+  // Contract gear byte -> SPN 525 raw, and back. Park is the contract's P (254) both ways: the
+  // gearbox's pawl, where one is fitted (the parking brake is SPN 70's). The contract's byte 0 is
+  // "no gear opinion" to an automatic (D once the pedal is down), so a bus asking for Neutral
+  // with a pedal still moves forward - the RAMN gear byte's rule, not this map's. Forward Drive
+  // maps to 1, which a MANUAL gearbox holds as first gear.
   function jfGearRaw(g) {
     if (g === 'R' || g === GEAR_R_BYTE) return 125 - 1;
+    if (g === 'P' || g === GEAR_P_BYTE) return 0xFB;
     const n = Math.round(Number(g)) || 0;
     return 125 + Math.max(0, Math.min(6, n));
   }
@@ -282,7 +285,7 @@
   // the operating range's -64; the operating range wins here.
   function jfGearFromRaw(raw) {
     if (raw === 0xFC) return 1;            // Forward Drive position: a D intent
-    if (raw === 0xFB) return 0;            // Park
+    if (raw === 0xFB) return GEAR_P_BYTE;  // Park
     const g = raw - 125;
     if (g < -64 || g > 64) return undefined;
     if (g < 0) return GEAR_R_BYTE;
@@ -471,11 +474,12 @@
     //    Park and Forward Drive; a Hold refreshes nothing.
     const tcRaw = (raw) => jfDecodeDrive({ id: jfIdDa(PGN_TC1, 3, SA_SHIFT_CONSOLE, SA_TRANSMISSION), isExt: true, data: [0xFF, 0xFF, raw, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
     tcRaw(0xFC); eq('Forward Drive reads D', live('gear'), 1);
-    tcRaw(0xFB); eq('Park reads N', live('gear'), 0);
-    tcRaw(0xFD); eq('Hold refreshes nothing', live('gear'), 0);
+    tcRaw(0xFB); eq('Park reads P', live('gear'), GEAR_P_BYTE);
+    tcRaw(0xFD); eq('Hold refreshes nothing', live('gear'), GEAR_P_BYTE);
+    eq('P encodes as Park', j1939DriveFrames({ gear: 'P' })[3].data[2], 0xFB);
     //    A TC1 to another destination is not the transmission's.
     jfDecodeDrive({ id: jfIdDa(PGN_TC1, 3, SA_SHIFT_CONSOLE, 0x04), isExt: true, data: [0xFF, 0xFF, 128, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
-    eq('TC1 to Transmission #2 ignored', live('gear'), 0);
+    eq('TC1 to Transmission #2 ignored', live('gear'), GEAR_P_BYTE);
     //    SPN 70 in bits 3-4 of CCVS byte 1 and SPN 597 in bits 5-6 of byte 4, neighbours untouched.
     eq('CCVS switches', hex(j1939CcvsPatch(jfBlank(), { handbrake: 1, brake: 30 })), 'F7 FF FF DF FF FF FF FF');
     jfDecodeDrive({ id: jfId(PGN_CCVS, 6, SA_ENGINE), isExt: true, data: [0xF7, 0, 0, 0x10, 0, 0, 0, 0] });

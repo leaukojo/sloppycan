@@ -239,6 +239,7 @@
   const CONTRACT_IN  = new Set(CONTRACT_IN_SIGS.map(s => s.name));
   if (!window.CARLITO_CONTRACT) console.warn('Carlito: window.CARLITO_CONTRACT missing — load carlito_contract.js before carlito.js.');
   const GEAR_R_BYTE = 0xFF;   // contract gear byte for reverse (was the v1 sentinel -1)
+  const GEAR_P_BYTE = 0xFE;   // contract gear byte for park (v48; not a RAMN value)
   let _verWarned = false, _outFieldsChecked = false;
 
   // Warn once if the game's contract version differs from ours (plan §3 change protocol). A game
@@ -271,8 +272,8 @@
     handbrake: st => window.ramnSeen('handbrake') ? st.handbrake : undefined,
     key:       st => window.ramnSeen('key')       ? (+st.key    || 1) : undefined,
     lights:    st => window.ramnSeen('lights')    ? (+st.lights || 1) : undefined,
-    // Gear byte follows the contract (0=N, 1-6=D1-D6, 0xFF=R) - same as the RAMN wire byte.
-    gear:      st => window.ramnSeen('gear')      ? (st.gear === 'R' ? GEAR_R_BYTE : (+st.gear || 0)) : undefined,
+    // Gear byte follows the contract (0=N, 1-6=D1-D6, 0xFE=P, 0xFF=R) - same as the RAMN wire byte.
+    gear:      st => window.ramnSeen('gear')      ? (st.gear === 'R' ? GEAR_R_BYTE : (st.gear === 'P' ? GEAR_P_BYTE : (+st.gear || 0))) : undefined,
     turnL:     st => window.ramnSeen('turnL')     ? st.turnL : undefined,
     turnR:     st => window.ramnSeen('turnR')     ? st.turnR : undefined,
     horn:      st => window.ramnSeen('horn')      ? st.horn : undefined,
@@ -514,7 +515,7 @@
     el.co_hand.textContent = st.handbrake ? 'ON' : 'off';
     el.co_key.textContent = KEY_LBL[+st.key] || '-';
     el.co_lights.textContent = LIGHT_LBL[+st.lights] || '-';
-    el.co_gear.textContent = st.gear === 'R' ? 'R' : (+st.gear || 0);
+    el.co_gear.textContent = (st.gear === 'R' || st.gear === 'P') ? st.gear : (+st.gear || 0);
     el.co_turn.textContent = st.turnL && st.turnR ? 'L+R' : st.turnL ? 'L' : st.turnR ? 'R' : '-';
     el.co_horn.textContent = st.horn ? 'ON' : 'off';
     el.co_check.textContent = st.checkEngine ? 'ON' : 'off';
@@ -532,7 +533,7 @@
     el.ci_kmh.textContent = (+t.kmh || 0).toFixed(0) + ' km/h';
     el.ci_bar.style.width = Math.min(100, Math.abs(+t.speed || 0) / 40 * 100).toFixed(1) + '%';
     el.ci_rpm.textContent = (+t.rpm || 0);
-    el.ci_gear.textContent = (+t.gear === GEAR_R_BYTE) ? 'R' : (+t.gear || 0);   // 0=N, 1–6, 0xFF=R
+    el.ci_gear.textContent = (+t.gear === GEAR_R_BYTE) ? 'R' : (+t.gear === GEAR_P_BYTE) ? 'P' : (+t.gear || 0);   // 0=N, 1–6, 0xFE=P, 0xFF=R
     el.ci_throttle.textContent = (+t.throttle || 0) + '%';
     el.ci_yaw.textContent = (+t.yaw || 0).toFixed(2);
     el.ci_acclong.textContent = (+t.accLong || 0).toFixed(2);
