@@ -132,6 +132,7 @@ const J1939_DB = {
   // Byte 1 is SPN 524 and byte 4 SPN 523 per J1939-71 (bytes 2-3 are SPN 526 Actual Gear Ratio).
   0xF005:{ name:'Electronic Transmission Controller 2', abbr:'ETC2', spns:[
     { spn:524, name:'Selected Gear', b:0, n:1, f:1, o:-125, u:'', dp:0 },
+    { spn:526, name:'Actual Gear Ratio', b:1, n:2, f:0.001, o:0, u:'', dp:3 },
     { spn:523, name:'Current Gear',  b:3, n:1, f:1, o:-125, u:'', dp:0 },
   ]},
   // The driver-demand groups j1939-flavor.js decodes into Carlito's accel / brake / steer / gear

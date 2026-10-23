@@ -96,6 +96,7 @@
   const SA_RETARDER = 0x10;   // Retarder - Driveline
   const SA_BRAKES   = 0x0B;   // Brakes - System Controller (the ECU that knows the reservoirs)
   const SA_AXLE_DRV1 = 0x09;  // Axle - Drive #1; the address isobus.js already sources EAC1 from
+  const SA_TRANSMISSION = 0x03;  // Transmission #1 - ETC2's sender and TC1's destination
 
   // ── Message table ───────────────────────────────────────────────────────────
   // Data, not call sites. `ms` is the standard's own transmission repetition rate, recorded so
@@ -105,6 +106,7 @@
   const JF_MSGS = {
     ERC1: { pgn: 61440, prio: 6, sa: SA_RETARDER, ms: 100 },
     AIR1: { pgn: 65198, prio: 6, sa: SA_BRAKES,   ms: 1000 },
+    ETC2: { pgn: 61445, prio: 6, sa: SA_TRANSMISSION, ms: 100 },
   };
   function jfFrame(m, data) { return { id: jfId(m.pgn, m.prio, m.sa), isExt: true, data }; }
 
@@ -137,6 +139,17 @@
     return jfFrame(JF_MSGS.ERC1, d);
   }
 
+  // ETC2 (61445): SPN 524 Selected Gear and SPN 523 Current Gear from the contract's engaged `gear`
+  // byte (the game reports the gear it engaged, so the two agree; a CVT's is its range), and SPN 526
+  // Actual Gear Ratio from `gear_ratio`, 0.001 per bit over bytes 2-3. The gear bytes take TC1's own
+  // encoding (jfGearRaw: offset -125, R as -1, P 251); N is gear 0, raw 125.
+  function jfEtc2(t) {
+    const d = jfBlank();
+    if (has(t, 'gear')) d[0] = d[3] = jfGearRaw(Number(t.gear));
+    if (has(t, 'gear_ratio')) jfPut(d, 1, 2, Number(t.gear_ratio), 0.001, 0);
+    return jfFrame(JF_MSGS.ETC2, d);
+  }
+
   function jfAir1(t) {
     const d = jfBlank();
     // Bytes 3 and 4 (0-indexed 2 and 3), 8 kPa/bit. Byte 1 SPN 46 Pneumatic Supply Pressure (the
@@ -160,6 +173,7 @@
     const out = [];
 
     if (slow && has(t, 'retarder_state')) out.push(jfErc1(t));          // 100 ms
+    if (slow && has(t, 'gear_ratio')) out.push(jfEtc2(t));              // 100 ms
 
     if (Date.now() - jfLast1s >= 1000) {                                // 1 s
       if (has(t, 'air_primary') || has(t, 'air_secondary')) {
@@ -175,7 +189,7 @@
   window.carlitoFlavorPackers = window.carlitoFlavorPackers || [];
   window.carlitoFlavorPackers.push({
     flavor: 'j1939',
-    signals: ['air_primary', 'air_secondary', 'retarder_state'],
+    signals: ['air_primary', 'air_secondary', 'retarder_state', 'gear_ratio'],
     // Carried, but not on a clock. SPN 582 Axle Weight rides PGN 65258 (VW), whose J1939-71
     // transmission repetition rate is literally "On request" - so it has no periodic frame by
     // design, and broadcasting it at 10 Hz would misstate its rate the same way broadcasting
@@ -242,11 +256,18 @@
   const JF_DRIVE_TTL_MS = 300;
   const FULL_LOCK_RAD = 1.5 * 2 * Math.PI;
   const SA_ENGINE = 0x00;          // Engine #1 - EEC2's and (in the demo) CCVS's sender
-  const SA_TRANSMISSION = 0x03;    // Transmission #1 - TC1's destination
   const SA_SHIFT_CONSOLE = 0x05;   // Shift Console - Primary (isobus.net SourceAddress table)
   const PGN_EEC2 = 61443, PGN_EBC1 = 61441, PGN_VDC2 = 61449, PGN_TC1 = 256, PGN_CCVS = 65265;
   const GEAR_R_BYTE = 0xFF;        // the contract's reverse byte
   const GEAR_P_BYTE = 0xFE;        // the contract's park byte (v48)
+  // The tallest drive byte: the top of the contract's `gear` enum (its '1-N' key), read at call
+  // time; 6, RAMN's own range, with no contract loaded.
+  function jfTopGear() {
+    const c = window.CARLITO_CONTRACT;
+    const sig = c && c.signals && c.signals.find(s => s.name === 'gear' && s.dir === 'in');
+    const key = sig && sig.enum && Object.keys(sig.enum).find(k => /^1-\d+$/.test(k));
+    return key ? +key.split('-')[1] : 6;
+  }
   const jfDrive = {
     accel:     { bus: undefined, at: 0 },
     brake:     { bus: undefined, at: 0 },
@@ -277,7 +298,7 @@
     if (g === 'R' || g === GEAR_R_BYTE) return 125 - 1;
     if (g === 'P' || g === GEAR_P_BYTE) return 0xFB;
     const n = Math.round(Number(g)) || 0;
-    return 125 + Math.max(0, Math.min(6, n));
+    return 125 + Math.max(0, Math.min(jfTopGear(), n));
   }
   // A gear is the operating range, -64..64 (raw 61..189). Everything else is a parameter-specific
   // code, and only Forward Drive and Park have a contract meaning; Hold, the shift requests and
@@ -289,11 +310,11 @@
     const g = raw - 125;
     if (g < -64 || g > 64) return undefined;
     if (g < 0) return GEAR_R_BYTE;
-    return Math.min(6, g);
+    return Math.min(jfTopGear(), g);
   }
 
   // The four frames the demo sends for a control state { accel, brake, steer, gear } (RAMN panel
-  // shape: % / % / -100 L..+100 R / 1..6 or 'R'). The parking brake and brake switch ride a CCVS
+  // shape: % / % / -100 L..+100 R / 1..top gear, 'R' or 'P'). The parking brake and brake switch ride a CCVS
   // the demo already sends, so they are a patch onto its data rather than a frame of their own.
   function j1939DriveFrames(c) {
     const eec2 = jfBlank(), ebc1 = jfBlank(), vdc2 = jfBlank(), tc1 = jfBlank();
@@ -381,6 +402,7 @@
     eq('ERC1 id', jfId(61440, 6, SA_RETARDER).toString(16).toUpperCase(), '18F00010');
     eq('AIR1 id', jfId(65198, 6, SA_BRAKES).toString(16).toUpperCase(), '18FEAE0B');
     eq('VW id',   jfId(65258, 6, SA_AXLE_DRV1).toString(16).toUpperCase(), '18FEEA09');
+    eq('ETC2 id', jfId(61445, 6, SA_TRANSMISSION).toString(16).toUpperCase(), '18F00503');
     if (typeof j1939ParseId === 'function') {
       eq('ERC1 id parses back', j1939ParseId(jfId(61440, 6, SA_RETARDER)),
         { priority: 6, dp: 0, pf: 0xF0, pgn: 61440, da: 0xFF, sa: 0x10 });
@@ -406,6 +428,13 @@
       'FF FF 64 FF FF FF FF FF');
     eq('a real zero is written', hex(jfAir1({ air_primary: 0, air_secondary: 0 }).data),
       'FF FF 00 00 FF FF FF FF');
+    //    D3 at ratio 1.41: gear raw 128 = 0x80 in bytes 1 and 4; 1410 = 0x0582 -> 82 05. A CVT at
+    //    active standstill publishes 64.255 = 0xFAFF, the top of the valid range; R is raw 124.
+    eq('ETC2 D3 at 1.41', hex(jfEtc2({ gear: 3, gear_ratio: 1.41 }).data),
+      '80 82 05 80 FF FF FF FF');
+    eq('ETC2 standstill', hex(jfEtc2({ gear: 1, gear_ratio: 64.255 }).data),
+      '7E FF FA 7E FF FF FF FF');
+    eq('ETC2 reverse', jfEtc2({ gear: 255, gear_ratio: 3.9 }).data[0], 124);
     //    ...and a value past the top of the scale clamps to the top of the valid range.
     eq('over-range clamps under the reserved codes', jfAir1({ air_primary: 9999 }).data[2], 0xFA);
 
@@ -443,6 +472,8 @@
         { 'Actual Retarder - Percent Torque': '-40 %' });
       rt('ERC1 released', 61440, jfErc1({ retarder_state: 0 }),
         { 'Actual Retarder - Percent Torque': '0 %', 'Retarder Torque Mode': 'No request' });
+      rt('ETC2', 61445, jfEtc2({ gear: 3, gear_ratio: 1.41 }),
+        { 'Selected Gear': '3', 'Actual Gear Ratio': '1.410', 'Current Gear': '3' });
       rt('AIR1', 65198, jfAir1({ air_primary: 8, air_secondary: 7.2 }),
         { 'Service Brake Air Pressure Circuit #1': '800 kPa',
           'Service Brake Air Pressure Circuit #2': '720 kPa' });
@@ -477,6 +508,15 @@
     tcRaw(0xFB); eq('Park reads P', live('gear'), GEAR_P_BYTE);
     tcRaw(0xFD); eq('Hold refreshes nothing', live('gear'), GEAR_P_BYTE);
     eq('P encodes as Park', j1939DriveFrames({ gear: 'P' })[3].data[2], 0xFB);
+    //    The whole drive range rides SPN 525, D12 and the contract's top gear alike; past it clamps.
+    const top = jfTopGear();
+    eq('D12 encodes as 137', j1939DriveFrames({ gear: 12 })[3].data[2], 137);
+    eq('the top gear encodes', j1939DriveFrames({ gear: top })[3].data[2], 125 + top);
+    eq('past the top gear clamps', j1939DriveFrames({ gear: top + 1 })[3].data[2], 125 + top);
+    tcRaw(137); eq('137 reads D12', live('gear'), 12);
+    tcRaw(125 + top); eq('the top gear reads back', live('gear'), top);
+    tcRaw(125 + top + 1); eq('past the top gear reads the top', live('gear'), top);
+    tcRaw(0xFB);
     //    A TC1 to another destination is not the transmission's.
     jfDecodeDrive({ id: jfIdDa(PGN_TC1, 3, SA_SHIFT_CONSOLE, 0x04), isExt: true, data: [0xFF, 0xFF, 128, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
     eq('TC1 to Transmission #2 ignored', live('gear'), GEAR_P_BYTE);

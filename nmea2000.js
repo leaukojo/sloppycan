@@ -314,7 +314,10 @@
       if (has(t, 'rudder_actual')) out.push(nfRudder(t));
       if (has(t, 'trim')) out.push(nfEngineRapid(t));
       if (has(t, 'awa') || has(t, 'aws')) out.push(nfWindFrame(SA_NAV, t.awa, t.aws, 2));
-      if (has(t, 'twd') || has(t, 'tws')) out.push(nfWindFrame(SA_NAV, t.twd, t.tws, 0));
+      // True wind is also declared on car/truck/tractor (their dashboards' compass rose), which
+      // carry no NMEA 2000 network: 130306 goes on the bus only with a boat on the link.
+      if (has(t, 'rudder_actual') && (has(t, 'twd') || has(t, 'tws')))
+        out.push(nfWindFrame(SA_NAV, t.twd, t.tws, 0));
     }
 
     if (now - nfLast250 >= 250) {
@@ -322,7 +325,11 @@
     }
 
     if (now - nfLast500 >= 500) {
-      if (has(t, 'oil_press') || has(t, 'fuel_rate')) { nfLast500 = now; out.push(...nfEngineDynamic(t)); }
+      // fuel_rate is also declared on car/truck/tractor, which carry no NMEA 2000 network (a
+      // truck or tractor's burn goes out as J1939 LFE1, isobus.js): 127489 is the boat's alone.
+      if (has(t, 'rudder_actual') && (has(t, 'oil_press') || has(t, 'fuel_rate'))) {
+        nfLast500 = now; out.push(...nfEngineDynamic(t));
+      }
     }
 
     if (now - nfLast1s >= 1000) {

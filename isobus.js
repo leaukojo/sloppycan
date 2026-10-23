@@ -13,19 +13,19 @@
 // the reason this file can be trusted at all:
 //   - ISO 11783-7 messages (65091 / 65093 / 65096 / 65097): the ISOBUS Data Dictionary at
 //     isobus.net, which is the standard's own electronic database.
-//   - SAE J1939-71 messages (61443 EEC2, 61446 EAC1, 64991 FWD): the J1939-71 document.
+//   - SAE J1939-71 messages (61443 EEC2, 61446 EAC1, 64991 FWD, 65266 LFE1): the J1939-71 document.
 //   - Preferred source addresses: isobus.net's SourceAddress table.
 //   - The NAME bit layout: SAE J1939-81.
 // FOUR of those lookups contradicted what this repo already believed, and correcting j1939.js's
 // decode tables was part of the same change - each is called out at the point it bites below.
 //
 // ── THE COMMANDS ─────────────────────────────────────────────────────────────
-// This file also OWNS the tractor's seven contract dir="in" signals - hitch, PTO, PTO mode, diff
-// lock, MFWD, guidance curvature and SCV flow - the way dronecan.js owns its gimbal sliders: one
-// state per signal, fed by tractor.js's widgets (window.isobusSetCtl) AND by the real ISO 11783-7
-// command frames off the bus (65090 Hitch and PTO commands, 44288 Guidance System command, 65072
-// Auxiliary valve 0 command), leaving through carlito.js's uplink registry. See the section of
-// that name below for the freshness rule and for the two with no decoder.
+// This file also OWNS the tractor's eight contract dir="in" signals - hitch, PTO, PTO mode, hand
+// throttle, diff lock, MFWD, guidance curvature and SCV flow - the way dronecan.js owns its gimbal
+// sliders: one state per signal, fed by tractor.js's widgets (window.isobusSetCtl) AND by the real
+// ISO 11783-7 command frames off the bus (65090 Hitch and PTO commands, 44288 Guidance System
+// command, 65072 Auxiliary valve 0 command), leaving through carlito.js's uplink registry. See the
+// section of that name below for the freshness rule and for the three with no decoder.
 //
 // INTEGRATION POINTS - the only changes required in the main files:
 //   index.html           <script src="isobus.js" defer> after carlito_contract.js and BEFORE
@@ -114,6 +114,11 @@
     // gives EEC1 (61444) bytes 2 and 3 as SPN 512 / 513, the two TORQUE parameters, and
     // j1939.js's table had SPN 91/92 there - corrected in the same change as this file.
     EEC2: { pgn: 61443, prio: 3, sa: SA_ENGINE,    ms: 50 },
+    // Fuel Economy (Liquid). Bytes 1-2 are SPN 183 Engine Fuel Rate, 0.05 L/h per bit. It carries
+    // the contract's `fuel_rate`, an NMEA 2000-flavored signal whose coverage is nmea2000.js's
+    // (PGN 127489 on the boat): on a truck or tractor the same reading is an engine parameter
+    // group, sent from the engine beside EEC2.
+    LFE1: { pgn: 65266, prio: 6, sa: SA_ENGINE,    ms: 100 },
     // Electronic Axle Controller 1. 2.5 is SPN 569 Differential Lock State - Rear Axle 1.
     EAC1: { pgn: 61446, prio: 6, sa: SA_AXLE_DRV1, ms: 500 },
     // Front Wheel Drive Status. 1.1 is SPN 2612 Front Wheel Drive Actuator Status.
@@ -161,6 +166,14 @@
     // signal and belongs to CAN_MAP's side of the coverage check, not this one.
     ibPut(d, 2, 1, t.engine_load, 1, 0);
     return ibFrame(IB_MSGS.EEC2, d);
+  }
+
+  function ibLfe1(t) {
+    const d = ibBlank();
+    // SPN 183, bytes 1-2 little-endian, 0.05 L/h per bit, offset 0. Bytes 3-8 (SPN 184 / 185
+    // economy, SPN 51 throttle position) stay "not available": the game publishes no economy.
+    ibPut(d, 0, 2, t.fuel_rate, 0.05, 0);
+    return ibFrame(IB_MSGS.LFE1, d);
   }
 
   function ibEac1(t) {
@@ -324,6 +337,9 @@
       if (has(t, 'hitch_pos_actual') || has(t, 'draft_force')) out.push(ibRhs(t));
       if (has(t, 'wheel_speed')) out.push(ibWbsd(t));
       if (has(t, 'ground_speed')) out.push(ibGbsd(t));
+      // A J1939 engine's burn: `fuel_rate` is declared on the car and the boat as well, which
+      // carry no J1939 engine, so the gate is the engine's own SPN 92 beside it.
+      if (has(t, 'fuel_rate') && has(t, 'engine_load')) out.push(ibLfe1(t));
     }
 
     if (now - ibLast500 >= 500) {                                      // 500 ms
@@ -378,7 +394,8 @@
   // (PGN 256), SPN 687 Disengage Differential Lock Request - Rear Axle 1, at 4.5 per J1939-71
   // (j1939-flavor.js already decodes TC1's Requested Gear); that decoder is simply not written.
   // MFWD has no command in the ISO 11783-7 messages decoded here (FWD, 64991, is the status this
-  // file packs).
+  // file packs). `hand_throttle` is panel-only too: the hand throttle is a lever in the cab, and
+  // no ISO 11783-7 command message carries it.
   const IB_CMD_TTL_MS = 300;
   const IB_PGN_HPTOC = 65090;   // Hitch and PTO commands, prio 3, 100 ms when active
   const IB_PGN_GSC   = 44288;   // Agricultural Guidance System command, PDU1 to the TECU, 100 ms
@@ -387,6 +404,7 @@
     hitch_pos:          { panel: 100, bus: undefined, at: 0 },
     pto:                { panel: 0,   bus: undefined, at: 0 },
     pto_mode:           { panel: 0,   bus: undefined, at: 0 },
+    hand_throttle:      { panel: 0,   bus: undefined, at: 0 },
     diff_lock:          { panel: 0,   bus: undefined, at: 0 },
     fwd_drive:          { panel: 0,   bus: undefined, at: 0 },
     // PRESENCE overrides `steer` in the game, so the panel's resting value is NO value: the
@@ -520,6 +538,8 @@
       hex(ibRpto({ pto_state: false }).data),
       'FF FF FF FF 3F FF FF FF');
     eq('EEC2 42 % load', hex(ibEec2({ engine_load: 42 }).data), 'FF FF 2A FF FF FF FF FF');
+    //    12.5 L/h -> 250 = 0xFA, little-endian FA 00.
+    eq('LFE1 12.5 L/h', hex(ibLfe1({ fuel_rate: 12.5 }).data), 'FA 00 FF FF FF FF FF FF');
     eq('EAC1 rear diff locked', hex(ibEac1({ diff_lock_state: true }).data), 'FF DF FF FF FF FF FF FF');
     eq('EAC1 rear diff open',   hex(ibEac1({ diff_lock_state: false }).data), 'FF CF FF FF FF FF FF FF');
     eq('FWD engaged', hex(ibFwd({ fwd_drive_state: true }).data), 'FD FF FF FF FF FF FF FF');
@@ -569,6 +589,7 @@
         }
       };
       rt('EEC2', 61443, ibEec2({ engine_load: 42 }), { 'Percent Load At Current Speed': '42 %' });
+      rt('LFE1', 65266, ibLfe1({ fuel_rate: 12.5 }), { 'Fuel Rate': '12.5 L/h' });
       rt('WBSD', 65096, ibWbsd({ wheel_speed: 18, status: ST_IGNITION }),
         { 'Wheel-based machine speed': '5.000 m/s', 'Wheel-based machine direction': 'Forward' });
       rt('GBSD', 65097, ibGbsd({ ground_speed: 18, status: 0 }),

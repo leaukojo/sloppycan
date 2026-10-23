@@ -156,6 +156,7 @@
         <div class="carlito-io-row"><span>slip</span><b id="ci_slip">-</b></div>
         <div class="carlito-io-row"><span>ground</span><b id="ci_ground">-</b></div>
         <div class="carlito-io-row"><span>head</span><b id="ci_head">-</b></div>
+        <div class="carlito-io-row" title="contract twd / tws: the bearing the true wind comes FROM, and its speed (car, truck, tractor, boat; '-' where the vehicle declares none, or in dead calm)"><span>wind</span><b id="ci_wind">-</b></div>
         <div class="carlito-io-row"><span>pos</span><b id="ci_pos">-</b></div>
         <div class="carlito-io-row"><span>lat</span><b id="ci_lat">-</b></div>
         <div class="carlito-io-row"><span>lon</span><b id="ci_lon">-</b></div>
@@ -163,6 +164,8 @@
         <div class="carlito-io-row"><span>status</span><b id="ci_status">-</b></div>
         <div class="carlito-io-row"><span>impact</span><b id="ci_impact">-</b></div>
         <div class="carlito-io-row"><span>fuel</span><b id="ci_fuel">-</b></div>
+        <div class="carlito-io-row" title="contract fuel_rate in L/h: the burn, read out of the game's crank on car, truck and tractor (a modelled throttle term on the boat); '-' where the vehicle declares none"><span>burn</span><b id="ci_burn">-</b></div>
+        <div class="carlito-io-row" title="contract gear_ratio (J1939 SPN 526, sent in ETC2): the gearbox input over output speed on truck and tractor - the engaged gear's ratio, a CVT's live one (64.255 at active standstill); '-' where the vehicle declares none"><span>ratio</span><b id="ci_ratio">-</b></div>
         <div class="carlito-io-row"><span>coolant</span><b id="ci_coolant">-</b></div>
         <div class="carlito-io-row"><span>batt</span><b id="ci_batt">-</b></div>
         <div class="carlito-io-row" style="opacity:.6"><span>CAN</span><b>520–528</b></div>
@@ -223,7 +226,7 @@
   let noDriveShown = false;   // last-applied state of the "no driving controls" bar note
   const el = {};
   const OUT_IDS = ['co_accel','co_brake','co_steer','co_hand','co_key','co_lights','co_gear','co_turn','co_horn','co_check','co_batt','co_brakelamp'];
-  const IN_IDS = ['ci_kmh','ci_rpm','ci_gear','ci_throttle','ci_yaw','ci_acclong','ci_acclat','ci_steer','ci_slip','ci_ground','ci_head','ci_pos','ci_lat','ci_lon','ci_odo','ci_status','ci_impact','ci_fuel','ci_coolant','ci_batt'];
+  const IN_IDS = ['ci_kmh','ci_rpm','ci_gear','ci_throttle','ci_yaw','ci_acclong','ci_acclat','ci_steer','ci_slip','ci_ground','ci_head','ci_wind','ci_pos','ci_lat','ci_lon','ci_odo','ci_status','ci_impact','ci_fuel','ci_burn','ci_ratio','ci_coolant','ci_batt'];
   const KEY_LBL = ['', 'Off', 'Acc', 'Ign'], LIGHT_LBL = ['', 'Off', 'Clr', 'Low', 'High'];
 
   // ── Shared signal contract (window.CARLITO_CONTRACT, loaded before this file) ──
@@ -272,7 +275,7 @@
     handbrake: st => window.ramnSeen('handbrake') ? st.handbrake : undefined,
     key:       st => window.ramnSeen('key')       ? (+st.key    || 1) : undefined,
     lights:    st => window.ramnSeen('lights')    ? (+st.lights || 1) : undefined,
-    // Gear byte follows the contract (0=N, 1-6=D1-D6, 0xFE=P, 0xFF=R) - same as the RAMN wire byte.
+    // Gear byte follows the contract (0=N, 1-N=D1-DN up to its enum's top, 0xFE=P, 0xFF=R) - same as the RAMN wire byte.
     gear:      st => window.ramnSeen('gear')      ? (st.gear === 'R' ? GEAR_R_BYTE : (st.gear === 'P' ? GEAR_P_BYTE : (+st.gear || 0))) : undefined,
     turnL:     st => window.ramnSeen('turnL')     ? st.turnL : undefined,
     turnR:     st => window.ramnSeen('turnR')     ? st.turnR : undefined,
@@ -544,6 +547,9 @@
     el.ci_slip.textContent = slipPair(t).map(v => v.toFixed(2)).join(' / ');
     el.ci_ground.textContent = (+t.ground || 0) ? 'yes' : 'no';
     el.ci_head.textContent = (+t.heading || 0).toFixed(0) + '°';
+    // Present only where the vehicle declares true wind; tws 0 is dead calm, where twd is no bearing.
+    el.ci_wind.textContent = (t.tws === undefined || t.tws === null) ? '-'
+      : (+t.tws > 0 ? (+t.twd || 0).toFixed(0) + '° ' : '- ') + (+t.tws || 0).toFixed(1) + ' m/s';
     el.ci_pos.textContent = (+t.posX || 0).toFixed(0) + ',' + (+t.posZ || 0).toFixed(0);
     el.ci_lat.textContent = (+t.lat || 0).toFixed(5);
     el.ci_lon.textContent = (+t.lon || 0).toFixed(5);
@@ -551,6 +557,10 @@
     el.ci_status.textContent = '0x' + ((+t.status || 0) & 0xFFFF).toString(16).toUpperCase();
     el.ci_impact.textContent = (+t.impact || 0).toFixed(1);
     el.ci_fuel.textContent = (+t.fuel || 0) + '%';
+    el.ci_burn.textContent = (t.fuel_rate === undefined || t.fuel_rate === null) ? '-'
+      : (+t.fuel_rate || 0).toFixed(1) + ' L/h';
+    el.ci_ratio.textContent = (t.gear_ratio === undefined || t.gear_ratio === null) ? '-'
+      : (+t.gear_ratio || 0).toFixed(3);
     el.ci_coolant.textContent = (+t.coolant || 0) + '°C';
     el.ci_batt.textContent = (+t.battery || 0).toFixed(1) + ' V';
   }

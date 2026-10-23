@@ -2,7 +2,7 @@
 // One floating window, following the Carlito link through vehicle-panel.js. Takes 'dash':
 // a tractor is driven with the RAMN controls, so it replaces the cluster and the Control Panel
 // keeps driving. Claims no uplink signal and owns none: its Commands section is a view over
-// isobus.js, which owns the tractor's seven commands and also reads them off the bus.
+// isobus.js, which owns the tractor's eight commands and also reads them off the bus.
 //
 // A STARTING POINT: currently the RAMN cluster verbatim, off window.ramnGetState(). The
 // signals that belong here are hitch_pos_actual / pto_rpm / implement_connected /
@@ -225,6 +225,9 @@
         <button id="tractorCtl540" title="contract pto_mode 0 - the 540 r/min gearing. Bus: PGN 65090 SPN 1896.">540</button>
         <button id="tractorCtl1000" title="contract pto_mode 1 - the 1000 r/min gearing. Bus: PGN 65090 SPN 1896.">1000</button>
       </div>
+      <div class="tractor-ctl-row" title="contract hand_throttle - the all-speed governor's second lever: the higher of it and the accelerator sets the engine speed, idle (0) to high idle (100). It does not pull away alone. Panel only: no ISO 11783-7 command carries it.">
+        <span class="lbl">Hand</span><input type="range" id="tractorCtlHand" min="0" max="100" value="0"><span class="v" id="tractorCtlHandV">0%</span>
+      </div>
       <div class="tractor-ctl-row">
         <span class="lbl">Drive</span>
         <button id="tractorCtlDiff" title="contract diff_lock - rear differential lock request. Panel only: its J1939 carrier (TC1, SPN 687) has no decoder here yet.">Diff lock</button>
@@ -341,7 +344,7 @@
   }
 
   // ── Commands ────────────────────────────────────────────────────────────────
-  // A view over isobus.js, which owns all seven tractor commands and also takes them off the bus
+  // A view over isobus.js, which owns all eight tractor commands and also takes them off the bus
   // (window.isobusCtl / isobusSetCtl). A control a frame is holding right now is ringed amber and
   // its slider follows the frame; touching the control takes it back. Rendered with the cluster,
   // on the telemetry push and after every click.
@@ -361,6 +364,7 @@
     btn(el.pto, !!c.pto, b.pto);
     btn(el.m540, c.pto_mode === 0, b.pto_mode);
     btn(el.m1000, c.pto_mode === 1, b.pto_mode);
+    slider(el.hand, el.handV, c.hand_throttle, Math.round(c.hand_throttle) + '%', false);
     btn(el.diff, !!c.diff_lock, false);
     btn(el.fwd, !!c.fwd_drive, false);
     // Disengaged, the slider keeps the operator's preset and nothing is sent.
@@ -386,6 +390,7 @@
       batt: q('tractorTellBatt'), chk: q('tractorTellChk'),
       hitch: q('tractorCtlHitch'), hitchV: q('tractorCtlHitchV'), pto: q('tractorCtlPto'),
       m540: q('tractorCtl540'), m1000: q('tractorCtl1000'),
+      hand: q('tractorCtlHand'), handV: q('tractorCtlHandV'),
       diff: q('tractorCtlDiff'), fwd: q('tractorCtlFwd'),
       guide: q('tractorCtlGuide'), curv: q('tractorCtlCurv'), curvV: q('tractorCtlCurvV'),
       scv: q('tractorCtlScv'), scvV: q('tractorCtlScvV'),
@@ -395,6 +400,7 @@
     el.pto.addEventListener('click', () => { const c = ibc(); ibSet({ pto: c && c.pto ? 0 : 1 }); });
     el.m540.addEventListener('click', () => ibSet({ pto_mode: 0 }));
     el.m1000.addEventListener('click', () => ibSet({ pto_mode: 1 }));
+    el.hand.addEventListener('input', () => ibSet({ hand_throttle: +el.hand.value }));
     el.diff.addEventListener('click', () => { const c = ibc(); ibSet({ diff_lock: c && c.diff_lock ? 0 : 1 }); });
     el.fwd.addEventListener('click', () => { const c = ibc(); ibSet({ fwd_drive: c && c.fwd_drive ? 0 : 1 }); });
     el.guide.addEventListener('click', () => {

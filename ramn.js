@@ -370,7 +370,7 @@ ctrlWin.innerHTML = `
       <div class="ramn-toggle" id="ramnCtrlHand" data-color="red">Handbrake</div>
     </div>
     <div class="ramn-hint">
-      <b>Joystick</b>: ↑/↓ shift gear (P · R · 1-6) · ←/→ toggle turn signal · ● horn.<br>
+      <b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
       <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.<br>
       <a href="https://github.com/ToyotaInfoTech/RAMN" target="_blank" rel="noopener">Learn more about RAMN ↗</a>
     </div>
@@ -383,7 +383,7 @@ ctrlWin.innerHTML = `
 function blankState() {
   return {
     brake: 0, accel: 0, steer: 0,           // %, % , -100(L)..+100(R)
-    gear: null, joy: 1,                      // gear: 'P'|'R'|1..6|null ; joy enum 1..6
+    gear: null, joy: 1,                      // gear: 'P'|'R'|1..ramnTopGear()|null ; joy enum 1..6
     horn: false, lights: 1, key: 1,          // lights 1..4 (derived from 0x1BB), key 1..3
     turnL: false, turnR: false,              // from 0x1BB LED status (0x1A7 control too)
     handbrake: false, battery: false, checkEngine: false,
@@ -404,7 +404,7 @@ let dashScale = () => {}, ctrlScale = () => {};
 // Defaults give a sane resting car (centred wheel, lights/key off, first gear).
 const ramnCtrl = {
   brake: 0, accel: 0, steer: 0,   // steer -100(L)..+100(R)
-  gear: 1, joy: 1,                // gear 1..6, 'R' or 'P'
+  gear: 1, joy: 1,                // gear 1..ramnTopGear(), 'R' or 'P'
   horn: 0, lights: 1, key: 3,     // key defaults to Ignition so demo driving passes Carlito's engine gate
   turnL: 0, turnR: 0, handbrake: 0
 };
@@ -473,7 +473,7 @@ function ramnIngestFrame(frame) {
       break;
     }
     case 0x077:
-      st.gear = (d[0] === 0xFF) ? 'R' : (d[0] === 0xFE ? 'P' : (d[0] >= 1 && d[0] <= 6 ? d[0] : null));
+      st.gear = (d[0] === 0xFF) ? 'R' : (d[0] === 0xFE ? 'P' : (d[0] >= 1 && d[0] <= ramnTopGear() ? d[0] : null));
       st.joy  = d[1] || 1;
       ramnSeenFields.add('gear');
       break;
@@ -615,9 +615,21 @@ function ramnDemoStarted() {
   if (win.classList.contains('open')) setCtrlOpen(true);
 }
 
+// The tallest drive byte: the top of the Carlito contract's `gear` enum (its '1-N' key), so the
+// panel and the decode follow the bus rather than a literal. Real RAMN sends up to its firmware's
+// MAX_GEAR_VALUE. Read at call time (this file loads before carlito_contract.js); 6, RAMN's own
+// range, with no contract.
+function ramnTopGear() {
+  const c = window.CARLITO_CONTRACT;
+  const sig = c && c.signals && c.signals.find(s => s.name === 'gear' && s.dir === 'in');
+  const key = sig && sig.enum && Object.keys(sig.enum).find(k => /^1-\d+$/.test(k));
+  return key ? +key.split('-')[1] : 6;
+}
+
 // ── Control UI sync (reflects ramnCtrl into the panel widgets) ─────────────────
 let cel = {};
 function syncCtrlUI() {
+  cel.gearTop.textContent = ramnTopGear();
   cel.brake.value = ramnCtrl.brake; cel.brakeV.textContent = Math.round(ramnCtrl.brake) + '%';
   cel.accel.value = ramnCtrl.accel; cel.accelV.textContent = Math.round(ramnCtrl.accel) + '%';
   cel.steer.value = ramnCtrl.steer;
@@ -720,6 +732,7 @@ function ramnSetTraffic(on) {
     accel: ctrlWin.querySelector('#ramnCtrlAccel'), accelV: ctrlWin.querySelector('#ramnCtrlAccelV'),
     steer: ctrlWin.querySelector('#ramnCtrlSteer'), steerV: ctrlWin.querySelector('#ramnCtrlSteerV'),
     joypad: ctrlWin.querySelector('#ramnCtrlJoy'), gearV: ctrlWin.querySelector('#ramnCtrlGearV'),
+    gearTop: ctrlWin.querySelector('#ramnCtrlGearTop'),
     lights: ctrlWin.querySelector('#ramnCtrlLights'), key: ctrlWin.querySelector('#ramnCtrlKey'),
     hand: ctrlWin.querySelector('#ramnCtrlHand'),
     traffic: ctrlWin.querySelector('#ramnCtrlTraffic'), body: ctrlWin.querySelector('#ramnCtrlBody'),
@@ -741,10 +754,16 @@ function ramnSetTraffic(on) {
 
   // Gear is driven by the shift joystick (like real RAMN): ↑ up, ↓ down.
   // P sits below R, as on a lever; it is a Carlito extension (byte 0xFE), never sent by real RAMN.
-  const GEAR_SEQ = ['P', 'R', 1, 2, 3, 4, 5, 6];
+  // P, R, then D1 up to the contract's top gear (`ramnTopGear`).
+  function gearSeq() {
+    const seq = ['P', 'R'];
+    for (let g = 1; g <= ramnTopGear(); g++) seq.push(g);
+    return seq;
+  }
   function gearShift(delta) {
-    let i = GEAR_SEQ.indexOf(ramnCtrl.gear); if (i < 0) i = GEAR_SEQ.indexOf(1);
-    ramnCtrl.gear = GEAR_SEQ[Math.max(0, Math.min(GEAR_SEQ.length - 1, i + delta))];
+    const seq = gearSeq();
+    let i = seq.indexOf(ramnCtrl.gear); if (i < 0) i = seq.indexOf(1);
+    ramnCtrl.gear = seq[Math.max(0, Math.min(seq.length - 1, i + delta))];
   }
   // Joystick pad - momentary (sets 0x077 byte1). Side effects on press:
   // ↑/↓ shift gear, ←/→ toggle turn signal, ● horn (held). Reverts to released (1) on mouse-up.

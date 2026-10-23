@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 49,
+  "version": 54,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -149,7 +149,7 @@ window.CARLITO_CONTRACT = {
         "0": "N",
         "254": "P",
         "255": "R",
-        "1-6": "D1-D6"
+        "1-24": "D1-D24"
       },
       "vehicles": [
         "car",
@@ -158,7 +158,7 @@ window.CARLITO_CONTRACT = {
         "plane",
         "train"
       ],
-      "desc": "RAMN gear byte. While bridge active and not N, the gear owns direction. 254 (P) is not a RAMN value, so every byte RAMN sends keeps its meaning: it engages the gearbox's park pawl where one is fitted (cars, vans, the tractor's powershift), locking the gearbox output below walking pace (the driven wheels hold through the diffs; an open one still lets its two wheels turn against each other), and reads as N on a gearbox without one (the trucks park on their spring brakes)."
+      "desc": "RAMN gear byte. While bridge active and not N, the gear owns direction. D1-D24 is the bus's range: RAMN sends up to its MAX_GEAR_VALUE (6 until its firmware is raised), and a byte past a short gearbox selects its top ratio. 254 (P) is not a RAMN value, so every byte RAMN sends keeps its meaning: it engages the gearbox's park pawl where one is fitted (cars, vans, the tractor's powershift), locking the gearbox output below walking pace (the driven wheels hold through the diffs; an open one still lets its two wheels turn against each other), and reads as N on a gearbox without one (the trucks park on their spring brakes). On a CVT (the tractor-cvt variant) a drive byte caps the mechanical range the box may reach (D1-D4; past the last, the last), as a short box reads a byte past its top; the ratio itself stays the controller's."
     },
     {
       "name": "turnL",
@@ -322,7 +322,7 @@ window.CARLITO_CONTRACT = {
         "0": "N",
         "254": "P",
         "255": "R",
-        "1-6": "D1-D6"
+        "1-24": "D1-D24"
       },
       "vehicles": [
         "car",
@@ -331,7 +331,7 @@ window.CARLITO_CONTRACT = {
         "plane",
         "train"
       ],
-      "desc": "Currently engaged gear (same byte semantics as the 'in' gear): P only where a park pawl is fitted, N where a P request found none."
+      "desc": "Currently engaged gear (same byte semantics as the 'in' gear): P only where a park pawl is fitted, N where a P request found none. On a CVT (the tractor-cvt variant) a D byte is the mechanical range engaged, D1-D4, changing synchronously as the ratio moves (the live ratio is 'gear_ratio'); R stays R."
     },
     {
       "name": "throttle",
@@ -709,7 +709,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "isobus",
-      "desc": "PTO engage request. Shared with the truck rather than duplicated: the power take-off is J1939 SPN 976 territory and ISOBUS inherits it — on a tractor it turns the rear stub, on a truck the chassis PTO is what drives the body. Same signal, same parasitic cost to the engine."
+      "desc": "PTO engage request. Shared with the truck rather than duplicated: the power take-off is J1939 SPN 976 territory and ISOBUS inherits it — on a tractor it turns the rear stub, on a truck the chassis PTO is what drives the body. Same signal, and on both the driven machine's power is a torque on the crank, so engine_load and rpm carry it."
     },
     {
       "name": "hitch_pos_actual",
@@ -745,13 +745,13 @@ window.CARLITO_CONTRACT = {
       "unit": "rev/min",
       "range": [
         0,
-        1200
+        1300
       ],
       "vehicles": [
         "tractor"
       ],
       "flavor": "isobus",
-      "desc": "PTO shaft speed = engine rpm x the gearing of the selected pto_mode, 0 when disengaged."
+      "desc": "PTO shaft speed = engine rpm x the gearing of the selected pto_mode, 0 when disengaged. The range tops out over the 1000 mode at the engine's high idle (1272 on the wire, 1272.7 unclamped)."
     },
     {
       "name": "engine_load",
@@ -767,7 +767,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "isobus",
-      "desc": "Engine load (J1939 SPN 92 flavor): the torque the engine is delivering as a fraction of the most it can ever make, plus a PTO parasitic term. Normalised against the PEAK of the torque curve rather than the torque available at the current rpm — the latter cancels to plain throttle. So it is rpm-aware: lugging, a PTO implement or a plough's draft pull the engine along its curve and this follows. Shared with the truck rather than duplicated: SPN 92 is a J1939 signal and the tractor's was always the borrowed one — on a truck a chassis PTO or a loaded body is what moves it."
+      "desc": "Engine load (J1939 SPN 92 flavor): the torque the engine is delivering as a fraction of the most it can ever make (a driven PTO is in it as load on the crank). Normalised against the PEAK of the torque curve rather than the torque available at the current rpm — the latter cancels to plain throttle. So it is rpm-aware: lugging, a PTO implement or a plough's draft pull the engine along its curve and this follows. Shared with the truck rather than duplicated: SPN 92 is a J1939 signal and the tractor's was always the borrowed one — on a truck a chassis PTO or a loaded body is what moves it."
     },
     {
       "name": "implement_connected",
@@ -833,7 +833,22 @@ window.CARLITO_CONTRACT = {
         "tractor"
       ],
       "flavor": "isobus",
-      "desc": "PTO speed selection. The values name the SHAFT speed in rev/min the stub turns at rated engine rpm, which is what a real 540/1000 selector picks: different gearing, not a different engine speed."
+      "desc": "PTO speed selection. The values name the SHAFT speed in rev/min the stub turns at the PTO's rated engine speed (the hand_throttle preset), which is what a real 540/1000 selector picks: different gearing, not a different engine speed."
+    },
+    {
+      "name": "hand_throttle",
+      "dir": "in",
+      "type": "u8",
+      "unit": "%",
+      "range": [
+        0,
+        100
+      ],
+      "vehicles": [
+        "tractor"
+      ],
+      "flavor": "isobus",
+      "desc": "Hand throttle position. The tractor's diesel runs an all-speed governor: the higher of the accelerator and this sets an engine speed between idle (0) and high idle (100), and the fuel holds it on a droop line, so a load (a PTO implement, draft) pulls the engine a few percent under it. Sets engine speed only: pulling away from rest still takes the accelerator, as a shuttle's release does. Absent = 0. No ISO 11783-7 command carries it. Resolution: 1 % is 18 rpm of setting, so the PTO's rated engine speed (the local preset, 69.05 %) sits between 69 and 70 %: at 69 an unloaded 540 shaft turns 539."
     },
     {
       "name": "diff_lock_state",
@@ -1122,10 +1137,13 @@ window.CARLITO_CONTRACT = {
         360
       ],
       "vehicles": [
+        "car",
+        "truck",
+        "tractor",
         "boat"
       ],
       "flavor": "nmea2000",
-      "desc": "True wind direction: the compass bearing the wind comes FROM, which is what every marine instrument reads. WindField.direction_deg is the heading the wind blows TOWARD (the reverse of aviation's comes-from), so the 180-degree inversion happens once, in BoatTelemetry.true_wind, and nowhere else. Reads 0 in dead calm. PGN 130306 Wind Data."
+      "desc": "True wind direction: the compass bearing the wind comes FROM, which is what every marine and weather instrument reads. WindField.direction_deg is the heading the wind blows TOWARD (the reverse of the comes-from convention), so the 180-degree inversion happens once, in VehicleTelemetry.true_wind, and nowhere else. On the land families it is the same WindField sample the crosswind force reads, so the land dashboards' compass rose names the side a body drifts away from. Reads 0 in dead calm. The flavor names PGN 130306 Wind Data's semantics; sloppyCAN encodes it on the boat only."
     },
     {
       "name": "tws",
@@ -1133,10 +1151,13 @@ window.CARLITO_CONTRACT = {
       "type": "f32",
       "unit": "m/s",
       "vehicles": [
+        "car",
+        "truck",
+        "tractor",
         "boat"
       ],
       "flavor": "nmea2000",
-      "desc": "True wind speed, read straight out of the level's WindField - measured, not modeled. No 'range', like 'aws'. PGN 130306 Wind Data."
+      "desc": "True wind speed, read straight out of the level's WindField - measured, not modeled. No 'range', like 'aws'. PGN 130306 Wind Data (encoded on the boat only, like 'twd')."
     },
     {
       "name": "stw",
@@ -1224,10 +1245,13 @@ window.CARLITO_CONTRACT = {
       "type": "f32",
       "unit": "L/h",
       "vehicles": [
+        "car",
+        "truck",
+        "tractor",
         "boat"
       ],
       "flavor": "nmea2000",
-      "desc": "Fuel consumption rate: a LABELLED HONEST MODEL off Drivetrain.applied_throttle (idle burn plus a load term), not liters actually drawn from the tank. It does not reconcile against 'fuel', which drains a percent-of-tank abstraction on its own clock — the same relationship engine_load has to the pedal. No 'range': a full scale for burn rate would be an invention. PGN 127489 Engine Parameters, Dynamic."
+      "desc": "Fuel consumption rate, a LABELLED HONEST MODEL with two forms. On a wheel-driving crank (car, truck, tractor) it is read out of the sim: the delivered fuel Drivetrain.applied_throttle adds fuel x (curve - motoring) to the crank over its motoring torque, and that torque's power over a sourced indicated efficiency per fuel (VehicleTelemetry.fuel_rate_lph) is the burn, so a fuel cut burns nothing, idle burns the friction power, and part load costs more per kWh. On the boat, whose engine turns at the prop's speed with no crank law, it is idle burn plus a load term off applied_throttle. The litres are real; 'fuel' drains a game-scaled tank (a body's tank lasts VehicleTelemetry.FUEL_TANK_FULL_LOAD_S at its rated burn), so the two do not reconcile against a real tank. No 'range': a full scale for burn rate would be an invention. NMEA 2000 PGN 127489 Engine Parameters, Dynamic, on the boat; a truck or tractor link carries it as J1939 SPN 183 (LFE1, PGN 65266), which sloppyCAN encodes off the same value."
     },
     {
       "name": "oil_press",
@@ -1392,6 +1416,18 @@ window.CARLITO_CONTRACT = {
       ],
       "flavor": "j1939",
       "desc": "Retarder torque as actually applied to the driven axle, read out of the driveline rather than echoed from the request (the diff_lock_state precedent): the speed fade and the anti-lock traction cap have already happened. J1939 SPN 520 reports retarder torque as a NEGATIVE percent, because a retarder is a brake; this signal publishes the MAGNITUDE, since the dashboard generates its bars straight from 'range' and a [-100, 0] range would fill the RET bar backwards (full retardation reading as an empty bar). The sign convention is documented here rather than encoded."
+    },
+    {
+      "name": "gear_ratio",
+      "dir": "out",
+      "type": "f32",
+      "unit": "ratio",
+      "vehicles": [
+        "tractor",
+        "truck"
+      ],
+      "flavor": "j1939",
+      "desc": "Actual gear ratio (J1939 SPN 526, ETC2 bytes 2-3, 0.001 per bit): the gearbox's input speed over its output, final drive excluded, unsigned. READ OUT OF THE SIM: the engaged gear's ratio on a stepped box (reverse's in R), the controller's live ratio on a CVT, where it moves continuously; 0 in N or P. A CVT at active standstill (ratio output over input 0) reads SPN 526's largest value, 64.255. No 'range': a ratio has no full scale, so it is a readout."
     },
     {
       "name": "axle_load",
