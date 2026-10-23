@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAN Signals Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 16px; height: 16px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 980px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose h3 { font-size: 15px; font-weight: 600; margin: 22px 0 8px; color: var(--text); }
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+details.disclosure { margin: 14px 0; }
+details.disclosure > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px;
+  font-size: 13.5px; font-weight: 600; color: var(--text); padding: 10px 14px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; user-select: none;
+}
+details.disclosure > summary::-webkit-details-marker { display: none; }
+details.disclosure > summary::before {
+  content: '▶'; font-size: 10px; color: var(--text3); transition: transform .15s; flex-shrink: 0;
+}
+details.disclosure[open] > summary::before { transform: rotate(90deg); }
+details.disclosure > summary:hover { background: var(--bg3); }
+details.disclosure > summary .hint { font-weight: 400; color: var(--text2); }
+details.disclosure[open] > summary { border-radius: 10px 10px 0 0; border-bottom: none; }
+details.disclosure > .disclosure-body {
+  border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; padding: 16px 16px 6px;
+}
+.warn { border-left-color: var(--amber); }
+.warn strong { color: var(--amber); }
+.good { border-left-color: var(--green); }
+.good strong { color: var(--green); }
+
+/* ── Diagrams ─────────────────────────────────────────────── */
+.diagram { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 14px 0; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; height: auto; min-width: 560px; }
+.busdiag .box   { fill: var(--bg3); stroke: var(--border2); stroke-width: 1.5; }
+.busdiag .mcu   { fill: var(--blue-dim); stroke: var(--blue); stroke-width: 1.5; }
+.busdiag .txr   { fill: var(--purple-dim); stroke: var(--purple); stroke-width: 1.5; }
+.busdiag .lbl   { fill: var(--text);  font: 600 12px var(--sans); }
+.busdiag .sub   { fill: var(--text2); font: 500 10px var(--mono); }
+.busdiag .wire  { stroke: var(--text3); stroke-width: 1.5; fill: none; }
+.busdiag .canh  { stroke: var(--red);  stroke-width: 2.5; fill: none; }
+.busdiag .canl  { stroke: var(--blue); stroke-width: 2.5; fill: none; }
+.busdiag .term  { fill: var(--amber-dim); stroke: var(--amber); stroke-width: 1.5; }
+.busdiag .termlbl { fill: var(--amber); font: 600 10px var(--mono); }
+.busdiag .txhead { fill: var(--amber); }
+.busdiag .rxhead { fill: var(--green); }
+.busdiag .txlbl  { fill: var(--amber); font: 600 11px var(--mono); }
+.busdiag .rxlbl  { fill: var(--green); font: 600 11px var(--mono); }
+.busdiag .volt   { fill: var(--text2); font: 600 9px var(--mono); }
+.busdiag .tap    { fill: var(--green); }
+.busdiag .cap    { fill: var(--text2); font: 500 10px var(--mono); }
+.busdiag .railH  { fill: var(--red);  font: 600 10px var(--mono); }
+.busdiag .railL  { fill: var(--blue); font: 600 10px var(--mono); }
+
+/* ── Input ───────────────────────────────────────────────── */
+textarea#bitsInput {
+  width: 100%; min-height: 84px; resize: vertical;
+  background: var(--bg); border: 1px solid var(--border2); border-radius: 8px;
+  color: var(--text); font-family: var(--mono); font-size: 13px; letter-spacing: .12em;
+  padding: 10px 12px; outline: none; line-height: 1.7;
+}
+textarea#bitsInput:focus { border-color: var(--blue); }
+.io-foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 8px 0 4px; }
+.io-meta { font-size: 12px; color: var(--text2); font-family: var(--mono); }
+.io-meta b { color: var(--text); }
+.io-bad { color: var(--red); }
+.vmsg { font-size: 12.5px; line-height: 1.6; margin: 2px 0 4px; }
+.vmsg code { font-family: var(--mono); font-size: .9em; background: var(--bg3); padding: 1px 4px; border-radius: 4px; }
+.vmsg .ok  { color: var(--green); }
+.vmsg .err { color: var(--amber); display: block; }
+
+/* ── Frame editor + parse table ──────────────────────────── */
+.frame-editor { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin: 12px 0; }
+.fe-field { display: flex; flex-direction: column; gap: 4px; }
+.fe-field label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.fe-field input, .fe-field select {
+  background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+  color: var(--text); font-family: var(--mono); font-size: 13px; padding: 6px 9px; outline: none;
+}
+.fe-field input { width: 130px; }
+.fe-field.grow { flex: 1; min-width: 200px; }
+.fe-field.grow input { width: 100%; }
+.fe-field input:focus, .fe-field select:focus { border-color: var(--blue); }
+.parse-table td { vertical-align: top; }
+.parse-table th, .parse-table td { padding: 3px 10px; font-size: 12px; }
+.parse-table tr[data-from] { cursor: default; }
+.parse-table tr[data-from]:hover { background: var(--bg3); }
+.pt-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: middle; }
+.pt-bits { color: var(--text2); word-break: break-all; }
+
+/* ── Scope ───────────────────────────────────────────────── */
+.scope-controls { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 12px 0 4px; font-size: 12px; }
+.scope-controls label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text2); }
+.scope-controls label:hover { color: var(--text); }
+.scope-controls .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+.scope-fit { display: flex; justify-content: flex-end; margin: 0 0 6px; font-size: 12px; }
+.scope-fit label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; }
+.scope-fit label:hover { color: var(--text); background: var(--bg3); }
+.scope-wrap { overflow-x: auto; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
+canvas#scope, canvas#arbScope { display: block; }
+.scope-invalid { background: var(--bg2); border: 1px dashed var(--border2); border-radius: 10px; padding: 28px 18px; text-align: center; color: var(--amber); font-size: 13.5px; }
+.scope-invalid .big { display: block; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.readout {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
+  margin-top: 10px; padding: 10px 14px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; min-height: 42px;
+}
+.readout .rk { color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.readout .rv { font-family: var(--mono); color: var(--text); }
+.readout .badge { font-family: var(--mono); padding: 2px 8px; border-radius: 5px; font-size: 12px; }
+.badge.dom { background: var(--amber-dim); border: 1px solid var(--amber); color: var(--amber); }
+.badge.rec { background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0; font-size: 11px; color: var(--text2); }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend .sw { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Arbitration ─────────────────────────────────────────── */
+.arb-controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin: 4px 0 12px; }
+.arb-field { display: flex; flex-direction: column; gap: 4px; }
+.arb-field > .grp { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.arb-field .row { display: flex; gap: 6px; }
+.arb-field select, .arb-field input {
+  background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+  color: var(--text); font-family: var(--mono); font-size: 14px; padding: 6px 9px; outline: none;
+}
+.arb-field input { width: 130px; }
+.arb-field input:focus, .arb-field select:focus { border-color: var(--blue); }
+.arb-field input.invalid { border-color: var(--red); background: var(--red-dim); }
+.arb-status { margin-top: 10px; font-size: 13.5px; line-height: 1.6; }
+.arb-status .win  { color: var(--green); font-weight: 600; }
+.arb-status .lose { color: var(--red);   font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">CAN Signals Explainer</div>
+      <div class="logo-sub">physical layer · dominant vs recessive</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="../index.html" target="_blank" class="btn">sloppyCAN ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>The CAN protocol</h1>
+
+  <!-- ════════════════════ 1. What is a CAN bus? ════════════════════ -->
+  <h2>What is a CAN bus?</h2>
+  <p>
+    A CAN bus is just two wires, <strong>CAN_H</strong> and <strong>CAN_L</strong>, twisted together,
+    with a 120&nbsp;Ω resistor across them at each end. Every node hangs off the same pair. Below are three
+    nodes; in a real car you might have dozens.
+  </p>
+  <p>
+    Each node has a central unit, typically a microcontroller, and a <strong>transceiver</strong> that
+    turns its logic-level <code>TX</code> bit into bus voltages and reports back what it reads on
+    <code>RX</code>. The controller never touches the bus directly. Everyone shares the pair and samples
+    every bit at the same point in time.
+  </p>
+
+  <div class="diagram busdiag">
+    <svg viewBox="0 0 900 300" role="img" aria-label="Three CAN nodes on a shared twisted pair">
+      <!-- rails -->
+      <line class="canh" x1="64" y1="232" x2="824" y2="232"/>
+      <line class="canl" x1="64" y1="262" x2="824" y2="262"/>
+      <text class="railH" x="848" y="236">CAN_H</text>
+      <text class="railL" x="848" y="266">CAN_L</text>
+      <!-- terminators -->
+      <rect class="term" x="44" y="226" width="20" height="42" rx="3"/>
+      <text class="termlbl" x="54" y="220" text-anchor="middle">120Ω</text>
+      <rect class="term" x="824" y="226" width="20" height="42" rx="3"/>
+      <text class="termlbl" x="834" y="220" text-anchor="middle">120Ω</text>
+
+      <!-- node 1 (cx=180) -->
+      <g>
+        <rect class="mcu" x="120" y="26" width="120" height="44" rx="6"/>
+        <text class="lbl" x="180" y="53" text-anchor="middle">Microcontroller</text>
+        <rect class="txr" x="120" y="138" width="120" height="42" rx="6"/>
+        <text class="lbl" x="180" y="164" text-anchor="middle">Transceiver</text>
+        <!-- TX: MCU output, arrow DOWN into the transceiver -->
+        <line class="wire" x1="156" y1="70" x2="156" y2="130"/>
+        <polygon class="txhead" points="151,129 161,129 156,138"/>
+        <text class="txlbl" x="148" y="100" text-anchor="end">TX</text>
+        <!-- RX: MCU input, arrow UP into the microcontroller -->
+        <line class="wire" x1="204" y1="138" x2="204" y2="78"/>
+        <polygon class="rxhead" points="199,79 209,79 204,70"/>
+        <text class="rxlbl" x="212" y="100" text-anchor="start">RX</text>
+        <!-- stubs to rails -->
+        <line class="wire" x1="165" y1="180" x2="165" y2="232"/>
+        <line class="wire" x1="195" y1="180" x2="195" y2="262"/>
+        <circle class="tap" cx="165" cy="232" r="3.5"/>
+        <circle class="tap" cx="195" cy="262" r="3.5"/>
+      </g>
+      <!-- node 2 (cx=430) -->
+      <g>
+        <rect class="mcu" x="370" y="26" width="120" height="44" rx="6"/>
+        <text class="lbl" x="430" y="53" text-anchor="middle">Microcontroller</text>
+        <rect class="txr" x="370" y="138" width="120" height="42" rx="6"/>
+        <text class="lbl" x="430" y="164" text-anchor="middle">Transceiver</text>
+        <line class="wire" x1="406" y1="70" x2="406" y2="130"/>
+        <polygon class="txhead" points="401,129 411,129 406,138"/>
+        <text class="txlbl" x="398" y="100" text-anchor="end">TX</text>
+        <line class="wire" x1="454" y1="138" x2="454" y2="78"/>
+        <polygon class="rxhead" points="449,79 459,79 454,70"/>
+        <text class="rxlbl" x="462" y="100" text-anchor="start">RX</text>
+        <line class="wire" x1="415" y1="180" x2="415" y2="232"/>
+        <line class="wire" x1="445" y1="180" x2="445" y2="262"/>
+        <circle class="tap" cx="415" cy="232" r="3.5"/>
+        <circle class="tap" cx="445" cy="262" r="3.5"/>
+      </g>
+      <!-- node 3 (cx=680) -->
+      <g>
+        <rect class="mcu" x="620" y="26" width="120" height="44" rx="6"/>
+        <text class="lbl" x="680" y="53" text-anchor="middle">Microcontroller</text>
+        <rect class="txr" x="620" y="138" width="120" height="42" rx="6"/>
+        <text class="lbl" x="680" y="164" text-anchor="middle">Transceiver</text>
+        <line class="wire" x1="656" y1="70" x2="656" y2="130"/>
+        <polygon class="txhead" points="651,129 661,129 656,138"/>
+        <text class="txlbl" x="648" y="100" text-anchor="end">TX</text>
+        <line class="wire" x1="704" y1="138" x2="704" y2="78"/>
+        <polygon class="rxhead" points="699,79 709,79 704,70"/>
+        <text class="rxlbl" x="712" y="100" text-anchor="start">RX</text>
+        <line class="wire" x1="665" y1="180" x2="665" y2="232"/>
+        <line class="wire" x1="695" y1="180" x2="695" y2="262"/>
+        <circle class="tap" cx="665" cy="232" r="3.5"/>
+        <circle class="tap" cx="695" cy="262" r="3.5"/>
+      </g>
+
+      <text class="cap" x="44" y="293">Green dots = bus sample points · TX (amber ▾) = MCU output · RX (green ▴) = MCU input · 3.3 V logic · bus ≈ 2 V differential</text>
+    </svg>
+  </div>
+  <h3>Dominant and recessive</h3>
+  <p>
+    CAN's two bit states aren't "high" and "low". They're <strong>dominant</strong> (<code>0</code>) and
+    <strong>recessive</strong> (<code>1</code>). A transceiver actively drives the bus to send dominant; for
+    recessive it just lets go and the bus relaxes to a resting voltage on its own. If any node drives
+    dominant, every node reads dominant - recessive only shows up when nobody is driving. If one node
+    transmits a <code>0</code> and another transmits a <code>1</code> at the same time, <code>0</code> wins.
+  </p>
+
+  <!-- ════════════════════ 2. The bitstream ════════════════════ -->
+  <h2>The bitstream</h2>
+  <p>
+    Here's a real frame as raw bits, in transmission order, <strong>after bit-stuffing (explained below)</strong>.
+    It's the same string the Frame Inspector shows. Each character is one bit on the wire. Edit it and
+    everything below re-draws live (only <code>0</code> and <code>1</code> are accepted).
+  </p>
+  <h3>Bit-stuffing</h3>
+  <p>
+    A CAN receiver resyncs its clock off every bit edge, so a long run of identical bits with no edge would
+    let it drift. A transmitter prevents that by watching its own output and inserting one bit of the
+    opposite polarity after every five identical bits in a row, whether or not the data needed it. Every
+    receiver knows the rule and removes that extra bit on the way back out. These stuff bits are called out
+    separately in the table and scope below.
+  </p>
+  <textarea id="bitsInput" aria-label="CAN bitstream (0s and 1s)" spellcheck="false" autocomplete="off"></textarea>
+  <div class="io-foot">
+    <button class="btn" id="resetBtn">Reset to example</button>
+    <div class="io-meta" id="bitsMeta">-</div>
+  </div>
+  <div id="validation" class="vmsg"></div>
+
+  <!-- ════════════════════ 3. What is a CAN frame? ════════════════════ -->
+  <h2>CAN Bitfields</h2>
+  <p>
+    Those bits are packed into fixed fields: a start bit, the <strong>ID</strong> (which also sets
+    priority), a few control bits, up to 8 bytes of <strong>data</strong>, a <strong>CRC</strong>
+    checksum, an <strong>ACK</strong> slot, and an end marker. The table below is the live parse of the
+    bitstream above. Hover a row to light up its bits in the oscilloscope.
+  </p>
+  <p>
+    Expand the table to see the field-by-field breakdown and edit it directly. Change a value there and the
+    bitstream rewrites itself, including a freshly computed CRC. The two views are the same frame seen two
+    ways, so editing one edits the other.
+  </p>
+  <details class="disclosure" id="frameDetails">
+    <summary>Bit-field layout <span class="hint">- editable field table, click to expand</span></summary>
+    <div class="disclosure-body">
+      <div id="frameArea">
+        <div class="frame-editor">
+          <div class="fe-field">
+            <label for="feType">Frame</label>
+            <select id="feType"><option value="std">Standard (11-bit)</option><option value="ext">Extended (29-bit)</option></select>
+          </div>
+          <div class="fe-field"><label for="feId">ID (hex)</label><input id="feId" spellcheck="false" autocomplete="off"></div>
+          <div class="fe-field">
+            <label for="feRtr">Type</label>
+            <select id="feRtr"><option value="0">Data</option><option value="1">Remote (RTR)</option></select>
+          </div>
+          <div class="fe-field"><label for="feDlc">DLC</label><input id="feDlc" type="number" min="0" max="8"></div>
+          <div class="fe-field grow"><label for="feData">Data (hex bytes)</label><input id="feData" spellcheck="false" autocomplete="off"></div>
+        </div>
+        <div id="crcMsg" class="vmsg"></div>
+        <table class="parse-table" id="parseTable">
+          <thead><tr><th>Field</th><th>Width</th><th>Bits (on the wire)</th><th>Value</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="scope-invalid" id="frameInvalid" style="display:none"><span class="big">No frame to inspect</span>Fix the bitstream above and the fields will reappear.</div>
+    </div>
+  </details>
+
+  <!-- ════════════════════ 4. What signals make up a CAN frame? ════════════════════ -->
+  <h2>CAN Voltages</h2>
+  <p>
+    Now the voltages. Each bit becomes a level on <strong>CAN_H</strong> and <strong>CAN_L</strong>; what
+    the transceiver actually decides is the <strong>difference</strong> between them. <code>RX</code> can run
+    at any logic-level voltage depending on the transceiver, commonly 3.3&nbsp;V or 5&nbsp;V; this page
+    assumes 3.3&nbsp;V. The traces below are drawn to scale and share one voltage axis: the 3.3&nbsp;V logic
+    swing is taller than the ~1&nbsp;V each individual CAN line moves between dominant and recessive. Drag
+    your mouse across to read out any bit.
+  </p>
+
+  <div id="scopeBlock">
+    <div class="scope-controls" id="scopeControls"></div>
+    <div class="legend" id="fieldLegend"></div>
+    <div class="scope-fit"><label><input type="checkbox" id="fitToggle" checked> Fit whole frame to width</label></div>
+    <div class="scope-wrap"><canvas id="scope"></canvas></div>
+    <div class="readout" id="readout">Hover over the scope to inspect a single bit.</div>
+  </div>
+  <div class="scope-invalid" id="scopeInvalid" style="display:none"><span class="big">Invalid bitstream</span><span id="scopeInvalidWhy"></span></div>
+
+  <p class="note"><strong>CAN_H and CAN_L look noisy on purpose.</strong> Both pick up the same electrical
+     hash because they're twisted together and run side by side. Watch the <code>CAN_H − CAN_L</code> trace:
+     it stays clean. The noise hits both wires equally, so subtracting one from the other cancels it. That's
+     why CAN survives in an engine bay - the receiver only ever looks at the difference.</p>
+
+  <h3>How ACK works</h3>
+  <p>
+    Find the <strong>ACK bit</strong> in the scope (the red column). The transmitter sends the whole frame,
+    but when it hits the ACK slot it deliberately goes <strong>recessive</strong> and listens. Any node that
+    received the frame with a good CRC slams the bus <strong>dominant</strong> for that single bit. Wired-AND
+    does the rest: the transmitter reads back a dominant bit it didn't send, which proves at least one other
+    node is alive and got the message.
+  </p>
+  <ul>
+    <li><strong>Sender TX</strong> drives the whole frame but releases the ACK slot to recessive.</li>
+    <li><strong>Receiver TX</strong> stays recessive the whole frame <em>except</em> it pulls the ACK slot dominant.</li>
+    <li><strong>Bus / RX</strong> is the wired-AND: identical to the sender everywhere except the ACK bit.</li>
+  </ul>
+  <p class="note warn"><strong>Nobody answers?</strong> The ACK slot stays recessive, the transmitter flags
+     an ACK error and retransmits, assuming auto-retransmission is enabled. Put a single node on a bus with
+     no listeners and, with that default on, it will retry forever.</p>
+
+  <!-- ════════════════════ 5. How do we avoid collisions? ════════════════════ -->
+  <h2>Avoid collisions with arbitration</h2>
+  <p>
+    No master, no scheduler. Any node can start sending the moment the bus goes idle, and two nodes
+    sometimes start in the same bit time. When that happens, both write to the bus at once, and dominant
+    wins, so <strong>nobody loses data</strong>: every transmitter watches the bus while it sends, and the
+    instant it sends a recessive <code>1</code> but reads back a dominant <code>0</code>, it knows a
+    higher-priority message is talking over it. It backs off and becomes a receiver. The winner never even
+    notices.
+  </p>
+  <p>
+    The race happens over the <strong>SOF bit and the ID</strong>: whichever node has more early dominant
+    bits, usually the lower ID, keeps going. Enter two hex IDs below and hover the graph to see exactly where
+    the loser drops out. You can mix standard and extended frames too: if they share the same base ID, the
+    standard frame wins, because right after the ID it sends a dominant <strong>RTR</strong> bit (Remote
+    Transmission Request: recessive for a remote frame, dominant for data) and a dominant <strong>IDE</strong>
+    bit (Identifier Extension: recessive means an extended 29-bit ID follows), while the extended frame has to
+    send a recessive <strong>SRR</strong> in that same slot (Substitute Remote Request, a placeholder that
+    keeps the two frame types lined up bit-for-bit). Dominant beats recessive, so standard wins. Try ECU A
+    <code>123</code> (Std) against ECU B <code>123</code> (Ext) and watch where it splits.
+  </p>
+
+  <div class="card">
+    <div class="arb-controls">
+      <div class="arb-field">
+        <div class="grp">ECU A</div>
+        <div class="row">
+          <select id="arbAType" aria-label="ECU A frame type"><option value="std">Std</option><option value="ext">Ext</option></select>
+          <input id="arbA" value="123" placeholder="hex" aria-label="ECU A CAN ID (hex)" spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+      <div class="arb-field">
+        <div class="grp">ECU B</div>
+        <div class="row">
+          <select id="arbBType" aria-label="ECU B frame type"><option value="std">Std</option><option value="ext">Ext</option></select>
+          <input id="arbB" value="223" placeholder="hex" aria-label="ECU B CAN ID (hex)" spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+    </div>
+    <div id="arbInvalid" class="vmsg" style="display:none"></div>
+    <div class="scope-wrap" id="arbWrap"><canvas id="arbScope"></canvas></div>
+    <div class="readout" id="arbReadout">Hover a bit to see who's driving the bus.</div>
+    <div class="arb-status" id="arbStatus"></div>
+    <div class="legend" style="margin-top:8px">
+      <span><span class="sw" style="background:var(--amber)"></span>dominant (0)</span>
+      <span><span class="sw" style="background:var(--bg3);border:1px solid var(--border2)"></span>recessive (1)</span>
+      <span><span class="sw" style="background:var(--bg3);border:1px dashed var(--text2)"></span>stuff bit</span>
+      <span><span class="sw" style="background:var(--red-dim);border:1.4px solid var(--red)"></span>arbitration decided here</span>
+    </div>
+  </div>
+  <p class="note"><strong>Nothing gets corrupted.</strong> Unlike an Ethernet collision, no frame is lost.
+     The high-priority frame goes out with zero delay; the loser just retries the moment the bus is free.
+     The ID is the only thing arbitration looks at, so the ID <em>is</em> the priority.</p>
+
+  <h3>Which messages get the low IDs?</h3>
+  <p>
+    Two broad kinds of traffic share the bus, and the ID assignment isn't an accident:
+  </p>
+  <ul>
+    <li><strong>Periodic ("mission-time") messages</strong> are the stuff the car needs constantly: engine
+        RPM, wheel speed, steering angle. These fire on a fixed clock, often every <code>10&nbsp;ms</code> or
+        <code>20&nbsp;ms</code>, and they get the <strong>lowest IDs</strong> so they win arbitration and
+        arrive on time.</li>
+    <li><strong>Aperiodic messages</strong> are event-driven traffic, like a button press or a diagnostic
+        tool asking a question. They show up irregularly and usually carry <strong>higher IDs</strong>, so a
+        chatty diagnostic session can never starve the powertrain frames that keep the car running.</li>
+  </ul>
+  <p class="note">Designers hand out IDs with this in mind: the more time-critical the message, the lower its
+     ID. Priority isn't a separate setting you configure. It falls straight out of the number you chose.</p>
+
+</div>
+</main>
+
+<script>
+// ── Frame-section colours (mirrors the Frame Inspector) ─────────────────────
+const SECTION_COLORS = {
+  sof:'#e2e8f0', id:'#60a5fa', flags:'#f59e0b', dlc:'#f97316', data:'#00e87a',
+  crc:'#a78bfa', ack:'#f4a3a3', eof:'#64748b', ifs:'#334155', other:'#475569',
+};
+const SECTION_LABELS = [
+  ['sof','SOF'],['id','ID'],['flags','Flags'],['dlc','DLC'],['data','Data'],
+  ['crc','CRC + Delim'],['ack','ACK + Delim'],['eof','EOF'],['ifs','IFS'],
+];
+
+// ── Bit-level helpers ─────────────────────────────────────────────────────
+function pushBits(arr, val, n) { for (let i = n - 1; i >= 0; i--) arr.push((val >>> i) & 1); }
+// Hex by default - "123" means 0x123. An optional 0x prefix is tolerated.
+function parseHexId(s) {
+  s = (s || '').trim().replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]+$/.test(s)) return NaN;
+  return parseInt(s, 16);
+}
+// CAN CRC-15, polynomial 0x4599, over the de-stuffed SOF…data bits.
+function crc15(bits) {
+  let crc = 0;
+  for (const b of bits) {
+    const inv = ((crc >> 14) & 1) ^ (b & 1);
+    crc = (crc << 1) & 0x7FFF;
+    if (inv) crc ^= 0x4599;
+  }
+  return crc;
+}
+
+// ── Encode a frame model → on-wire (stuffed) bitstream ──────────────────────
+function encodeFrame(m) {
+  const core = [0];                                   // SOF (dominant)
+  if (m.type === 'ext') {
+    pushBits(core, (m.id >>> 18) & 0x7FF, 11);        // base ID
+    core.push(1, 1);                                  // SRR, IDE (both recessive)
+    pushBits(core, m.id & 0x3FFFF, 18);               // extended ID
+    core.push(m.rtr & 1, 0, 0);                        // RTR, r1, r0
+  } else {
+    pushBits(core, m.id & 0x7FF, 11);                 // 11-bit ID
+    core.push(m.rtr & 1, 0, 0);                        // RTR, IDE=0, r0
+  }
+  pushBits(core, m.dlc & 0xF, 4);                      // DLC
+  const nb = m.rtr === 1 ? 0 : Math.min(m.dlc, 8);
+  for (let i = 0; i < nb; i++) pushBits(core, m.data[i] || 0, 8);
+  pushBits(core, crc15(core), 15);                     // CRC
+  const wire = stuffSeq(core).map(o => o.bit);         // bit-stuff SOF…CRC
+  return wire.concat([1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]); // CRCdelim,ACK,ACKdelim,EOF×7,IFS×3
+}
+
+const DEFAULT_MODEL = { type: 'std', id: 0x123, rtr: 0, dlc: 8, data: [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04] };
+const DEFAULT_BITS = encodeFrame(DEFAULT_MODEL).join('');
+
+// ── Parser: walk a stuffed bitstream, undo stuffing, map every bit to a field ─
+function parseFrame(bits) {
+  const n = bits.length;
+  const sec = new Array(n).fill('other');
+  const stuff = new Array(n).fill(false);
+  const fields = [];
+  let pos = 0, runVal = -1, runLen = 0, lastSec = 'sof';
+
+  function readBit(active) {
+    if (pos >= n) return null;
+    if (active && runLen === 5) {
+      stuff[pos] = true; sec[pos] = lastSec;
+      runVal = bits[pos]; runLen = 1; pos++;
+      if (pos >= n) return null;
+    }
+    const b = bits[pos];
+    sec[pos] = lastSec;
+    if (b === runVal) runLen++; else { runVal = b; runLen = 1; }
+    pos++;
+    return b;
+  }
+  function take(label, section, count, active) {
+    lastSec = section;
+    const from = pos; const out = [];
+    for (let k = 0; k < count; k++) { const b = readBit(active); if (b === null) break; out.push(b); }
+    const seg = { label, sec: section, from, to: pos, bits: out };
+    fields.push(seg);
+    return seg;
+  }
+
+  const fb = () => ({ bits, sec, stuff, fields: [], ackIndex: (n >= 12 ? n - 12 : -1), ok: false });
+  if (n < 24) return fb();
+
+  take('SOF', 'sof', 1, true);
+  take('ID', 'id', 11, true);
+  const segA = take('SRR / RTR', 'flags', 1, true);
+  const segIDE = take('IDE', 'flags', 1, true);
+  if (segIDE.bits.length < 1) return fb();
+  const isExt = segIDE.bits[0] === 1;
+
+  let rtrVal, dlcBits;
+  if (isExt) {
+    segA.label = 'SRR';
+    take('Ext ID', 'id', 18, true);
+    const segRTR = take('RTR', 'flags', 1, true);
+    take('r1', 'flags', 1, true);
+    take('r0', 'flags', 1, true);
+    rtrVal = segRTR.bits[0];
+    dlcBits = take('DLC', 'dlc', 4, true).bits;
+  } else {
+    segA.label = 'RTR';
+    rtrVal = segA.bits[0];
+    take('r0', 'flags', 1, true);
+    dlcBits = take('DLC', 'dlc', 4, true).bits;
+  }
+  if (dlcBits.length < 4) return fb();
+
+  const dlc = parseInt(dlcBits.join(''), 2);
+  const dataBytes = rtrVal === 1 ? 0 : Math.min(dlc, 8);
+  for (let d = 0; d < dataBytes; d++) take('D' + d, 'data', 8, true);
+
+  const crc = take('CRC', 'crc', 15, true);
+  if (crc.bits.length < 15) return fb();
+  if (runLen === 5 && pos < n) { stuff[pos] = true; sec[pos] = 'crc'; pos++; }
+
+  take('CRC Delim', 'crc', 1, false);
+  const ack = take('ACK', 'ack', 1, false);
+  take('ACK Delim', 'ack', 1, false);
+  take('EOF', 'eof', 7, false);
+  take('IFS', 'ifs', 3, false);
+
+  const ok = ack.bits.length === 1;
+  return { bits, sec, stuff, fields, ackIndex: ok ? ack.from : (n >= 12 ? n - 12 : -1), ok };
+}
+
+// ── Trace definitions ───────────────────────────────────────────────────────
+let ACK = -1; // filled in per render
+const VLO = -0.7, VHI = 3.9;        // shared voltage axis so traces are to scale
+const NOISE_AMP = 0.13;             // ± volts of common-mode noise on CAN_H / CAN_L
+const TRACES = [
+  { key:'canh', label:'CAN_H',       color:'#f87171', type:'volt',  noisy:true,  fn:(v)=> v===0?3.5:2.5 },
+  { key:'canl', label:'CAN_L',       color:'#60a5fa', type:'volt',  noisy:true,  fn:(v)=> v===0?1.5:2.5 },
+  { key:'diff', label:'CAN_H−CAN_L', color:'#00e87a', type:'volt',  fn:(v)=> v===0?2.0:0.0 },
+  { key:'rx',   label:'RX',          color:'#a78bfa', type:'logic', fn:(v)=> v===0?0:3.3 },
+  { key:'stx',  label:'Sender TX',   color:'#f59e0b', type:'logic', fn:(v,j)=> ((j===ACK?1:v)===0)?0:3.3 },
+  { key:'rtx',  label:'Receiver TX', color:'#22d3ee', type:'logic', fn:(v,j)=> ((j===ACK?0:1)===0)?0:3.3 },
+];
+const enabled = new Set(TRACES.map(t => t.key));
+
+let parsed = null;          // current parse result
+let highlightJ = null;      // single bit under the cursor
+let highlightRange = null;  // [from,to) span from a hovered parse-table row
+
+const cssVar = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+// Deterministic per-pixel noise: same x → same value, so it's stable across redraws.
+function noise(x) { const s = Math.sin(x * 12.9898) * 43758.5453; return (s - Math.floor(s)) - 0.5; }
+
+// ── Build the trace toggles + field legend ──────────────────────────────────
+function buildControls() {
+  const c = document.getElementById('scopeControls');
+  c.innerHTML = TRACES.map(t =>
+    '<label><input type="checkbox" data-key="' + t.key + '" ' + (enabled.has(t.key)?'checked':'') +
+    '><span class="sw" style="background:' + t.color + '"></span>' + t.label + '</label>'
+  ).join('');
+  c.querySelectorAll('input[data-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) enabled.add(cb.dataset.key); else enabled.delete(cb.dataset.key);
+      drawScope();
+    });
+  });
+
+  const lg = document.getElementById('fieldLegend');
+  lg.innerHTML = SECTION_LABELS.map(([s,l]) =>
+    '<span><span class="sw" style="background:' + SECTION_COLORS[s] + '"></span>' + l + '</span>'
+  ).join('')
+  + '<span><span class="sw" style="background:repeating-linear-gradient(45deg,var(--text2),var(--text2) 2px,transparent 2px,transparent 4px)"></span>stuff bit</span>'
+  + '<span><span class="sw" style="background:' + SECTION_COLORS.ack + '26;border:1.4px solid ' + SECTION_COLORS.ack + '"></span>ACK slot</span>';
+}
+
+// ── Draw the oscilloscope ────────────────────────────────────────────────────
+function drawScope() {
+  const canvas = document.getElementById('scope');
+  const ctx = canvas.getContext('2d');
+  if (!parsed || parsed.bits.length === 0) { canvas.width = 10; canvas.height = 10; ctx.clearRect(0,0,10,10); return; }
+  const bits = parsed.bits;
+  const n = bits.length;
+  ACK = parsed.ackIndex;
+  const lanes = TRACES.filter(t => enabled.has(t.key));
+
+  const wrap = canvas.parentElement;
+  const fit = document.getElementById('fitToggle').checked;
+  const padL = 108, padR = 14, padTop = 30, padBot = 26, laneH = 58, laneGap = 12;
+
+  const availW = wrap.clientWidth - 16;
+  let bitW = fit ? Math.max(2, (availW - padL - padR) / n) : 12;
+  const plotW = n * bitW;
+  const cssW = fit ? availW : (padL + plotW + padR);
+  const cssH = padTop + lanes.length * (laneH + laneGap) - laneGap + padBot;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const X = (j) => padL + j * bitW;
+  const colText = cssVar('--text'), colText2 = cssVar('--text2'), colText3 = cssVar('--text3');
+  const colBorder = cssVar('--border');
+  const light = cssVar('--text') === '#1a1a1a';
+
+  const plotTop = padTop, plotBot = cssH - padBot;
+  const plotH = plotBot - plotTop;
+
+  // Field colour bands behind everything
+  if (parsed.ok) {
+    for (let j = 0; j < n; j++) {
+      ctx.fillStyle = SECTION_COLORS[parsed.sec[j]] + '22';
+      ctx.fillRect(X(j), plotTop, bitW, plotH);
+    }
+  }
+  // Span highlight from a hovered parse-table row
+  if (highlightRange) {
+    ctx.fillStyle = light ? '#0000001f' : '#ffffff2b';
+    ctx.fillRect(X(highlightRange[0]), plotTop, (highlightRange[1] - highlightRange[0]) * bitW, plotH);
+  }
+  // Stuff-bit columns
+  for (let j = 0; j < n; j++) {
+    if (!parsed.stuff[j]) continue;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(X(j), plotTop, bitW, plotH); ctx.clip();
+    ctx.strokeStyle = colText; ctx.globalAlpha = 0.28; ctx.lineWidth = 1;
+    for (let xx = X(j) - plotH; xx < X(j) + bitW; xx += 5) {
+      ctx.beginPath(); ctx.moveTo(xx, plotBot); ctx.lineTo(xx + plotH, plotTop); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = colText2; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(X(j) + 0.5, plotTop); ctx.lineTo(X(j) + 0.5, plotBot);
+    ctx.moveTo(X(j) + bitW - 0.5, plotTop); ctx.lineTo(X(j) + bitW - 0.5, plotBot);
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  // ACK column highlight
+  if (ACK >= 0 && ACK < n) {
+    ctx.fillStyle = SECTION_COLORS.ack + '26';
+    ctx.fillRect(X(ACK), plotTop, bitW, plotH);
+    ctx.strokeStyle = SECTION_COLORS.ack; ctx.lineWidth = 1.4;
+    ctx.strokeRect(X(ACK) + 0.5, plotTop + 0.5, bitW - 1, plotH - 1);
+  }
+  // Bit-cell grid lines
+  if (bitW >= 5) {
+    ctx.strokeStyle = colBorder; ctx.lineWidth = 1; ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    for (let j = 0; j <= n; j++) { const x = X(j); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBot); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  // Single-bit cursor column
+  if (highlightJ != null && highlightJ >= 0 && highlightJ < n) {
+    ctx.fillStyle = light ? '#00000014' : '#ffffff1c';
+    ctx.fillRect(X(highlightJ), plotTop, bitW, plotH);
+  }
+
+  // Field labels across the top
+  if (parsed.ok) {
+    ctx.font = '600 10px ' + cssVar('--mono').replace(/['"]/g,'');
+    ctx.textBaseline = 'middle';
+    for (const f of parsed.fields) {
+      const w = (f.to - f.from) * bitW;
+      if (w < 16) continue;
+      ctx.fillStyle = SECTION_COLORS[f.sec];
+      ctx.textAlign = 'center';
+      const label = f.label.length * 6 > w ? f.label.replace(/[^A-Za-z0-9]/g,'').slice(0,Math.max(1,Math.floor(w/6))) : f.label;
+      ctx.fillText(label, X(f.from) + w/2, padTop/2);
+    }
+  }
+
+  // Each lane (shared voltage axis so amplitudes are comparable)
+  ctx.textBaseline = 'alphabetic';
+  lanes.forEach((t, li) => {
+    const top = padTop + li * (laneH + laneGap);
+    const bot = top + laneH;
+    const Y = (val) => bot - (val - VLO) / (VHI - VLO) * laneH;
+
+    ctx.fillStyle = colText2;
+    ctx.font = '600 11px ' + cssVar('--sans').replace(/['"]/g,'');
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(t.label, padL - 10, top + laneH/2);
+
+    const refVal = t.type === 'volt' ? (t.key === 'diff' ? 0.0 : 2.5) : 0;
+    ctx.strokeStyle = colBorder; ctx.setLineDash([3,4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, Y(refVal)); ctx.lineTo(padL + plotW, Y(refVal)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = t.color; ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (t.noisy) {
+      // Sample across x and add common-mode noise so the wiggle is visible.
+      for (let px = 0; px <= plotW; px++) {
+        const x = padL + px;
+        const j = Math.min(n - 1, Math.floor(px / bitW));
+        const v = t.fn(bits[j], j) + noise(Math.round(x)) * NOISE_AMP * 2;
+        const yy = Y(v);
+        if (px === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+    } else {
+      for (let j = 0; j < n; j++) {
+        const yy = Y(t.fn(bits[j], j));
+        const x0 = X(j), x1 = X(j + 1);
+        if (j === 0) ctx.moveTo(x0, yy); else ctx.lineTo(x0, yy);
+        ctx.lineTo(x1, yy);
+      }
+    }
+    ctx.stroke();
+  });
+
+  // Bottom axis: bit values + index ticks
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  const valY = plotBot + 9, idxY = cssH - 6;
+  const monoFont = cssVar('--mono').replace(/['"]/g, '');
+  for (let j = 0; j < n; j++) {
+    if (bitW >= 11) {
+      ctx.fillStyle = parsed.stuff[j] ? colText3 : colText;
+      ctx.font = (parsed.stuff[j] ? '400 ' : '500 ') + '11px ' + monoFont;
+      ctx.fillText(String(bits[j]), X(j) + bitW/2, valY);
+    }
+    if (j % 8 === 0) {
+      ctx.fillStyle = colText3; ctx.font = '400 9px ' + monoFont;
+      ctx.fillText(String(j), X(j) + bitW/2, idxY);
+    }
+  }
+}
+
+// ── Scrub readout ────────────────────────────────────────────────────────────
+function bitAtX(clientX) {
+  const canvas = document.getElementById('scope');
+  const rect = canvas.getBoundingClientRect();
+  const padL = 108;
+  const n = parsed.bits.length;
+  const cssW = rect.width;
+  const fit = document.getElementById('fitToggle').checked;
+  const bitW = fit ? Math.max(2, (cssW - padL - 14) / n) : 12;
+  const x = clientX - rect.left - padL;
+  const j = Math.floor(x / bitW);
+  return (j >= 0 && j < n) ? j : null;
+}
+function updateReadout(j) {
+  const ro = document.getElementById('readout');
+  if (j == null || !parsed) { ro.innerHTML = 'Hover over the scope to inspect a single bit.'; return; }
+  const v = parsed.bits[j];
+  const dom = v === 0;
+  const field = parsed.ok ? (parsed.fields.find(f => j >= f.from && j < f.to) || {label:'-'}).label : '-';
+  const stuffTag = parsed.stuff[j] ? ' <span class="rv" style="color:var(--text3)">(stuff bit)</span>' : '';
+  let html = '';
+  html += '<span><span class="rk">bit</span> <span class="rv">#' + j + '</span></span>';
+  html += '<span><span class="rk">field</span> <span class="rv">' + field + '</span>' + stuffTag + '</span>';
+  html += '<span class="badge ' + (dom?'dom':'rec') + '">' + (dom?'dominant 0':'recessive 1') + '</span>';
+  for (const t of TRACES) {
+    if (!enabled.has(t.key)) continue;
+    const val = t.fn(v, j);
+    html += '<span><span class="rk" style="color:' + t.color + '">' + t.label + '</span> <span class="rv">' + val.toFixed(1) + ' V</span></span>';
+  }
+  ro.innerHTML = html;
+}
+
+// ── Bit-stuffing helper (forward): insert opposite bit after any run of 5 ─────
+function stuffSeq(raw) {
+  const out = [];
+  let runLen = 1, last = -1;
+  for (let i = 0; i < raw.length; i++) {
+    const b = raw[i];
+    out.push({ bit: b, stuff: false });
+    if (i === 0) { last = b; continue; }
+    if (b === last) {
+      runLen++;
+      if (runLen === 5) { const sb = b ^ 1; out.push({ bit: sb, stuff: true }); last = sb; runLen = 1; }
+      else last = b;
+    } else { runLen = 1; last = b; }
+  }
+  return out;
+}
+
+// ── Validation: well-formed, correctly stuffed, properly terminated? ──────────
+function validate(bits) {
+  const n = bits.length;
+  const errs = [];
+  if (n < 24) { errs.push('Too short to be a CAN frame (a minimal frame is ~44 bits).'); return errs; }
+  const tail = bits.slice(n - 12).join('');
+  if (tail !== '011111111111') {
+    const shown = tail.replace(/^(.)(.)(.{0,7})(.*)$/, '$1 $2 $3 $4').trim();
+    errs.push('Frame must end with <code>0 1 1111111 111</code> - ACK (dominant) · ACK delimiter · 7-bit EOF · 3-bit IFS. Found <code>' + shown + '</code>.');
+  }
+  if (bits[n - 13] !== 1) errs.push('The CRC delimiter (bit ' + (n - 13) + ', just before the ACK slot) must be recessive (<code>1</code>).');
+  let rl = 1;
+  for (let i = 1; i < n - 13; i++) {
+    if (bits[i] === bits[i - 1]) {
+      if (++rl === 6) { errs.push('Bit-stuffing error: 6 identical bits in a row ending at bit ' + i + '. CAN inserts an opposite stuff bit after every run of 5.'); break; }
+    } else rl = 1;
+  }
+  return errs;
+}
+
+// ── CRC checking (tolerant) ──────────────────────────────────────────────────
+function crcFields(parsed) {
+  if (!parsed || !parsed.ok) return null;
+  const crcField = parsed.fields.find(f => f.label === 'CRC');
+  if (!crcField || crcField.bits.length < 15) return null;
+  const core = [];
+  for (const f of parsed.fields) { if (f.sec === 'crc') break; for (const b of f.bits) core.push(b); }
+  return { expected: crc15(core), actual: parseInt(crcField.bits.join(''), 2) };
+}
+
+// ── Frame model ↔ editor inputs ──────────────────────────────────────────────
+function modelFromParsed(p) {
+  const ide = p.fields.find(f => f.label === 'IDE');
+  const ext = ide && ide.bits[0] === 1;
+  const idF = p.fields.find(f => f.label === 'ID');
+  let id = idF ? parseInt(idF.bits.join(''), 2) : 0;
+  if (ext) {
+    const e = p.fields.find(f => f.label === 'Ext ID');
+    id = (id << 18) | (e ? parseInt(e.bits.join(''), 2) : 0);
+  }
+  const rtrF = p.fields.find(f => f.label === 'RTR');
+  const rtr = rtrF ? rtrF.bits[0] : 0;
+  const dlcF = p.fields.find(f => f.label === 'DLC');
+  const dlc = dlcF ? parseInt(dlcF.bits.join(''), 2) : 0;
+  const data = p.fields.filter(f => /^D\d+$/.test(f.label)).map(f => parseInt(f.bits.join(''), 2));
+  return { type: ext ? 'ext' : 'std', id, rtr, dlc, data };
+}
+function syncEditor() {
+  if (!parsed || !parsed.ok) return;
+  const m = modelFromParsed(parsed);
+  document.getElementById('feType').value = m.type;
+  document.getElementById('feId').value = (m.id >>> 0).toString(16).toUpperCase();
+  document.getElementById('feRtr').value = String(m.rtr);
+  document.getElementById('feDlc').value = String(m.dlc);
+  document.getElementById('feData').value = m.data.map(b => b.toString(16).padStart(2, '0')).join(' ');
+}
+function regenFromEditor() {
+  const type = document.getElementById('feType').value;
+  let id = parseHexId(document.getElementById('feId').value);
+  if (isNaN(id) || id < 0) id = 0;
+  id &= (type === 'ext' ? 0x1FFFFFFF : 0x7FF);
+  const rtr = +document.getElementById('feRtr').value;
+  const dlc = Math.max(0, Math.min(8, parseInt(document.getElementById('feDlc').value) || 0));
+  const data = (document.getElementById('feData').value.match(/[0-9a-fA-F]{1,2}/g) || []).map(h => parseInt(h, 16));
+  const bits = encodeFrame({ type, id, rtr, dlc, data }).join('');
+  const ta = document.getElementById('bitsInput');
+  ta.value = bits;
+  loadBits(bits);
+}
+
+// ── Parse table ───────────────────────────────────────────────────────────────
+function interpretField(f) {
+  const val = parseInt(f.bits.join('') || '0', 2);
+  switch (f.label) {
+    case 'SOF': return 'start';
+    case 'ID': case 'Ext ID': case 'CRC': return '0x' + val.toString(16).toUpperCase();
+    case 'DLC': return val + ' byte' + (val === 1 ? '' : 's');
+    case 'RTR': return val === 1 ? 'remote' : 'data';
+    case 'SRR': return 'recessive';
+    case 'IDE': return val === 1 ? 'extended' : 'standard';
+    case 'ACK': return val === 0 ? 'acknowledged' : 'no ACK';
+    default: return /^D\d+$/.test(f.label) ? '0x' + val.toString(16).padStart(2, '0').toUpperCase() : '';
+  }
+}
+function buildParseTable() {
+  const tb = document.querySelector('#parseTable tbody');
+  if (!parsed || !parsed.ok) {
+    tb.innerHTML = '<tr><td colspan="4" style="color:var(--text2)">This bitstream doesn’t parse as a CAN frame yet - fix the fields above or the validation warnings.</td></tr>';
+    return;
+  }
+  tb.innerHTML = parsed.fields.map(f =>
+    '<tr data-from="' + f.from + '" data-to="' + f.to + '">' +
+      '<td><span class="pt-dot" style="background:' + SECTION_COLORS[f.sec] + '"></span>' + f.label + '</td>' +
+      '<td class="mono">' + (f.to - f.from) + ' bit' + (f.to - f.from === 1 ? '' : 's') + '</td>' +
+      '<td class="mono pt-bits">' + f.bits.join('') + '</td>' +
+      '<td class="mono">' + interpretField(f) + '</td>' +
+    '</tr>'
+  ).join('');
+  tb.querySelectorAll('tr[data-from]').forEach(tr => {
+    tr.addEventListener('mouseenter', () => { highlightRange = [+tr.dataset.from, +tr.dataset.to]; drawScope(); });
+    tr.addEventListener('mouseleave', () => { highlightRange = null; drawScope(); });
+  });
+}
+
+// ── Input handling ───────────────────────────────────────────────────────────
+function loadBits(raw) {
+  const cleaned = (raw || '').replace(/[^01]/g, '');
+  const meta = document.getElementById('bitsMeta');
+  const vmsg = document.getElementById('validation');
+  const block = document.getElementById('scopeBlock');
+  const invalid = document.getElementById('scopeInvalid');
+
+  if (cleaned.length === 0) {
+    parsed = { bits: [], sec: [], stuff: [], fields: [], ackIndex: -1, ok: false };
+    meta.innerHTML = '<span class="io-bad">no bits</span>';
+    vmsg.innerHTML = '';
+    document.getElementById('crcMsg').innerHTML = '';
+    block.style.display = 'none';
+    invalid.style.display = 'block';
+    document.getElementById('scopeInvalidWhy').textContent = 'Paste a bitstream of 0s and 1s above.';
+    document.getElementById('frameArea').style.display = 'none';
+    document.getElementById('frameInvalid').style.display = 'block';
+    buildParseTable(); updateReadout(null);
+    return;
+  }
+
+  parsed = parseFrame(cleaned.split('').map(Number));
+  const kind = parsed.ok ? (parsed.fields.some(f => f.label === 'Ext ID') ? 'extended frame' : 'standard frame') : 'unparsed';
+  const stuffN = parsed.stuff.filter(Boolean).length;
+  meta.innerHTML = '<b>' + cleaned.length + '</b> bits · ' + kind + ' · <b>' + stuffN + '</b> stuff bit' + (stuffN === 1 ? '' : 's') +
+    (parsed.ok ? ' · ACK @ bit <b>' + parsed.ackIndex + '</b>' : '');
+
+  const errs = validate(parsed.bits);
+  const crc = crcFields(parsed);
+  const crcBad = crc && crc.expected !== crc.actual;
+
+  if (errs.length) {
+    vmsg.innerHTML = errs.map(e => '<span class="err">⚠ ' + e + '</span>').join('');
+  } else if (crcBad) {
+    vmsg.innerHTML = '<span class="err">⚠ Frame is well-formed, but the <b>CRC is currently invalid</b>: the frame carries <code>0x' +
+      crc.actual.toString(16).toUpperCase() + '</code> while the data computes to <code>0x' + crc.expected.toString(16).toUpperCase() +
+      '</code>. Edit a field above to recompute it.</span>';
+  } else {
+    vmsg.innerHTML = '<span class="ok">✓ Valid CAN frame - correctly bit-stuffed, properly terminated, CRC checks out.</span>';
+  }
+
+  // CRC note next to the editor
+  document.getElementById('crcMsg').innerHTML = (parsed.ok && crcBad)
+    ? '<span class="err">⚠ CRC currently invalid (frame 0x' + crc.actual.toString(16).toUpperCase() + ' vs computed 0x' + crc.expected.toString(16).toUpperCase() + ').</span>'
+    : '';
+
+  const structurallyValid = errs.length === 0 && parsed.ok;
+  if (structurallyValid) {
+    block.style.display = '';
+    invalid.style.display = 'none';
+    drawScope();
+  } else {
+    block.style.display = 'none';
+    invalid.style.display = 'block';
+    document.getElementById('scopeInvalidWhy').innerHTML = errs.length
+      ? errs[0]
+      : 'These bits don’t line up as a CAN frame.';
+  }
+  document.getElementById('frameArea').style.display = structurallyValid ? '' : 'none';
+  document.getElementById('frameInvalid').style.display = structurallyValid ? 'none' : 'block';
+
+  buildParseTable();
+  syncEditor();
+  updateReadout(null);
+}
+
+// ── Arbitration ───────────────────────────────────────────────────────────────
+let arbHi = null;            // hovered column
+let arbState = null;         // {A,B,decide,loser,busAt,cols,...}
+
+function validateId(type, raw) {
+  const v = parseHexId(raw);
+  if (isNaN(v) || v < 0) return { ok: false };
+  if (v > 0x7FF) return { ok: false };   // arbitration is decided by the 11-bit base ID
+  return { ok: true, val: v };
+}
+// Bits + per-bit field label a node puts on the wire while arbitrating.
+// The value entered is the 11-bit base ID - the part that races against other
+// frames. An extended frame inserts SRR + IDE (both recessive) right after the
+// base, which is exactly why a standard frame beats an extended frame that
+// shares its base ID: the standard frame's dominant RTR/IDE wins over SRR.
+function arbSeq(type, id) {
+  const bits = [], labels = [];
+  const add = (b, lab) => { bits.push(b); labels.push(lab); };
+  add(0, 'SOF');
+  for (let i = 10; i >= 0; i--) add((id >>> i) & 1, 'ID' + i);
+  if (type === 'ext') {
+    add(1, 'SRR'); add(1, 'IDE');
+    for (let i = 17; i >= 0; i--) add(0, 'E' + i);
+    add(0, 'RTR'); add(0, 'r1'); add(0, 'r0');
+  } else {
+    add(0, 'RTR'); add(0, 'IDE'); add(0, 'r0');
+  }
+  return { bits, labels };
+}
+function stuffWithLabels(seq) {
+  const out = [];
+  let runLen = 1, last = -1;
+  for (let i = 0; i < seq.bits.length; i++) {
+    const b = seq.bits[i], lab = seq.labels[i];
+    out.push({ bit: b, stuff: false, label: lab });
+    if (i === 0) { last = b; continue; }
+    if (b === last) {
+      runLen++;
+      if (runLen === 5) { const sb = b ^ 1; out.push({ bit: sb, stuff: true, label: lab }); last = sb; runLen = 1; }
+      else last = b;
+    } else { runLen = 1; last = b; }
+  }
+  return out;
+}
+
+function computeArb() {
+  const aT = document.getElementById('arbAType').value;
+  const bT = document.getElementById('arbBType').value;
+  const va = validateId(aT, document.getElementById('arbA').value);
+  const vb = validateId(bT, document.getElementById('arbB').value);
+  document.getElementById('arbA').classList.toggle('invalid', !va.ok);
+  document.getElementById('arbB').classList.toggle('invalid', !vb.ok);
+  if (!va.ok || !vb.ok) return null;
+
+  const A = stuffWithLabels(arbSeq(aT, va.val));
+  const B = stuffWithLabels(arbSeq(bT, vb.val));
+  let decide = -1, loser = 0; // 1=A, 2=B
+  const L = Math.min(A.length, B.length);
+  for (let i = 0; i < L; i++) {
+    if (A[i].bit !== B[i].bit) { decide = i; loser = A[i].bit === 1 ? 1 : 2; break; }
+  }
+  const winSeq = loser === 1 ? B : A;
+  const cols = Math.max(A.length, B.length);
+  const busAt = (i) => {
+    if (decide < 0 || i <= decide) {
+      const ba = i < A.length ? A[i].bit : 1, bb = i < B.length ? B[i].bit : 1;
+      return ba & bb;
+    }
+    return i < winSeq.length ? winSeq[i].bit : null;
+  };
+  return { aT, bT, idA: va.val, idB: vb.val, A, B, decide, loser, winSeq, cols, busAt };
+}
+
+function drawArb() {
+  arbState = computeArb();
+  const wrap = document.getElementById('arbWrap');
+  const inv = document.getElementById('arbInvalid');
+  const ro = document.getElementById('arbReadout');
+  const st = document.getElementById('arbStatus');
+  if (!arbState) {
+    wrap.style.display = 'none'; ro.style.display = 'none'; st.innerHTML = '';
+    inv.style.display = 'block';
+    inv.innerHTML = '<span class="err">⚠ Enter a valid 11-bit base ID in hex - <code>0…7FF</code>.</span>';
+    return;
+  }
+  inv.style.display = 'none'; wrap.style.display = ''; ro.style.display = '';
+
+  const { A, B, decide, loser, cols, busAt } = arbState;
+  const canvas = document.getElementById('arbScope');
+  const ctx = canvas.getContext('2d');
+  const padL = 64, padR = 14, padTop = 24, padBot = 26, laneH = 40, laneGap = 16, bitW = 28;
+  const lanes = [
+    { label: 'ECU A', kind: 'a' },
+    { label: 'ECU B', kind: 'b' },
+    { label: 'Bus', kind: 'bus' },
+  ];
+  const cssW = padL + cols * bitW + padR;
+  const cssH = padTop + lanes.length * (laneH + laneGap) - laneGap + padBot;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cssW, cssH);
+
+  const X = (i) => padL + i * bitW;
+  const colText2 = cssVar('--text2'), colText3 = cssVar('--text3'), colBorder = cssVar('--border');
+  const amber = cssVar('--amber'), red = cssVar('--red'), light = cssVar('--text') === '#1a1a1a';
+  const plotTop = padTop, plotBot = cssH - padBot;
+
+  // value per lane/column (null = not driving)
+  const laneVal = (kind, i) => {
+    if (kind === 'bus') return busAt(i);
+    const seq = kind === 'a' ? A : B;
+    const lostHere = (kind === 'a' && loser === 1) || (kind === 'b' && loser === 2);
+    if (lostHere && decide >= 0 && i > decide) return 1; // dropped out → listening (recessive)
+    return i < seq.length ? seq[i].bit : null;
+  };
+  const isStuff = (kind, i) => {
+    if (kind === 'bus') { const s = (i <= decide || decide < 0) ? A[i] : (loser === 1 ? B[i] : A[i]); return s && s.stuff; }
+    const seq = kind === 'a' ? A : B; return seq[i] && seq[i].stuff;
+  };
+
+  // column backdrops: dominant tint, decide outline, stuff dashes, hover
+  for (let i = 0; i < cols; i++) {
+    const bus = busAt(i);
+    if (bus === 0) { ctx.fillStyle = amber + '1f'; ctx.fillRect(X(i), plotTop, bitW, plotBot - plotTop); }
+    if (i === arbHi) { ctx.fillStyle = light ? '#00000014' : '#ffffff1c'; ctx.fillRect(X(i), plotTop, bitW, plotBot - plotTop); }
+  }
+  if (decide >= 0) {
+    ctx.fillStyle = red + '22'; ctx.fillRect(X(decide), plotTop, bitW, plotBot - plotTop);
+    ctx.strokeStyle = red; ctx.lineWidth = 1.4; ctx.strokeRect(X(decide) + 0.5, plotTop + 0.5, bitW - 1, plotBot - plotTop - 1);
+  }
+  // stuff-bit columns - dashed box, matching the legend swatch
+  ctx.strokeStyle = colText2; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+  for (let i = 0; i < cols; i++) {
+    if (isStuff('bus', i)) ctx.strokeRect(X(i) + 0.5, plotTop + 0.5, bitW - 1, plotBot - plotTop - 1);
+  }
+  ctx.setLineDash([]);
+  // grid + stuff markers
+  ctx.strokeStyle = colBorder; ctx.lineWidth = 1; ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  for (let i = 0; i <= cols; i++) { ctx.moveTo(X(i), plotTop); ctx.lineTo(X(i), plotBot); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+
+  // top labels: every column gets its field name (SOF, ID10…ID0, SRR, IDE, E17…E0, RTR, r1, r0);
+  // stuff-inserted columns show "S" instead since they aren't a real field bit.
+  const labelAt = (i) => {
+    if (decide < 0 || i <= decide) return (i < A.length ? A[i] : B[i]).label;
+    const seq = loser === 1 ? B : A;
+    return i < seq.length ? seq[i].label : '';
+  };
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '600 8px ' + cssVar('--mono').replace(/['"]/g, '');
+  for (let i = 0; i < cols; i++) {
+    const stuffCol = isStuff('bus', i);
+    const lab = stuffCol ? 'S' : labelAt(i);
+    if (lab) { ctx.fillStyle = stuffCol ? colText2 : colText3; ctx.fillText(lab, X(i) + bitW / 2, padTop / 2); }
+  }
+
+  // lanes
+  lanes.forEach((lane, li) => {
+    const top = padTop + li * (laneH + laneGap), bot = top + laneH;
+    const Yhi = top + 6, Ylo = bot - 6; // recessive 1 high, dominant 0 low
+    ctx.fillStyle = lane.kind === 'bus' ? cssVar('--text') : colText2;
+    ctx.font = '600 11px ' + cssVar('--sans').replace(/['"]/g, '');
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(lane.label, padL - 8, top + laneH / 2);
+
+    ctx.strokeStyle = lane.kind === 'bus' ? cssVar('--text') : (lane.kind === 'a' ? cssVar('--blue') : cssVar('--green'));
+    ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+    let prevY = null;
+    for (let i = 0; i < cols; i++) {
+      const v = laneVal(lane.kind, i);
+      if (v == null) { prevY = null; continue; }
+      const y = v === 0 ? Ylo : Yhi;
+      const lostHere = ((lane.kind === 'a' && loser === 1) || (lane.kind === 'b' && loser === 2)) && decide >= 0 && i > decide;
+      ctx.save();
+      ctx.globalAlpha = lostHere ? 0.3 : 1;
+      if (lostHere) ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      if (prevY !== null) { ctx.moveTo(X(i), prevY); ctx.lineTo(X(i), y); }
+      ctx.moveTo(X(i), y); ctx.lineTo(X(i + 1), y);
+      ctx.stroke();
+      ctx.restore();
+      prevY = y;
+      // bit digit
+      ctx.fillStyle = v === 0 ? amber : colText2;
+      ctx.globalAlpha = lostHere ? 0.4 : 1;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '500 11px ' + cssVar('--mono').replace(/['"]/g, '');
+      ctx.fillText(String(v), X(i) + bitW / 2, v === 0 ? Ylo - 11 : Yhi + 11);
+      ctx.globalAlpha = 1;
+    }
+  });
+
+  // status line
+  if (arbState.idA === arbState.idB && arbState.aT === arbState.bT) {
+    st.innerHTML = 'Both IDs are <b>identical</b> - arbitration can’t separate them. On a real bus two nodes never send the same ID at the same instant; if they did, the clash would surface later as a bit error.';
+  } else if (decide < 0) {
+    st.innerHTML = 'No divergence in the bits shown - pick two different IDs.';
+  } else {
+    const winN = loser === 1 ? 'B' : 'A', loseN = loser === 1 ? 'A' : 'B';
+    const winId = loser === 1 ? arbState.idB : arbState.idA, loseId = loser === 1 ? arbState.idA : arbState.idB;
+    const stuffNote = (A[decide] && A[decide].stuff) ? ' (a stuff bit - both nodes inserted it identically)' : '';
+    st.innerHTML = 'At <b>bit ' + decide + '</b>' + stuffNote + ', ECU ' + loseN + ' (0x' + loseId.toString(16).toUpperCase() +
+      ') sends <b>recessive&nbsp;1</b> but reads back <b>dominant&nbsp;0</b>, so <span class="lose">ECU ' + loseN +
+      ' loses</span> and starts listening. <span class="win">ECU ' + winN + ' (0x' + winId.toString(16).toUpperCase() +
+      ') wins</span> with the lower ID and finishes its frame untouched.';
+    if (arbState.aT !== arbState.bT) {
+      const decField = (loser === 1 ? B : A)[decide];
+      const idePoint = decField && (decField.label === 'SRR' || decField.label === 'IDE' || decField.label === 'RTR');
+      st.innerHTML += idePoint
+        ? ' Same base ID, so it came down to the <b>SRR / IDE</b> bit - the standard frame drives it <b>dominant</b> while the extended frame must leave it <b>recessive</b>, so the <b>standard frame wins</b>.'
+        : ' Bases differ (A <b>0x' + arbState.idA.toString(16).toUpperCase() + '</b>, B <b>0x' + arbState.idB.toString(16).toUpperCase() + '</b>), so the lower base wins before the SRR/IDE bit even matters.';
+    }
+  }
+  updateArbReadout(arbHi);
+}
+
+function arbBitAtX(clientX) {
+  if (!arbState) return null;
+  const canvas = document.getElementById('arbScope');
+  const rect = canvas.getBoundingClientRect();
+  const padL = 64, bitW = 28;
+  const i = Math.floor((clientX - rect.left - padL) / bitW);
+  return (i >= 0 && i < arbState.cols) ? i : null;
+}
+function updateArbReadout(i) {
+  const ro = document.getElementById('arbReadout');
+  if (i == null || !arbState) { ro.innerHTML = 'Hover a bit to see who’s driving the bus.'; return; }
+  const { A, B, decide, loser, busAt } = arbState;
+  const aV = (loser === 1 && decide >= 0 && i > decide) ? 1 : (i < A.length ? A[i].bit : null);
+  const bV = (loser === 2 && decide >= 0 && i > decide) ? 1 : (i < B.length ? B[i].bit : null);
+  const busV = busAt(i);
+  const labA = i < A.length ? (A[i].stuff ? 'stuff' : A[i].label) : '';
+  const labB = i < B.length ? (B[i].stuff ? 'stuff' : B[i].label) : '';
+  const cell = (v) => v == null ? '<span class="rv" style="color:var(--text3)">-</span>'
+    : '<span class="badge ' + (v === 0 ? 'dom' : 'rec') + '">' + (v === 0 ? 'dom 0' : 'rec 1') + '</span>';
+  let html = '<span><span class="rk">bit</span> <span class="rv">#' + i + '</span></span>';
+  html += '<span><span class="rk">ECU A' + (labA ? ' · ' + labA : '') + '</span> ' + cell(aV) + '</span>';
+  html += '<span><span class="rk">ECU B' + (labB ? ' · ' + labB : '') + '</span> ' + cell(bV) + '</span>';
+  html += '<span><span class="rk">bus</span> ' + cell(busV) + '</span>';
+  if (i === decide) html += '<span class="rv" style="color:var(--red)">← decided here</span>';
+  ro.innerHTML = html;
+}
+
+// ── Wire-up ──────────────────────────────────────────────────────────────────
+function init() {
+  buildControls();
+
+  const params = new URLSearchParams(location.search);
+  const qbits = (params.get('bits') || '').replace(/[^01]/g, '');
+  const initial = qbits.length ? qbits : DEFAULT_BITS;
+  const ta = document.getElementById('bitsInput');
+  ta.value = initial;
+  loadBits(initial);
+
+  // 0/1-only input: strip anything else in place, keeping the caret sensible.
+  ta.addEventListener('input', () => {
+    const before = ta.value, caret = ta.selectionStart;
+    const removedBefore = (before.slice(0, caret).match(/[^01]/g) || []).length;
+    const cleaned = before.replace(/[^01]/g, '');
+    if (cleaned !== before) { ta.value = cleaned; const p = caret - removedBefore; ta.setSelectionRange(p, p); }
+    loadBits(ta.value);
+  });
+  document.getElementById('resetBtn').addEventListener('click', () => { ta.value = DEFAULT_BITS; loadBits(DEFAULT_BITS); });
+
+  // frame editor
+  ['feType', 'feRtr'].forEach(id => document.getElementById(id).addEventListener('change', regenFromEditor));
+  ['feId', 'feDlc', 'feData'].forEach(id => document.getElementById(id).addEventListener('change', regenFromEditor));
+
+  document.getElementById('fitToggle').addEventListener('change', drawScope);
+
+  const canvas = document.getElementById('scope');
+  canvas.addEventListener('mousemove', (e) => { highlightJ = bitAtX(e.clientX); drawScope(); updateReadout(highlightJ); });
+  canvas.addEventListener('mouseleave', () => { highlightJ = null; drawScope(); updateReadout(null); });
+  window.addEventListener('resize', () => { drawScope(); });
+
+  // arbitration
+  ['arbAType', 'arbBType'].forEach(id => document.getElementById(id).addEventListener('change', drawArb));
+  ['arbA', 'arbB'].forEach(id => document.getElementById(id).addEventListener('input', drawArb));
+  const arbCanvas = document.getElementById('arbScope');
+  arbCanvas.addEventListener('mousemove', (e) => { arbHi = arbBitAtX(e.clientX); drawArb(); });
+  arbCanvas.addEventListener('mouseleave', () => { arbHi = null; drawArb(); });
+  drawArb();
+}
+
+// ── Theme (shared with the other explainers) ─────────────────────────────────
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+  if (parsed) drawScope();
+  if (arbState !== undefined) drawArb();
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+init();
+</script>
+</body>
+</html>
