@@ -122,7 +122,7 @@
       <button id="carlitoReload" title="Reload the game">Reload</button>
       <button id="carlitoKbd" title="Block physical keyboard from reaching the game (JS bridge still drives)">⌨ on</button>
       <button class="carlito-link on" id="carlitoUp" title="Uplink: send RAMN controls into the game (SloppyCAN → Carlito)">Up ●</button>
-      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52B (Carlito → SloppyCAN)">Down ●</button>
+      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52C (Carlito → SloppyCAN)">Down ●</button>
       <span class="carlito-nodrive" id="carlitoNoDrive" title="The built uplink has no accel, brake or steer - the game falls back to its own keyboard (not during a challenge)">no driving controls</span>
       <button class="carlito-iocaret" id="carlitoIoCaret" title="Show/hide debug panel">▸ debug</button>
     </div>
@@ -182,7 +182,7 @@
   // Carlito ships two channels from one repo: `stable` (promoted, what anonymous visitors get)
   // and `dev` (latest push). Both URLs are HARDCODED here, absolute.
   // SECURITY: GAME_ORIGIN derived below is the inbound trust gate for CAN injection (frames
-  // 0x520–0x52B). An attacker-supplied ?carlitoUrl=https://evil.example would otherwise make
+  // 0x520–0x52C). An attacker-supplied ?carlitoUrl=https://evil.example would otherwise make
   // evil.example the trusted game and let it inject frames on a live bus. The rule that keeps that
   // shut is "the trusted cross-origin game is a constant in this file"; two constants satisfy it
   // exactly as one did, so this is a second entry, NOT a relaxation. The two channels are the same
@@ -567,7 +567,7 @@
 
   // ── Return channel: Carlito → sloppyCAN telemetry ──
   // Game postMessages {type:'carlitoOutput', values:{…}} ~every 50 ms. We render it and emit CAN
-  // frames 0x520–0x52B (big-endian) via window.canForward - ingested once for the dashboards and,
+  // frames 0x520–0x52C (big-endian) via window.canForward - ingested once for the dashboards and,
   // when a bus is open, transmitted on the wire and shown as a single "FW" dump entry (gateway model;
   // plain RX when no bus). Throttled in the message handler: fast IDs ~10/s, slow IDs ~5/s.
   // Big-endian fixed-point encoders. u16/i16 share byte ops (16-bit two's complement); the
@@ -588,7 +588,7 @@
   // slip's two elements, in contract index order: 0 = front axle, 1 = rear.
   const slipPair = (t) => [inst(t && t.slip, 0), inst(t && t.slip, 1)];
 
-  // CAN layout: contract-unit telemetry → frames 0x520–0x52B (big-endian). postMessage carries
+  // CAN layout: contract-unit telemetry → frames 0x520–0x52C (big-endian). postMessage carries
   // engineering units; the fixed-point scaling to bytes lives here (sloppyCAN's domain, per the
   // contract note). Each UNFLAVORED contract "out" signal is packed exactly once here;
   // checkCanCoverage() asserts that. A FLAVORED signal is not this map's job - see the flavor
@@ -628,6 +628,10 @@
     { id: 0x52B, fast: false, fields: [['altitude', t => enc.u16((+t.altitude || 0) * 10)],     // m x10 (0-500 m -> 0-5000)
                                        ['vspeed', t => enc.i16((+t.vspeed || 0) * 100)],        // m/s x100
                                        ['sail_angle', t => enc.i8(+t.sail_angle || 0)]] },      // deg (-90..90)
+    // BRAKE HEAT - the hottest friction brake (contract v55). Carlito's own signal (J1939 has no
+    // brake-temperature SPN), shaped like J1939's 2-byte temperatures: SPN 242's 0.03125 degC per
+    // bit, -273 degC offset (20-850 degC -> 9376-35936). Slow: a lumped brake moves over seconds.
+    { id: 0x52C, fast: false, fields: [['brake_temp', t => enc.u16(((+t.brake_temp || 0) + 273) / 0.03125)]] }, // degC
 
   ];
   // ── Declared coverage opt-outs ──────────────────────────────────────────────
@@ -796,7 +800,7 @@
     setChallenge(!!d.challenge);
     lastTel = d.values; lastTelT = performance.now();
     // Forward at the game's native cadence: fast IDs (0x520–0x523, 0x529–0x52A) every message, slow/low-rate IDs
-    // (0x524–0x528, 0x52B) every other message (the 50/100 ms fast:slow split). The bridge's drop-stale
+    // (0x524–0x528, 0x52B–0x52C) every other message (the 50/100 ms fast:slow split). The bridge's drop-stale
     // backpressure self-paces to the link, so no artificial rate cap is needed.
     if (downOn && win.classList.contains('open')) {
       slowTick = !slowTick;

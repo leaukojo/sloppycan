@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 54,
+  "version": 55,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -649,6 +649,24 @@ window.CARLITO_CONTRACT = {
         "plane"
       ],
       "desc": "Coolant temperature. 'warn' is the overheat threshold."
+    },
+    {
+      "name": "brake_temp",
+      "dir": "out",
+      "type": "f32",
+      "unit": "degC",
+      "range": [
+        0,
+        850
+      ],
+      "warn_side": "high",
+      "warn": 260,
+      "vehicles": [
+        "car",
+        "truck",
+        "tractor"
+      ],
+      "desc": "Brake temperature: the HOTTEST friction brake on the powered unit (a trailer's brakes heat and fade but are not published). READ OUT OF THE SIM'S OWN STATE: each wheel's lumped brake model (BrakeThermal) is heated by the power its brake actually reacted and cooled by the air, and this is the maximum over the vehicle's own wheels; a brake with no thermal model sits at the 20 degC ambient. A LABELLED HONEST MODEL, not a measurement. The same reading is the cue to fade, and where the fade starts differs by hardware: drums (the rigid trucks, a light commercial's rear) fade from about 180 degC, pads on discs (cars, the semis' air discs) from about 400 degC, so the single 'warn' (260 degC, FHWA GSRS's limiting brake temperature) is late for a drum and early for a disc. A tractor's brakes are wet multi-discs in the rear-axle oil: its reading is the oil sump's, fading from about 90 degC and never reaching 'warn'. NO LAMP: 'amber_warn' is an 'in' signal, the bridge's DM1 lamp mirrored verbatim, so the sim never lights it for this; a bridge-side lamp may be lit off this reading. Carlito's own signal, unflavored: J1939-71 has no brake-temperature SPN (SPN 3839 is a 2-bit manufacturer-specific warning flag in EBC5, a different signal). The wire form borrows J1939's 2-byte temperatures (SPN 242): 0.03125 degC per bit, -273 degC offset; the scaling is sloppyCAN's, like every other unit on the wire. The range covers the model's span, 20 to 850 degC."
     },
     {
       "name": "battery",
