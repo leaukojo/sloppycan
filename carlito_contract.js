@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 55,
+  "version": 57,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -253,6 +253,17 @@ window.CARLITO_CONTRACT = {
         "car"
       ],
       "desc": "Traction control off request. Absent or false, a car fitted with TC holds each driven wheel's drive slip at the grip peak (an ideal TC: it only ever removes drive); true, the drive spins the tyres as far as the pedal asks. Every car but race-future carries TC."
+    },
+    {
+      "name": "esc_off",
+      "dir": "in",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "car",
+        "truck"
+      ],
+      "desc": "Electronic stability control off request. Absent or false, a body fitted with ESC (every road body with ABS: the cars but race and race-future, the vans, the trucks and the semis) brakes one wheel against the yaw error and trims the engine, and on the semis brakes the rig and its trailer short of a rollover (status bit 7 reports it acting); true, it does neither, and traction control is off with it, as a car's long press does. tcs_off alone leaves ESC on."
     },
     {
       "name": "speed",
@@ -588,7 +599,7 @@ window.CARLITO_CONTRACT = {
         "drone",
         "train"
       ],
-      "desc": "Status bitfield. The bit layout is FROZEN and is the wire assignment: 0 ignition, 1 on the ground - all wheels in contact for a wheeled chassis, and the drone's own landed predicate (DroneSensors.landed_now) for a craft that has no wheels to report it - 2 moving, 3 reverse gear, 4 neutral gear, 5 handbrake, 6 headlights at LOW or brighter (ST_* in src/vehicles/base/vehicle_telemetry.gd). A new flag APPENDS at bit 7 or above - nine are free in the u16 - and an existing bit is never renumbered, because a renumber is both a paired change across carlito and sloppycan and a silent misread of every frame an older build already sent."
+      "desc": "Status bitfield. The bit layout is FROZEN and is the wire assignment: 0 ignition, 1 on the ground - all wheels in contact for a wheeled chassis, and the drone's own landed predicate (DroneSensors.landed_now) for a craft that has no wheels to report it - 2 moving, 3 reverse gear, 4 neutral gear, 5 handbrake, 6 headlights at LOW or brighter, 7 stability control acting - a wheel braked against the yaw error, or the rig braked short of a rollover; on a truck it reads as J1939 VDC1's YC or ROP control active, SPNs 1817/1819 and 1816/1818 (ST_* in src/vehicles/base/vehicle_telemetry.gd). A new flag APPENDS at bit 8 or above - eight are free in the u16 - and an existing bit is never renumbered, because a renumber is both a paired change across carlito and sloppycan and a silent misread of every frame an older build already sent."
     },
     {
       "name": "impact",
@@ -1604,7 +1615,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "iso11992",
-      "desc": "The braking demand the towing unit SENDS to the trailer (ISO 11992-2 EBS11, towing-to-towed). Blended on the tractor from the foot brake and the retarder: a driveline brake acts on the tractor's driven axle alone, so without a share of it going down the bus the trailer would be left pushing. The retarder's share is arithmetic rather than taste — a retarder at full is Drivetrain.retarder_fraction of the tractor's own brake capacity, so it asks the trailer for that same fraction of the trailer's brakes, and it inherits the retarder's speed fade because the blend reads retarder_state (what ran) and not the request. This signal is a REPORT of what was sent: the blend behind it is what the trailer's RayWheels actually brake with, and the number here is read off that rather than driving anything. A real 0 while bobtail."
+      "desc": "The braking demand the towing unit SENDS to the trailer (ISO 11992-2 EBS11, towing-to-towed). The foot brake, or roll stability's own application if higher (TruckTelemetry.ebs11_demand) — and NOT the retarder: EBS11 carries the service/secondary brake demand, UN R13 5.2.1.21 lets a trailer's service brakes work only with the tractor's service, secondary or parking brake, and 5.2.1.28.6 forbids compensating an endurance brake's coupling force with either vehicle's service brakes. So on the retarder alone this reads 0 and the unbraked trailer pushes the tractor through the kingpin, as on a real rig. This signal is a REPORT of what was sent: the demand behind it is what the trailer's RayWheels actually brake with, and the number here is read off that rather than driving anything. A real 0 while bobtail."
     },
     {
       "name": "trailer_abs",
