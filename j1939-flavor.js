@@ -23,6 +23,17 @@
 //               byte 4 SPN 1088 Circuit #2, both 8 kPa/bit, 0 offset, range 0-2000 kPa.
 //   65258 VW    ON REQUEST, prio 6, PDU2. Byte 1 SPN 928 Axle Location;
 //               bytes 2-3 SPN 582 Axle Weight, 0.5 kg/bit, 0 offset.
+//   65103 VDC1  100 ms, prio 6, PDU2. 2-bit states (00 off/passive, 01 on/active, 11 n/a):
+//               1.1 SPN 1813 VDC Information Signal, 1.3 SPN 1814 VDC Fully Operational (not,
+//               when "disabled by a switch"), 1.5 SPN 1815 VDC brake light request; 2.1 SPN 1816
+//               ROP Engine, 2.3 SPN 1818 ROP Brake, 2.5 SPN 1817 YC Engine, 2.7 SPN 1819 YC Brake
+//               Control active. (pp. 222-223, 322.)
+//   61449 VDC2  10 ms, prio 6, PDU2. Bytes 1-2 SPN 1807 Steering Wheel Angle; 3.1 SPN 1811 /
+//               3.7 SPN 1812; bytes 4-5 SPN 1808 Yaw Rate, 1/8192 rad/s, -3.92 offset, + turning
+//               counter-clockwise; 6-7 SPN 1809 Lateral Acceleration, 1/2048 m/s², -15.687, + to
+//               the left; byte 8 SPN 1810 Longitudinal Acceleration, 0.1 m/s², -12.5, + "when the
+//               vehicle speed increases, regardless of driving the vehicle forward or backward".
+//               (pp. 220-221, 308.)
 // Source addresses come off j1939.js's own J1939_SA table (itself corrected against isobus.net's
 // SourceAddress table when isobus.js needed 0xF0). All three groups were ADDED to j1939.js's
 // J1939_DB in the same change, with their neighbouring SPNs, so they decode named and scaled -
@@ -34,8 +45,9 @@
 //                        evaluates its coverage check)
 //   carlito-bridge.html  same script tag. That page loads neither sloppycan.js nor j1939.js,
 //                        so every cross-module read here is typeof-guarded.
-//   j1939-tables.js      J1939_DB += 0xF000 ERC1 / 0xFEAE AIR1 / 0xFEEA VW, and EBC1 / VDC2 /
-//                        TC1 / CCVS SPN 70 for the driver demand
+//   j1939-tables.js      J1939_DB += 0xF000 ERC1 / 0xFEAE AIR1 / 0xFEEA VW / 0xFE4F VDC1, and
+//                        EBC1 / VDC2 / TC1 / CCVS SPN 70 for the driver demand (VDC2 also its
+//                        sensor SPNs)
 //   j1939.js             the VW entry on J1939_REQ_SERVERS that answers a request for
 //                        axle_load, and its demo sends j1939DriveFrames
 //   carlito.js           window.carlitoUplinkDecoders + carlitoUplinkOverrides (DRIVER DEMAND)
@@ -107,6 +119,9 @@
     ERC1: { pgn: 61440, prio: 6, sa: SA_RETARDER, ms: 100 },
     AIR1: { pgn: 65198, prio: 6, sa: SA_BRAKES,   ms: 1000 },
     ETC2: { pgn: 61445, prio: 6, sa: SA_TRANSMISSION, ms: 100 },
+    // The stability unit lives in the brake system controller (the EBS that brakes the wheels).
+    VDC1: { pgn: 65103, prio: 6, sa: SA_BRAKES, ms: 100 },
+    VDC2: { pgn: 61449, prio: 6, sa: SA_BRAKES, ms: 10 },
   };
   function jfFrame(m, data) { return { id: jfId(m.pgn, m.prio, m.sa), isExt: true, data }; }
 
@@ -162,6 +177,44 @@
     return jfFrame(JF_MSGS.AIR1, d);
   }
 
+  // The contract's `status` bits VDC reads (VehicleTelemetry.ST_*, contract v60): 7 ESC braking
+  // (yaw or roll), 8 brake-light request, 9 a fitted ESC switched off, 10 yaw, 11 roll.
+  const ST = { ESC: 1 << 7, BRAKE_LIGHT: 1 << 8, OFF: 1 << 9, YAW: 1 << 10, ROLL: 1 << 11 };
+
+  // VDC1 (65103) off the status bits. The lamp (SPN 1813) is on while ESC acts or is switched
+  // off; the cluster flashes the first and holds the second (its own rule). Each control's ENGINE
+  // state copies its brake state: the game's fuel trim rides the same braking, never alone.
+  // Byte 1's bits 7-8 and bytes 3-8 stay 0xFF: SPN 5624 is not in the edition this was read off.
+  function jfVdc1(t) {
+    const d = jfBlank();
+    const s = Number(t.status) || 0;
+    const on = (bit) => (s & bit) ? 1 : 0;
+    jfBits(d, 0, 0, 2, (s & (ST.ESC | ST.OFF)) ? 1 : 0);   // 1813 VDC Information Signal
+    jfBits(d, 0, 2, 2, on(ST.OFF) ? 0 : 1);                 // 1814 VDC Fully Operational
+    jfBits(d, 0, 4, 2, on(ST.BRAKE_LIGHT));                 // 1815 VDC brake light request
+    jfBits(d, 1, 0, 2, on(ST.ROLL));                        // 1816 ROP Engine Control active
+    jfBits(d, 1, 2, 2, on(ST.ROLL));                        // 1818 ROP Brake Control active
+    jfBits(d, 1, 4, 2, on(ST.YAW));                         // 1817 YC Engine Control active
+    jfBits(d, 1, 6, 2, on(ST.YAW));                         // 1819 YC Brake Control active
+    return jfFrame(JF_MSGS.VDC1, d);
+  }
+
+  // VDC2 (61449) off the unit's sensors as the game measured them. SPN 1807 stays 0xFFFF: the game
+  // steers road wheels, not a hand wheel, and a not-available angle is also what keeps this
+  // frame's own echo out of jfDecodeDrive's steer. The game's `yaw` is + counter-clockwise like
+  // SPN 1808; `accLat` is + to the RIGHT, so it is negated for SPN 1809; `accLong` is + forward,
+  // so it is signed by the direction of travel for SPN 1810 (+ speeding up either way).
+  function jfVdc2(t) {
+    const d = jfBlank();
+    if (has(t, 'yaw')) jfPut(d, 3, 2, Number(t.yaw), 1 / 8192, -3.92);
+    if (has(t, 'accLat')) jfPut(d, 5, 2, -Number(t.accLat), 1 / 2048, -15.687);
+    if (has(t, 'accLong')) {
+      const dir = Number(t.speed) < 0 ? -1 : 1;
+      jfPut(d, 7, 1, dir * Number(t.accLong), 0.1, -12.5);
+    }
+    return jfFrame(JF_MSGS.VDC2, d);
+  }
+
   // ── Pack ────────────────────────────────────────────────────────────────────
   // carlito.js calls this on every telemetry message with `slow` alternating, so the natural
   // cadences are ~20 Hz (every call) and ~10 Hz (on `slow`). ERC1's 100 ms IS the slow tick.
@@ -174,6 +227,14 @@
 
     if (slow && has(t, 'retarder_state')) out.push(jfErc1(t));          // 100 ms
     if (slow && has(t, 'gear_ratio')) out.push(jfEtc2(t));              // 100 ms
+    // VDC rides an air-braked truck's EBS: `air_primary` is the truck's alone, and `status`,
+    // `yaw` and the accelerations come from every vehicle, so they cannot gate it. VDC2's
+    // standard rate is 10 ms; it goes out on every call (~50 ms), the fastest the bridge carries,
+    // never a repeat clock re-sending stale values (the user, 2026-10-30).
+    if (has(t, 'air_primary') && has(t, 'status')) {
+      if (slow) out.push(jfVdc1(t));                                     // 100 ms
+      out.push(jfVdc2(t));                                               // every call
+    }
 
     if (Date.now() - jfLast1s >= 1000) {                                // 1 s
       if (has(t, 'air_primary') || has(t, 'air_secondary')) {
@@ -244,7 +305,8 @@
   // NOT AVAILABLE REFRESHES NOTHING: a 1-byte raw of 251+, a 2-byte raw above 0xFAFF and a 2-bit
   // 10/11 are the standard's error / not-available codes. That rule is also THE OWN-ADDRESS RULE
   // here: isobus.js publishes EEC2 from the engine with SPN 91 left at 0xFF, so its echo reads as
-  // "no pedal"; nothing in sloppyCAN transmits EBC1, VDC2, TC1 or CCVS SPN 70 at all.
+  // "no pedal"; this file's own VDC2 leaves SPN 1807 at 0xFFFF (Carlito has no hand wheel), so
+  // its echo steers nothing; nothing in sloppyCAN transmits EBC1, TC1 or CCVS SPN 70 at all.
   //
   // FRESHNESS: every group is periodic, so one that stops arriving is withdrawn. JF_DRIVE_TTL_MS is
   // this side's own timeout (three missed periods of the slowest group, isobus.js's rule), not a
@@ -437,6 +499,34 @@
     eq('ETC2 reverse', jfEtc2({ gear: 255, gear_ratio: 3.9 }).data[0], 124);
     //    ...and a value past the top of the scale clamps to the top of the valid range.
     eq('over-range clamps under the reserved codes', jfAir1({ air_primary: 9999 }).data[2], 0xFA);
+    //    VDC1, byte 1 bits 1-6 then byte 2's four controls; byte 1's bits 7-8 stay 11.
+    //    Idle and fitted: lamp off, fully operational (01 at 1.3) -> 1100 0100 = 0xC4.
+    eq('VDC1 id', jfId(65103, 6, SA_BRAKES).toString(16).toUpperCase(), '18FE4F0B');
+    eq('VDC1 idle', hex(jfVdc1({ status: 0 }).data), 'C4 00 FF FF FF FF FF FF');
+    //    Yaw: lamp on -> 0xC5; YC engine and brake at 2.5 / 2.7 -> 0101 0000 = 0x50.
+    eq('VDC1 yaw', hex(jfVdc1({ status: ST.ESC | ST.YAW }).data), 'C5 50 FF FF FF FF FF FF');
+    //    Roll past the lamp floor: brake light at 1.5 -> 0xD5; ROP at 2.1 / 2.3 -> 0x05.
+    eq('VDC1 roll and brake light', hex(jfVdc1({ status: ST.ESC | ST.BRAKE_LIGHT | ST.ROLL }).data),
+      'D5 05 FF FF FF FF FF FF');
+    //    Switched off: lamp on, not fully operational (00 at 1.3) -> 1100 0001 = 0xC1.
+    eq('VDC1 switched off', hex(jfVdc1({ status: ST.OFF }).data), 'C1 00 FF FF FF FF FF FF');
+    //    VDC2: yaw 0.5 -> 4.42 * 8192 = 36209 = 0x8D71; accLat -2 (right) is +2 left -> 17.687 *
+    //    2048 = 36223 = 0x8D7F; braking forward at -1.5 -> 11 / 0.1 = 110 = 0x6E. 1807, 1811-1812 n/a.
+    eq('VDC2 id', jfId(61449, 6, SA_BRAKES).toString(16).toUpperCase(), '18F0090B');
+    eq('VDC2 braking in a right-hand bend', hex(jfVdc2({ yaw: 0.5, accLat: -2, accLong: -1.5, speed: 10 }).data),
+      'FF FF FF 71 8D 7F 8D 6E');
+    //    Speeding up in reverse (accLong -1.5 while speed < 0) reads + 1.5 -> 140 = 0x8C.
+    eq('VDC2 speeding up backward is positive', jfVdc2({ accLong: -1.5, speed: -5 }).data[7], 0x8C);
+    eq('VDC2 with no sensors stays n/a', hex(jfVdc2({}).data), 'FF FF FF FF FF FF FF FF');
+    //    The gate: no air brakes (a car, a tractor), no VDC.
+    //    jfPack moves the live AIR1 clock, so it is put back afterwards.
+    const clock = jfLast1s;
+    const pgns = (t, slow) => jfPack(t, slow).map(f => (f.id >>> 8) & 0xFFFF);
+    eq('a car sends no VDC', pgns({ status: ST.ESC, yaw: 0.1 }, true).includes(0xFE4F), false);
+    eq('an air-braked truck sends VDC1 on the slow tick', pgns({ status: 0, air_primary: 8 }, true).includes(0xFE4F), true);
+    eq('no VDC1 off the slow tick', pgns({ status: 0, air_primary: 8 }, false).includes(0xFE4F), false);
+    eq('VDC2 on every call', pgns({ status: 0, air_primary: 8 }, false).includes(0xF009), true);
+    jfLast1s = clock;
 
     // 4. The on-request half, which lives in j1939.js but is this flavor's coverage. Only
     //    checked where that module is loaded - and said out loud when it is not, because a
@@ -477,6 +567,15 @@
       rt('AIR1', 65198, jfAir1({ air_primary: 8, air_secondary: 7.2 }),
         { 'Service Brake Air Pressure Circuit #1': '800 kPa',
           'Service Brake Air Pressure Circuit #2': '720 kPa' });
+      rt('VDC1', 65103, jfVdc1({ status: ST.ESC | ST.BRAKE_LIGHT | ST.ROLL }),
+        { 'VDC Information Signal': 'On', 'VDC Fully Operational': 'Fully operational',
+          'VDC brake light request': 'On', 'ROP Brake Control active': 'Active',
+          'ROP Engine Control active': 'Active', 'YC Brake Control active': 'Passive' });
+      rt('VDC1 off', 65103, jfVdc1({ status: ST.OFF }),
+        { 'VDC Fully Operational': 'Not fully operational' });
+      rt('VDC2', 61449, jfVdc2({ yaw: 0.5, accLat: -2, accLong: -1.5, speed: 10 }),
+        { 'Steering Wheel Angle': 'N/A', 'Yaw Rate': '0.500 rad/s',
+          'Lateral Acceleration': '2.00 m/s²', 'Longitudinal Acceleration': '-1.5 m/s²' });
     }
 
     // 6. Driver demand. The decoder writes live state, so it is saved and restored around the test.
@@ -502,6 +601,9 @@
     //    Not available refreshes nothing: isobus.js's EEC2 (SPN 91 = 0xFF) must not zero the pedal.
     jfDecodeDrive({ id: jfId(PGN_EEC2, 3, SA_ENGINE), isExt: true, data: [0xFF, 0xFF, 42, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
     eq('an EEC2 with SPN 91 not available leaves the pedal', Math.round(live('accel')), 40);
+    //    The own-address rule for VDC2: this file's sensor frame (SPN 1807 n/a) steers nothing.
+    jfDecodeDrive(jfVdc2({ yaw: 0.5, accLat: -2, accLong: -1.5, speed: 10 }));
+    eq('our own VDC2 leaves the steer', Math.round(live('steer')), -100);
     //    Park and Forward Drive; a Hold refreshes nothing.
     const tcRaw = (raw) => jfDecodeDrive({ id: jfIdDa(PGN_TC1, 3, SA_SHIFT_CONSOLE, SA_TRANSMISSION), isExt: true, data: [0xFF, 0xFF, raw, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
     tcRaw(0xFC); eq('Forward Drive reads D', live('gear'), 1);

@@ -140,8 +140,26 @@ const J1939_DB = {
   0xF001:{ name:'Electronic Brake Controller 1', abbr:'EBC1', spns:[
     { spn:521, name:'Brake Pedal Position', b:1, n:1, f:0.4, o:0, u:'%', dp:0 },
   ]},
+  // VDC2 is also what j1939-flavor.js packs off the truck's ESC sensors (yaw, accelerations); the
+  // steering wheel angle stays the driver demand's. Positions and scales off J1939-71 pp. 220-221, 308.
   0xF009:{ name:'Vehicle Dynamic Stability Control 2', abbr:'VDC2', spns:[
     { spn:1807, name:'Steering Wheel Angle', b:0, n:2, f:1/1024, o:-31.374, u:'rad', dp:3 },
+    { spn:1811, name:'Steering Wheel Turn Counter', b:2, n:0, bit:0, bits:6 },
+    { spn:1812, name:'Steering Wheel Angle Sensor Type', b:2, n:0, bit:6, bits:2, map:{0:'Relative',1:'Absolute',2:'Reserved',3:'N/A'} },
+    { spn:1808, name:'Yaw Rate', b:3, n:2, f:1/8192, o:-3.92, u:'rad/s', dp:3 },
+    { spn:1809, name:'Lateral Acceleration', b:5, n:2, f:1/2048, o:-15.687, u:'m/s²', dp:2 },
+    { spn:1810, name:'Longitudinal Acceleration', b:7, n:1, f:0.1, o:-12.5, u:'m/s²', dp:1 },
+  ]},
+  // VDC1: the stability unit's status, packed by j1939-flavor.js. Positions and states off
+  // J1939-71 pp. 222-223, 322 (SPN 5624 is not in that edition's group).
+  0xFE4F:{ name:'Vehicle Dynamic Stability Control 1', abbr:'VDC1', spns:[
+    { spn:1813, name:'VDC Information Signal', b:0, n:0, bit:0, bits:2, map:{0:'Off',1:'On',2:'Reserved',3:'N/A'} },
+    { spn:1814, name:'VDC Fully Operational', b:0, n:0, bit:2, bits:2, map:{0:'Not fully operational',1:'Fully operational',2:'Reserved',3:'N/A'} },
+    { spn:1815, name:'VDC brake light request', b:0, n:0, bit:4, bits:2, map:{0:'Off',1:'On',2:'Reserved',3:'N/A'} },
+    { spn:1816, name:'ROP Engine Control active', b:1, n:0, bit:0, bits:2, map:{0:'Passive',1:'Active',2:'Reserved',3:'N/A'} },
+    { spn:1818, name:'ROP Brake Control active',  b:1, n:0, bit:2, bits:2, map:{0:'Passive',1:'Active',2:'Reserved',3:'N/A'} },
+    { spn:1817, name:'YC Engine Control active',  b:1, n:0, bit:4, bits:2, map:{0:'Passive',1:'Active',2:'Reserved',3:'N/A'} },
+    { spn:1819, name:'YC Brake Control active',   b:1, n:0, bit:6, bits:2, map:{0:'Passive',1:'Active',2:'Reserved',3:'N/A'} },
   ]},
   // PDU1 (PF 0x01): keyed by PGN, the destination is not part of it.
   0x0100:{ name:'Transmission Control 1', abbr:'TC1', spns:[

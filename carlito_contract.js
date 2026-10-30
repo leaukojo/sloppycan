@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 58,
+  "version": 60,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -599,7 +599,7 @@ window.CARLITO_CONTRACT = {
         "drone",
         "train"
       ],
-      "desc": "Status bitfield. The bit layout is FROZEN and is the wire assignment: 0 ignition, 1 on the ground - all wheels in contact for a wheeled chassis, and the drone's own landed predicate (DroneSensors.landed_now) for a craft that has no wheels to report it - 2 moving, 3 reverse gear, 4 neutral gear, 5 handbrake, 6 headlights at LOW or brighter, 7 stability control acting - a wheel braked against the yaw error, or the rig braked short of a rollover; on a truck it reads as J1939 VDC1's YC or ROP control active, SPNs 1817/1819 and 1816/1818 (ST_* in src/vehicles/base/vehicle_telemetry.gd). A new flag APPENDS at bit 8 or above - eight are free in the u16 - and an existing bit is never renumbered, because a renumber is both a paired change across carlito and sloppycan and a silent misread of every frame an older build already sent."
+      "desc": "Status bitfield. The bit layout is FROZEN and is the wire assignment: 0 ignition, 1 on the ground - all wheels in contact for a wheeled chassis, and the drone's own landed predicate (DroneSensors.landed_now) for a craft that has no wheels to report it - 2 moving, 3 reverse gear, 4 neutral gear, 5 handbrake, 6 headlights at LOW or brighter, 7 stability control acting - a wheel braked against the yaw error, or the rig braked short of a rollover; on a truck it reads as J1939 VDC1's YC or ROP control active, SPNs 1817/1819 and 1816/1818, 8 brake-light request - roll stability's own braking past R13's 0.7 m/s2 stop-lamp floor (yaw braking is selective and never sets it), which sloppyCAN ORs into the brakeLamp it sends; on a truck it reads as J1939 VDC1 SPN 1815, 9 a fitted stability control switched off (esc_off; VDC1 SPN 1814 not fully operational), 10 the yaw controller braking (VDC1 YC, SPNs 1817/1819), 11 roll stability braking (VDC1 ROP, SPNs 1816/1818) - bit 7 is 10 or 11 (ST_* in src/vehicles/base/vehicle_telemetry.gd). A new flag APPENDS at bit 12 or above - four are free in the u16 - and an existing bit is never renumbered, because a renumber is both a paired change across carlito and sloppycan and a silent misread of every frame an older build already sent."
     },
     {
       "name": "impact",

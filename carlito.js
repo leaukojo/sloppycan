@@ -217,6 +217,7 @@
   const GAME_ORIGIN = new URL(GAME_URL, location.href).origin;   // postMessage target + inbound origin gate
   let iframe = null, loaded = false, upOn = true, downOn = true, rafId = null, kbdBlocked = false;
   let lastTel = null, lastTelT = 0, slowTick = false;   // last telemetry + ts + fast/slow forward toggle
+  const ST_BRAKE_LIGHT = 1 << 8;   // contract 'status' bit 8, the brake-light request (VehicleTelemetry.ST_BRAKE_LIGHT)
   // Uplink/render are time-gated (not run every rAF). On Android the bridge runs the WebUSB read loop,
   // this push loop, the downlink drain AND a heavy WebGL game on the single main thread; rendering ~32
   // DOM writes at 60Hz into a (by-default hidden) debug panel was starving the read loop. ~33Hz is
@@ -403,6 +404,12 @@
     for (const sig of CONTRACT_IN_SIGS) {
       const val = inValue(sig, st);
       if (val !== undefined) v[sig.name] = val;
+    }
+    // The brake-light request (status bit 8, contract v60): braking the vehicle commands itself
+    // lights the stop lamps (R13 5.2.1.30.5). This side owns the lamp while the bridge drives, so it
+    // ORs the request over whichever source claimed brakeLamp - RAMN's 0x1BB bit or the CCVS decode.
+    if (lastTel && performance.now() - lastTelT < 600 && ((+lastTel.status || 0) & ST_BRAKE_LIGHT)) {
+      v.brakeLamp = 1;
     }
     return v;
   }
