@@ -2,7 +2,7 @@
 // Regenerate with:  node tools/gen_js_contract.mjs  (in the carlito repo)
 // Canonical contract lives in the carlito repo; this is the synced copy sloppyCAN consumes.
 window.CARLITO_CONTRACT = {
-  "version": 57,
+  "version": 58,
   "notes": [
     "Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
     "Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -10,7 +10,7 @@ window.CARLITO_CONTRACT = {
     "'warn' (optional number, added v3) is the danger threshold the dashboard highlights: the tachometer redline, low-fuel, coolant overheat. Which side of it is the dangerous one is DECLARED in 'warn_side' ('low' | 'high'), never inferred: the parser rejects either field without the other. Inferring it from the range was a trap - it made the dashboard's danger direction a silent function of whatever range you happened to pick.",
     "'flavor' borrows a protocol's signal names/semantics (j1939, isobus, iso11992, j2497, cleanopen, canaerospace, dronecan, train) without implementing its CAN frames — frame layout stays on the sloppyCAN side.",
     "'cleanopen' is the only flavor on a SECOND NETWORK rather than the vehicle's own bus: CiA 422 (EN 16815:2019) is a CANopen body-control network, so the garbage truck's body signals reach the J1939 chassis across a CiA 413-6 truck-gateway interface and appear on the truck's cluster per CiA 413-8. The gateway is the content — body_inhibit is computed from chassis state and published on the body network, and body_bus can be down.",
-    "'iso11992' is the TRAILER bus (ISO 11992-2 over pins 6 and 7 of the ISO 7638 connector), and how LITTLE rides it is the content: part 2 is the application layer for brakes and running gear only, so a coupling claim, the brake demand going out (EBS11), the ABS state coming back (EBS21), an axle load and an injectable fault are the ENTIRE boundary. It is the one signal group here that is bidirectional by design, and it deliberately carries no body type at all — see trailer_connected. Contrast 'cleanopen' above: the body network is thick (a second bus with its own profile behind a gateway), the trailer network is thin (four messages about brakes), and both are real.",
+    "'iso11992' is the TRAILER bus (ISO 11992-2 over pins 6 and 7 of the ISO 7638 connector), and how LITTLE rides it is the content: part 2 is the application layer for brakes and running gear only, so a coupling claim, the brake demand going out (EBS11), the ABS and VDC-active states coming back (EBS21), an axle load and an injectable fault are the ENTIRE boundary. It is the one signal group here that is bidirectional by design, and it deliberately carries no body type at all — see trailer_connected. Contrast 'cleanopen' above: the body network is thick (a second bus with its own profile behind a gateway), the trailer network is thin (four messages about brakes), and both are real.",
     "'j2497' is the REGIONAL CONTRAST to 'iso11992', and the contrast is a SUBTRACTION rather than a second set of messages: SAE J2497 (PLC4TRUCKS) is what North America put on the truck/trailer boundary, and it is not a bus at all — the ISO 7638 connector has no data pair over there, so trailer ABS status is modulated onto the POWER LINE and its payload is essentially LAMP ON / LAMP OFF to one dash telltale. So this flavor has exactly ONE signal (trailer_abs_lamp) and that single mirrored bit is the whole protocol. A tractor unit without the ISO 11992 data pair (VehicleSpec.trailer_bus_equipped false — the shipped 'semi-conventional') tows and brakes exactly the same trailer through the same pneumatic lines and publishes nothing about it: thin, thinner, and both are real.",
     "'j1939' and 'isobus' are parent and child: ISO 11783 (ISOBUS) is built on SAE J1939, so a handful of signals carry the isobus flavor and are shared with the truck — engine_load is J1939 SPN 92 whichever family reads it, and the tractor's was always the borrowed one. Signals the truck alone declares are flavored j1939.",
     "'train' is the one flavor that borrows PRACTICE, not a protocol: real trains run IEC 61375 (TCN/WTB/MVB, not CAN) and the CAN-adjacent CiA 421 profiles use an object dictionary that does not fit this flat (name, dir) model. The train signals are custom flat signals whose semantics are borrowed from rail practice / CiA 421.",
@@ -1615,7 +1615,7 @@ window.CARLITO_CONTRACT = {
         "truck"
       ],
       "flavor": "iso11992",
-      "desc": "The braking demand the towing unit SENDS to the trailer (ISO 11992-2 EBS11, towing-to-towed). The foot brake, or roll stability's own application if higher (TruckTelemetry.ebs11_demand) — and NOT the retarder: EBS11 carries the service/secondary brake demand, UN R13 5.2.1.21 lets a trailer's service brakes work only with the tractor's service, secondary or parking brake, and 5.2.1.28.6 forbids compensating an endurance brake's coupling force with either vehicle's service brakes. So on the retarder alone this reads 0 and the unbraked trailer pushes the tractor through the kingpin, as on a real rig. This signal is a REPORT of what was sent: the demand behind it is what the trailer's RayWheels actually brake with, and the number here is read off that rather than driving anything. A real 0 while bobtail."
+      "desc": "The braking demand the towing unit SENDS to the trailer (ISO 11992-2 EBS11, towing-to-towed). The foot brake, or roll stability's own application if higher (TruckTelemetry.ebs11_demand) — and NOT the retarder: EBS11 carries the service/secondary brake demand, UN R13 5.2.1.21 lets a trailer's service brakes work only with the tractor's service, secondary or parking brake, and 5.2.1.28.6 forbids compensating an endurance brake's coupling force with either vehicle's service brakes. So on the retarder alone this reads 0 and the unbraked trailer pushes the tractor through the kingpin, as on a real rig. This signal is a REPORT of what was sent: the demand behind it is the least the trailer's RayWheels brake with (its own roll-over control may brake one side harder, trailer_vdc), and the number here is read off that rather than driving anything. A real 0 while bobtail."
     },
     {
       "name": "trailer_abs",
@@ -1627,6 +1627,17 @@ window.CARLITO_CONTRACT = {
       ],
       "flavor": "iso11992",
       "desc": "Trailer ABS active (ISO 11992-2 EBS21, towed-to-towing — the RETURN direction, which no other signal group in this contract has). READ OUT OF THE SIM and not faked: the trailer carries its own unmodified RayWheels and its own anti-lock, which holds a wheel's brake back once its braking slip reaches RayWheel.ABS_SLIP (the grip peak), and this is true on any tick that happened to any trailer wheel (TowedBody.abs_active). So it lights when the demand outruns the trailer's grip — a hard stop, or ordinary braking on a slippery patch — and stays dark under braking the tyres can carry. Off while the spring brakes hold, which no ABS modulates. No timer and no local blink. A real false while bobtail."
+    },
+    {
+      "name": "trailer_vdc",
+      "dir": "out",
+      "type": "bool",
+      "unit": "flag",
+      "vehicles": [
+        "truck"
+      ],
+      "flavor": "iso11992",
+      "desc": "Trailer VDC active (ISO 11992-2 EBS21 byte 2 bits 1-2, 'VDC active / passive', towed-to-towing; UN R13 Annex 16). READ OUT OF THE SIM: the semi-trailers carry their own roll-over control in their EBS (StabilityControl.trailer_roll_step, R13's minimum for an O4 semi-trailer), which senses the trailer's own lateral acceleration, wheel speeds and bogie load and brakes the outside wheels itself before the trailer lifts, whatever the tractor asks — the higher of the two brakes each side. True on any tick that function is in its full application (TowedBody.vdc_active), and never for its low-pressure test pulse, which R13 Annex 21 2.2.4 counts as a learning intervention. The trailer's own function, not the tractor's: esc_off does not switch it off, so with the tractor's ESC off this is the one stability signal still able to light. The towing vehicle must warn the driver whenever it arrives (Annex 21 2.1.6): the cluster's VDC tell-tale. Its J1939 mirror is SPN 5624 (trailer VDC active, VDC1). A real false while bobtail, on a trailer without the function and on a unit with no data pair (trailer_connected)."
     },
     {
       "name": "trailer_abs_lamp",
