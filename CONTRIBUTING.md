@@ -7,7 +7,7 @@ Thanks for taking a look at SloppyCAN.
 - Read [`README.md`](README.md) for what the app does and how to run it.
 - For architecture, wire formats, and data structures, see
   [`.claude/core-arch.md`](.claude/core-arch.md) and [`.claude/modules.md`](.claude/modules.md).
-- There's no build step and no dependencies: `index.html` + `sloppycan.css` + `sloppycan.js`
+- There's no build step and no dependencies: `index.html` + `css/sloppycan.css` + `js/sloppycan.js`
   is the core; everything else is a bolt-on module (see [Contributing](README.md#contributing) in
   the README for the module list).
 

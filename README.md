@@ -115,7 +115,7 @@ linked in-app via "Learn how … works ↗".
 - **The trailer's ISO 11992 frames are not built from the standard.** ISO 11992-2 is paywalled,
   so the two identifiers (EBS21 = PGN 768, EBS22 = PGN 65220) come from secondary sources only.
   The trailer's axle load and brake demand aren't sent at all: no available source gives their
-  scaling. [`iso11992.js`](iso11992.js) marks where each number came from. If you have the
+  scaling. [`iso11992.js`](js/iso11992.js) marks where each number came from. If you have the
   standard, a correction is very welcome.
 - Android support works but isn't polished yet.
 - Still needs more real-world user testing. Feedback and issues welcome.
@@ -129,9 +129,9 @@ license. See [`LICENSE`](LICENSE) for the full text.
 
 ## Contributing
 
-The app core is `index.html` + `sloppycan.css` + `sloppycan.js`, with `can-link.js` (the USB/serial
+The app core is `index.html` + `css/sloppycan.css` + `js/sloppycan.js`, with `can-link.js` (the USB/serial
 transport) and `diag-parse.js` (OBD-II / UDS / KWP2000 decoders) beside it. Everything else is a
-bolt-on module in its own script; the ones the core calls are wired in through a few hooks tagged
+bolt-on module in its own script under `js/`; the ones the core calls are wired in through a few hooks tagged
 *"remove to revert"*:
 
 - **Tabs:** `graph.js`, `fuzz.js`, `j1939.js` (J1939 / NMEA 2000 / ISOBUS), `chademo.js`,

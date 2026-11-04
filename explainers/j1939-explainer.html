@@ -518,8 +518,8 @@ main { flex: 1; overflow-y: auto; }
   </div>
 </main>
 
-<script src="../j1939-pack.js"></script>
-<script src="../j1939-tables.js"></script>
+<script src="../js/j1939-pack.js"></script>
+<script src="../js/j1939-tables.js"></script>
 <script>
 // ── Theme ────────────────────────────────────────────────────────────────────
 function applyTheme(t) {
@@ -558,7 +558,7 @@ function tipField(title, color, rows) {
 }
 
 // ── Payload decode ───────────────────────────────────────────────────────────
-// Names, addresses and SPN layouts all come from ../j1939-tables.js, the dictionary the app's
+// Names, addresses and SPN layouts all come from ../js/j1939-tables.js, the dictionary the app's
 // J1939 tab uses, so this page decodes exactly what sloppyCAN decodes. Only the rows that explain
 // the transport and the NAME are built here.
 // Each row: { name, spn, pos, raw, val, na }. Positions use J1939-71's notation: bytes count

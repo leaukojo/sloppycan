@@ -27,13 +27,13 @@ jobs:
       - name: Syntax-check every script
         run: |
           fail=0
-          for f in *.js explainers/*.js; do
+          for f in js/*.js explainers/*.js; do
             [ -e "$f" ] || continue
             node --check "$f" || fail=1
           done
           exit $fail
 
-      # carlito_contract.js is generated (tools/gen_js_contract.mjs in the carlito
+      # js/carlito_contract.js is generated (tools/gen_js_contract.mjs in the carlito
       # repo) and must set window.CARLITO_CONTRACT with a version - a truncated or
       # half-pasted copy would otherwise only surface as a runtime warning.
       - name: Contract copy sanity
@@ -43,7 +43,7 @@ jobs:
             const fs = require("fs");
             const ctx = { window: {} };
             vm.createContext(ctx);
-            vm.runInContext(fs.readFileSync("carlito_contract.js", "utf8"), ctx);
+            vm.runInContext(fs.readFileSync("js/carlito_contract.js", "utf8"), ctx);
             const c = ctx.window.CARLITO_CONTRACT;
             if (!c) throw new Error("carlito_contract.js did not set window.CARLITO_CONTRACT");
             if (!(c.version > 0)) throw new Error("contract has no usable version: " + c.version);

@@ -18,7 +18,7 @@ the same host globals as shims.
 
 ## `sloppycan.js` sections
 
-Navigate by `grep -n '^// ── ' sloppycan.js`. In order: header · Ring buffer · TX Scheduler ·
+Navigate by `grep -n '^// ── ' js/sloppycan.js`. In order: header · Ring buffer · TX Scheduler ·
 Fuzzer hooks · Utilities (`escHtml`, `log`) · Connection / bus state reset · "All frames filtered
 out" notice · gs_usb transport · Responsive header · View tabs · Frame Inspector · Notch · Resize
 handle · Demo Mode · Demo base-traffic engine · Demo traffic follows the Carlito vehicle · ISO-TP /

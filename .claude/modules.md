@@ -20,7 +20,7 @@ Explainer pages live in `explainers/`.
 | Module | Core hooks (`sloppycan.js` unless noted) |
 |---|---|
 | `graph.js` | `ingestFrame` → `graphIngestFrame`; `switchViewTab` + `graphOnShow`; `#frameBody` contextmenu → `graphContextMenu`; `graphSignals` persistence. `index.html`: `#vtab-graph`, `#graphWrap`, `#graphCtxMenu` |
-| `fuzz.js` | `fuzzTxFrame` / `fuzzBusReady` / `fuzzObservedIds` (near `frameKey`); `switchViewTab` + `fuzzOnShow`; `disconnectSerial` → `fuzzStop`; `fuzz` key. `index.html`: `#vtab-fuzz`, `#fuzzWrap`, `#fuzzActiveBadge` (TX Scheduler header). CSS `.fuzz-*` in `sloppycan.css` |
+| `fuzz.js` | `fuzzTxFrame` / `fuzzBusReady` / `fuzzObservedIds` (near `frameKey`); `switchViewTab` + `fuzzOnShow`; `disconnectSerial` → `fuzzStop`; `fuzz` key. `index.html`: `#vtab-fuzz`, `#fuzzWrap`, `#fuzzActiveBadge` (TX Scheduler header). CSS `.fuzz-*` in `css/sloppycan.css` |
 | `chademo.js` | `ingestFrame` → `chademoIngestFrame`; `clearFrames` → `chademoClear`; `switchViewTab` + `demoMaybeSwitch('chademo')`; demo engine → `chademoDemoLoopStart/Stop`. No persistence. Explainer `ev-charging-explainer.html` |
 | `xcp.js` | `ingestFrame` / `clearFrames` / `disconnectSerial` → `xcpIngestFrame` / `xcpClear` / `xcpStop`; `switchViewTab` + `xcpOnShow`; `xcp` key; `window.xcpDemoActive`. Explainer `xcp-explainer.html` |
 | `canopen.js` | Same four hooks as XCP (`canopen*`); `canopen` key; `window.canopenDemoActive`; demo engine → `canopenDemoStart/Stop` (a base traffic, not started on tab show). Explainer `canopen-explainer.html` |
@@ -128,7 +128,7 @@ J1939-71 rate is "On request".
 ## DTC decoder (`explainers/dtc.html`)
 
 Standalone lookup for OBD-II 2-byte, UDS 3-byte + status and J1939 4-byte SPN+FMI codes. Loads
-`../diag-parse.js` and `../j1939-tables.js` (+ `../j1939-pack.js`) so its decoding cannot drift
+`../js/diag-parse.js` and `../js/j1939-tables.js` (+ `../js/j1939-pack.js`) so its decoding cannot drift
 from the app. `DTC_DB` (~500 SAE J2012 descriptions; manufacturer codes flagged, never invented);
 `decodeToken` auto-detects (a bare 4-byte value shows UDS and J1939 cards); `?q=P0301` or
 `?bytes=01+90+12+2F&fmt=uds` prefill it.

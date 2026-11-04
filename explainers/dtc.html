@@ -240,9 +240,9 @@ select { cursor: pointer; }
 </div>
 </main>
 
-<script src="../j1939-pack.js"></script>
-<script src="../j1939-tables.js"></script>
-<script src="../diag-parse.js"></script>
+<script src="../js/j1939-pack.js"></script>
+<script src="../js/j1939-tables.js"></script>
+<script src="../js/diag-parse.js"></script>
 <script>
 // ── Theme (shared localStorage key with the other explainer pages) ────────────
 function applyTheme(t) {
@@ -262,7 +262,7 @@ function toggleTheme() {
 applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
 
 // ── J1939 names ───────────────────────────────────────────────────────────────
-// The FMI table (J1939_FMI) and the record decoder (j1939DecodeDTC) come from ../j1939-tables.js,
+// The FMI table (J1939_FMI) and the record decoder (j1939DecodeDTC) come from ../js/j1939-tables.js,
 // the same file the app loads. SPN names are every SPN that file's J1939_DB decodes, plus a few
 // that no parameter group carries, so a DM record for one of them still gets a name.
 const J1939_SPN_EXTRA = {
@@ -335,7 +335,7 @@ const DTC_DB = {
 "B0001":"PAD Deployment Control (Subfault)","B0010":"Driver Frontal Stage 1 Deployment Control","B0012":"Driver Frontal Stage 2 Deployment Control","B0020":"Passenger Frontal Stage 1 Deployment Control","B0022":"Passenger Frontal Stage 2 Deployment Control","B0028":"Right Side Deployment Loop","B0051":"Driver Seatbelt Pretensioner Deployment Control","B0053":"Passenger Seatbelt Pretensioner Deployment Control","B0081":"Driver Seatbelt Tension Sensor","B0100":"Electronic Front End Sensor 1","B1000":"ECU Malfunction","B1318":"Battery Voltage Low","B1342":"ECU Is Defective","B2960":"Security Key Not Programmed",
 };
 
-// ── Decoders (OBD / UDS structural split comes from ../diag-parse.js - the same
+// ── Decoders (OBD / UDS structural split comes from ../js/diag-parse.js - the same
 // OBD_DTC_LETTERS / obdDtcCode / udsDtcCode / UDS_DTC_STATUS_NAMES the app's udsDTC/udsDTCStatus
 // use; J1939 from j1939-tables.js) ───────────────────
 const OBD_LETTER_NAME = { P:'Powertrain', C:'Chassis', B:'Body', U:'Network / communication' };

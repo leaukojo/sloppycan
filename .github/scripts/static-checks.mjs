@@ -14,10 +14,10 @@ const PAGES = ['index.html', 'carlito-bridge.html'];
 const failures = [];
 
 // ── 1. Inline handlers ───────────────────────────────────────────────────────
-// Definitions: every top-level .js file plus the pages' own inline <script> blocks.
+// Definitions: every js/*.js file plus the pages' own inline <script> blocks.
 const decodeEntities = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<')
   .replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-let defs = readdirSync(ROOT).filter(f => f.endsWith('.js')).map(read).join('\n');
+let defs = readdirSync(join(ROOT, 'js')).filter(f => f.endsWith('.js')).map(f => read('js/' + f)).join('\n');
 for (const p of PAGES)
   for (const m of read(p).matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)) defs += '\n' + m[1];
 // Every declared name, collected in one pass: `function NAME`, `NAME =` and `window.NAME =`. This
