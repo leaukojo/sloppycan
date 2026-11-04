@@ -8,8 +8,8 @@ Thanks for taking a look at SloppyCAN.
 - For architecture, wire formats, and data structures, see
   [`.claude/core-arch.md`](.claude/core-arch.md) and [`.claude/modules.md`](.claude/modules.md).
 - There's no build step and no dependencies: `index.html` + `sloppycan.css` + `sloppycan.js`
-  is the core; everything else is an optional bolt-on module (see "For contributors" in the
-  README for the module pattern).
+  is the core; everything else is a bolt-on module (see [Contributing](README.md#contributing) in
+  the README for the module list).
 
 ## Reporting bugs / requesting features
 

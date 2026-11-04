@@ -67,7 +67,9 @@ see every frame sloppyCAN sees, and what they send is treated as a frame on the 
 transmitted when a bus is open). Any language works: the relay's TCP port `29541` speaks one
 `cansend`-style line per frame (`123#DEADBEEF`), so `nc 127.0.0.1 29541` is a live candump.
 Chrome asks once to allow local network access when the hosted page connects. Opened from
-`file://`? Start the relay with `--allow-file-origin`.
+`file://`? Start the relay with `--allow-file-origin`. The relay accepts any `localhost` page on
+any port by design, so any other local dev server you run can join it as well, and from there it
+reaches the bus while sloppyCAN is connected.
 
 ### Remote SLCAN over TCP tunnel (`socket://` compatible)
 
@@ -95,7 +97,8 @@ Then in SloppyCAN set the tunnel URL to `ws://127.0.0.1:29542/`.
 ID List, Traffic Dump, TX Scheduler, Frame Inspector, Graph, Fuzzing, and protocol tabs for
 ISO-TP (UDS/OBD-II/KWP2000), J1939 (NMEA 2000/ISOBUS), CHAdeMO, XCP-on-CAN, and CANopen. Most
 tabs are self-contained and work fully in Demo mode (only one base-traffic simulation runs at a
-time, reload to switch back to the default RAMN traffic).
+time; with Carlito open it follows the vehicle being driven, otherwise reload to switch back to
+the default RAMN traffic).
 
 Standalone protocol explainers (ISO-TP, OBD-II, UDS, KWP2000, NMEA 2000, ISOBUS, XCP, CANopen,
 EV charging, a DTC decoder, and a CAN physical-layer walkthrough) live in
@@ -109,6 +112,11 @@ linked in-app via "Learn how … works ↗".
 - Not everything is cross-linked yet, e.g. OBD-II RPM isn't (yet) the same signal as Carlito's
   RPM when the two are connected.
 - The Graph tab needs further performance work on large traces.
+- **The trailer's ISO 11992 frames are not built from the standard.** ISO 11992-2 is paywalled,
+  so the two identifiers (EBS21 = PGN 768, EBS22 = PGN 65220) come from secondary sources only.
+  The trailer's axle load and brake demand aren't sent at all: no available source gives their
+  scaling. [`iso11992.js`](iso11992.js) marks where each number came from. If you have the
+  standard, a correction is very welcome.
 - Android support works but isn't polished yet.
 - Still needs more real-world user testing. Feedback and issues welcome.
 
@@ -121,10 +129,18 @@ license. See [`LICENSE`](LICENSE) for the full text.
 
 ## Contributing
 
-The app core is `index.html` + `sloppycan.css` + `sloppycan.js`. Everything else is an optional
-bolt-on module (`graph.js`, `fuzz.js`, `j1939.js`, `chademo.js`, `xcp.js`, `canopen.js`,
-`ramn.js`, `carlito.js`), wired into the core through a few hooks tagged *"remove to revert"*.
-Delete a module and its tagged seams and the feature drops out cleanly.
+The app core is `index.html` + `sloppycan.css` + `sloppycan.js`, with `can-link.js` (the USB/serial
+transport) and `diag-parse.js` (OBD-II / UDS / KWP2000 decoders) beside it. Everything else is a
+bolt-on module in its own script; the ones the core calls are wired in through a few hooks tagged
+*"remove to revert"*:
+
+- **Tabs:** `graph.js`, `fuzz.js`, `j1939.js` (J1939 / NMEA 2000 / ISOBUS), `chademo.js`,
+  `xcp.js`, `canopen.js`, `dronecan-core.js` + `dronecan.js`.
+- **Carlito link and vehicle panels:** `carlito.js`, `ramn.js`, `vehicle-panel.js`, `drone.js`,
+  `truck.js`, `tractor.js`, `boat.js`, `boat-pilot.js`, `train.js`, `plane.js`.
+- **Protocol packers** (the game's signals as real frames): `isobus.js`, `j1939-flavor.js`,
+  `nmea2000.js`, `cleanopen.js`, `iso11992.js`, `canaerospace.js`.
+- **Scripting:** `script-link.js` (talks to `scripting/sloppycan_relay.py`).
 
 See [`.claude/core-arch.md`](.claude/core-arch.md) and [`.claude/modules.md`](.claude/modules.md)
 for architecture details, and [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to file issues and

@@ -324,7 +324,7 @@ function chademoRenderSession() {
 
   const remain = CM.remainMin != null && CM.remainMin !== 0xFF ? CM.remainMin + ' min'
     : (CM.remain10s != null && CM.remain10s !== 0xFF ? (CM.remain10s * 10) + ' s' : '-');
-  document.getElementById('chademo-dash').innerHTML = `
+  window.setHtmlIfChanged(document.getElementById('chademo-dash'), `
     <div class="chademo-tiles">
       ${tile('State of charge', cmShow(CM.soc, '%'))}
       ${tile('Voltage', cmShow(CM.presentV, ' V'), 'target ' + cmShow(CM.targetV, ' V'))}
@@ -339,7 +339,7 @@ function chademoRenderSession() {
     <div class="chademo-flags-title">Vehicle status <span style="color:var(--text3);font-weight:400">(0x102 byte 5)</span></div>
     <div>${chademoChips(CM.vStatus, CM_VSTATUS_BITS)}</div>
     <div class="chademo-flags-title">Charger status <span style="color:var(--text3);font-weight:400">(0x109 byte 5)</span></div>
-    <div>${chademoChips(CM.cStatus, CM_CSTATUS_BITS)}</div>`;
+    <div>${chademoChips(CM.cStatus, CM_CSTATUS_BITS)}</div>`);
 }
 
 
@@ -404,16 +404,16 @@ const chademoTab = window.makeStackedLogTab({
   theadHtml: '<tr><th>Time</th><th>ID</th><th>Message</th><th>Bytes</th><th>Decoded</th></tr>',
   emptyHtml: '<div class="chademo-empty">No CHAdeMO frames in log yet.</div>',
   renderTop: chademoRenderSession,
-  rowHtml: (e) => {
+  row: (e) => {
     const m = CHADEMO_MSGS[e.id];
     const raw = Array.from(e.data).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
-    return `<tr>
-        <td class="cm-ts"><a href="#" onclick="isotpSeeCanTraffic(${e.ts});return false" title="See this frame in the Traffic Dump" class="cm-seecan">⊞</a> ${cmRelTs(e.ts)}</td>
-        <td class="cm-id">${cmH(e.id)}</td>
-        <td class="cm-name">${m ? m.name : '-'}</td>
-        <td class="cm-raw">${raw}</td>
-        <td class="cm-val">${e.val || '<span style="color:var(--text3)">-</span>'}</td>
-      </tr>`;
+    return { data: { seecanTs: e.ts }, cells: [
+      { cls: 'cm-ts', lead: '<a href="#" data-seecan="" title="See this frame in the Traffic Dump" class="cm-seecan">⊞</a>', html: cmRelTs(e.ts) },
+      { cls: 'cm-id', html: cmH(e.id) },
+      { cls: 'cm-name', html: m ? m.name : '-' },
+      { cls: 'cm-raw', html: raw },
+      { cls: 'cm-val', html: e.val || '<span style="color:var(--text3)">-</span>' },
+    ] };
   },
 });
 

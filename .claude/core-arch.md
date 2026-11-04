@@ -2,104 +2,45 @@
 
 ## Files & load order
 
-`index.html` loads scripts in this order: the bolt-on modules (`j1939-tables.js`, `j1939.js` … `carlito.js`, all
-`defer`), then **`can-link.js`** (non-defer), **`diag-parse.js`** (non-defer), then
-**`sloppycan.js`** (non-defer). Non-defer scripts run during parse, before the deferred modules,
-and share one global lexical scope. So `can-link.js` + `diag-parse.js` evaluate immediately
-before `sloppycan.js`, which is required (see coupling notes below).
+`index.html` lists the deferred bolt-on modules first, then the non-defer core: **`can-link.js`**,
+**`diag-parse.js`**, **`sloppycan.js`**. Non-defer scripts run during parse, before every deferred
+module, and all classic scripts share one global lexical scope.
 
-## `can-link.js` - shared CAN transport (gs_usb + SLCAN)
+## `can-link.js` vs `sloppycan.js`
 
-The device/protocol layer, carved out of `sloppycan.js` so the standalone
-`carlito-bridge.html` can reuse it without booting the whole app. Declares the connection
-**state + consts** (`connMode`, `port`/`reader`, `usbSerDev`/`usbSerIn`/`usbSerOut`, `busIsOpen`,
-`frameBuffer`/`termBuffer`, `gsFclk`/`gsIface`/`gsEchoId`/`gsBtConst`, `serialWriteChain`,
-`recentTx`, `GSUSB_FILTERS`/`GS_BREQ`/`GS_MODE`/CAN flag+mask consts, `SLCAN_BITRATE_HZ`,
-`SERIAL_USB_FILTERS`, `_onAndroid`, `HEX_STR_RE`, `USB_MAX_STALLS`) and the **functions**
-`getBitrateHz`, `openGsUsb`/`openWebUSBCDC`, `gsBitTimingPass`/`gsCalcBitTiming`/`gsSetBitTiming`/
-`gsSetMode`, `usbRecoverStall`, `gsUsbPump`/`usbSerialPump`/`readLoop`, `dispatchSerialText`/
-`processBuffer`/`parseSLCAN`/`escRawLine`/`isHexStr`/`hexToBytes`, `gsUsbPackFrame`, `encodeCmd`,
-`sendCommand`/`sendCommandRaw`/`recentTxPush`.
+`can-link.js` (its header lists the host contract) owns the connection state and the transport
+primitives: `openGsUsb` / `openWebUSBCDC`, gs_usb bit timing + mode, `gsUsbPump` / `usbSerialPump` /
+`readLoop`, `processBuffer` / `parseSLCAN`, `gsUsbPackFrame`, `sendCommand`. `sloppycan.js` keeps the
+host side: `connectSerial` / `disconnectSerial`, `busOpen`, `hwConnectWarning`,
+`requireBusForCarlito`, `resetConnectionState`, `updateBusPauseBtn`, and the TX-scheduler glue
+(`txTransmitRaw` / `txBuildSlcan` / `gsUsbBuildFrame` / `txDataBytes`). `carlito-bridge.js` supplies
+the same host globals as shims.
 
-Because all three core scripts share global scope, these are the SAME bindings the rest of
-`sloppycan.js` reads - the carve-out needed **no** call-site edits in `sloppycan.js`. The host
-side (UI orchestration) stays in `sloppycan.js`: `connectSerial`, `disconnectSerial`, `busOpen`/
-`getOpenCmd`/`getBaudCmd`, `hwConnectWarning`, `requireBusForCarlito`, `resetConnectionState`,
-`updateBusPauseBtn`, plus the TX-scheduler glue `txTransmitRaw`/`txBuildSlcan`/`gsUsbBuildFrame`/
-`txDataBytes` (which call the now-moved `gsUsbPackFrame`/`sendCommand`). The functions in
-`can-link.js` reference, **at call time only**, host globals each page provides: `log`,
-`ingestFrame`, `paused`, `demoMode`, `terminalMode`/`termLog`, `escHtml`, `parseErrors`/
-`totalFrames`/`frameRateBuffer`/`bytesReceived`, `disconnectSerial`, and DOM ids
-`#statBytes`/`#deviceInfo`/`#baudRate`.
+## `sloppycan.js` sections
 
-**Standalone bridge:** `carlito-bridge.html` + `carlito-bridge.js` load `can-link.js` + `ramn.js`
-+ `carlito.js` and supply those host globals as minimal shims (no SloppyCAN UI). See the project
-`CLAUDE.md`.
+Navigate by `grep -n '^// ── ' sloppycan.js`. In order: header · Ring buffer · TX Scheduler ·
+Fuzzer hooks · Utilities (`escHtml`, `log`) · Connection / bus state reset · "All frames filtered
+out" notice · gs_usb transport · Responsive header · View tabs · Frame Inspector · Notch · Resize
+handle · Demo Mode · Demo base-traffic engine · Demo traffic follows the Carlito vehicle · ISO-TP /
+UDS · Functional addressing · RX state machine · Functional-addressing RX · DOM helpers · Send ·
+OBD-II sub-mode · Supported-PIDs probe · Quick Watch · Theme toggle · CSV Export · Workspaces &
+persistence · Startup · Onboarding spotlight arrow.
 
-## `sloppycan.js` section map (line numbers - use `offset`/`limit` Read, don't load whole file)
+Landmarks: `ingestFrame` / `ingestFrameBody`; `rerenderTable`, `renderDump`, the rAF loop;
+`renderTxRows`, `txSendOne`, `txSendOnce`; `inspectFrame` (CRC-15, bit stuffing); `startDemo`,
+`demoTick` (CRC-32/ISO-HDLC).
 
-The file is ~5000 lines of top-level globals (no module wrapper). Navigate by these `// ── … ──`
-section headers. Line numbers drift as the file is edited - re-grep `^// ── ` if an offset misses.
+`diag-parse.js` is three sections: OBD-II / J1979 (`OBD_MODE`, `OBD_PID01/09`, `obdDecode`),
+UDS / ISO 14229-1 (`UDS_*`, `udsDecode*`), KWP2000 / ISO 14230 (`KWP_*`, `kwpDecode`, the
+`decodePayload` dispatcher).
 
-| Line | Section |
-|------|---------|
-| 1    | Architecture Overview (header comment) |
-| 82   | gs_usb (candleLight / CANable-native) constants |
-| 195  | Ring buffer (O(1) push, oldest-first) |
-| 270  | TX Scheduler |
-| 690  | Fuzzer hooks (for `fuzz.js`) |
-| 732  | Utilities (`escHtml`, `log`, …) |
-| 737  | Connection / bus state reset |
-| 878  | "All frames filtered out" notice |
-| 1177 | gs_usb transport |
-| 2016 | View tabs (ID List / Traffic Dump) |
-| 2249 | Frame Inspector |
-| 2656 | Notch · 2805 Resize handle |
-| 2842 | Demo Mode · 2913 Demo base-traffic engine |
-| 3162 | ISO-TP / UDS · 3293 Functional addressing · 3346 RX state machine · 3424 Functional-addr RX |
-| 3552 | (seam) OBD/UDS/KWP parsers → **`diag-parse.js`** |
-| 3559 | DOM helpers · 3793 Send |
-| 3851 | OBD-II / SAE J1979 sub-mode · 4233 Supported-PIDs probe · 4265 Quick Watch |
-| 4396 | Theme toggle · 4411 CSV Export |
-| 4447 | Workspaces & persistence (4614 UI prefs · 4632 Save · 4655 Workspace ops) |
-| 4852 | Startup · 4934 Onboarding spotlight arrow |
+## Coupling rules
 
-## `diag-parse.js` - OBD-II / UDS / KWP2000 decoders + tables
-
-Pure payload decoders (no DOM ownership, no bus state) extracted from `sloppycan.js`. All globals.
-
-| Line | Section |
-|------|---------|
-| 15   | OBD-II / ISO 15031 / SAE J1979 - `OBD_MODE`, `OBD_PID01/09`, `obdM01Value`, `obdDecode` |
-| 163  | UDS / ISO 14229-1 - `UDS_*` tables, `udsH`/`udsBytesHex`/`udsDTC*`/`dtcLink`/`udsMemAddr`, `udsDecode*`, `udsSection`/`udsToggle` |
-| 319  | KWP2000 / ISO 14230 - `KWP_*` tables, `kwpAscii`, `kwpDecode`, `decodePayload` dispatcher |
-
-## Module coupling (why only diag-parse split out)
-
-- **`sloppycan.js` = CORE-IO hub.** Owns DOM, bus state, ingestion, rendering, the ISO-TP transport,
-  and the OBD sub-mode controller. The bolt-on modules hook *into* it; it's the centre of the graph.
-- **`diag-parse.js` = leaf.** Reaches back into core only for `escHtml` (DOM helper, `sloppycan.js`
-  line ~732) and `obdProtoMode` (the UDS/OBD/KWP mode flag) - **both read at call time**, so they
-  resolve fine even though core loads *after* diag-parse. This one-way, near-zero coupling is what
-  made it the only clean split boundary.
-- **Eval-time dependency (the load-order rule):** `sloppycan.js`'s DIAG-MODE palettes `KWP_PALETTE`
-  / `UDS_PALETTE` (~line 4060) reference `KWP_DIAG_MODE` / `UDS_SESSION` / `UDS_RESET` / … as array
-  literal values **at eval time**. Those tables live in `diag-parse.js`, so it **must** load first.
-- **ISOTP ↔ OBD-sub-mode cycle (NOT split):** the OBD/UDS/KWP sub-mode controller (the "Send"/sub-mode
-  sections, ~3793–4395) is in a true dependency cycle with the ISO-TP transport (~3162–3551) - each
-  calls the other. Splitting it would only relocate coupling and add load-order risk, so it stays in
-  core. diag-parse is the *only* acyclic carve-out.
-
-## Other `sloppycan.js` landmarks
-
-- Serial layer - orchestration `connectSerial`/`disconnectSerial` in `sloppycan.js`; the
-  transport primitives (`readLoop`, `parseSLCAN`, Android `openWebUSBCDC`/`usbSerialPump`,
-  gs_usb `openGsUsb`/`gsUsbPump`/`gsCalcBitTiming`/`gsSetBitTiming`/`gsSetMode`/`gsUsbPackFrame`)
-  now live in **`can-link.js`** (shared). `gsUsbBuildFrame` (TX-scheduler glue) stays in `sloppycan.js`.
-- Frame ingestion - `ingestFrame`; rendering - `rerenderTable`, `renderDump`, RAF loop.
-- TX Scheduler - `renderTxRows`, `txBuildSlcan`, `txSendOne`, `txSendOnce`.
-- Frame Inspector - `inspectFrame`, CRC-15, bit stuffing. Demo - `startDemo`, `demoTick`,
-  CRC-32/ISO-HDLC, base-traffic engine.
+- **`diag-parse.js` must load before `sloppycan.js`:** the DIAG-MODE palettes (`KWP_PALETTE` /
+  `UDS_PALETTE`) read its tables at eval time. Its own reads of core (`escHtml`, `obdProtoMode`)
+  happen at call time.
+- **The OBD/UDS/KWP sub-mode controller stays in `sloppycan.js`:** it and the ISO-TP transport
+  call each other, so splitting either out only relocates the coupling.
 
 ## Demo base-traffic engine
 
@@ -118,7 +59,12 @@ one base traffic runs at a time, tracked by `demoBaseTraffic` (`'ramn'` default 
 - `window.demoMaybeSwitch(kind, label)` is the prompt: no-op outside demo / if already active;
   else two `confirm()`s (switch? then clear buffer?) → `clearFrames()` + `demoSetBaseTraffic`.
   Called from `switchViewTab` (j1939 + chademo + canopen branches) and `j1939ProtoClick` (toggle).
-  Returning to RAMN requires a page reload.
+- `demoOnTelemetry` (a `vehiclePanelSubscribe` subscriber) makes the traffic follow the Carlito
+  vehicle with no prompt, on a change only: truck → j1939, tractor → iso11783, boat → nmea2000,
+  drone → dronecan, anything else → ramn (no reload; the table is vehicle-panel.js's
+  `vehiclePanelProtoTable`). Without Carlito, returning to RAMN still needs a reload. Outside demo,
+  the J1939 tab, shown with a truck / tractor / boat on the link, selects that vehicle's mode once
+  per vehicle per link (`j1939TabFollowKind`), so a mode picked afterwards stands.
 - `window.demoIsActive = () => demoMode` lets modules gate the switch (used by `j1939ProtoClick`).
 - Plain-J1939 demo frames come from `j1939BaseDemoFrames()` in `j1939.js`.
 
@@ -127,9 +73,9 @@ one base traffic runs at a time, tracked by `demoBaseTraffic` (`'ramn'` default 
 ```js
 frames: Map<frameKey, { id, isExt, isRtr, dlc, data: number[],
   byteChangedAt: number[], count, firstSeen, lastSeen,
-  timestamps: number[], hasRx, hasTx }>
+  timestamps: number[], hasRx, hasTx }>   // timestamps: a 1 s rate window (rateWindowPush/Count, can-link.js), pruned by age on push
 
-dumpLog: RingBuffer(100000) of { ts, isTx, id, isExt, isRtr, dlc, data }
+dumpLog: RingBuffer(100000) of { ts, isTx, id, isExt, isRtr, dlc, data, seq }   // seq stamped on push; the Dump's filtered view is extended by seq, re-filtered only when the filter changes
 
 notchedBytes:  Map<frameKey, Set<byteIndex>>
 stableBytes:   Map<frameKey, Map<byteIndex, value>>
@@ -164,7 +110,7 @@ Frames: `tIIILDD…` std data (3-hex ID), `TIIIIIIIILDD…` ext data (8-hex ID),
 `RIIIIIIIIL` ext RTR. Commands: `V`→version `Vxxyy`, `N`→serial; `S0..S8` bitrate, `O` open /
 `L` open listen-only / `C` close. Adapter error reply = BEL (`0x07`). Parsing lives in
 `parseSLCAN` / `processBuffer` / `readLoop`. Raw bytes are logged **only** for lines that fail to
-parse (`raw(unparsed): …`) or on the BEL error - there is no longer a blanket first-512-byte dump.
+parse (`raw(unparsed): …`) or on the BEL error.
 
 ## Shared UI helpers & conventions (read before adding inputs/rows)
 
@@ -192,9 +138,6 @@ parse (`raw(unparsed): …`) or on the BEL error - there is no longer a blanket 
   row and exclude its bytes from `assemble()` (used for SecurityAccess even-level Key and LinkControl
   sub-service `0x03` hiding the Baudrate record). `#isotpInput` placeholder is set per mode in
   `isotpSetProtoMode` (UDS `22 F1 84`, OBD `01 0C`, KWP `21 F0`).
-- **Graph idle-freeze:** `graphBusLive()` gates the live edge - when the bus is disconnected/paused the
-  window holds at `graphLiveEnd` instead of sliding. Resume keeps zoom; Live (`graphGoLive`) also
-  resets zoom.
 
 ## Byte colour semantics (ID List, RX frames only)
 
@@ -207,7 +150,3 @@ parse (`raw(unparsed): …`) or on the BEL error - there is no longer a blanket 
 | Blue   | TX-only frame (`hasRx=false`) - `.byte.tx-byte`, subtle, opacity 0.75 |
 
 TX frames with mixed RX/TX history use normal RX colouring.
-
-## Known issues / pending cleanups (do not fix unless asked)
-
-No known outstanding cleanups.

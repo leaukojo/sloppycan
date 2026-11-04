@@ -16,8 +16,8 @@
 //   - SAE J1939-71 messages (61443 EEC2, 61446 EAC1, 64991 FWD, 65266 LFE1): the J1939-71 document.
 //   - Preferred source addresses: isobus.net's SourceAddress table.
 //   - The NAME bit layout: SAE J1939-81.
-// FOUR of those lookups contradicted what this repo already believed, and correcting j1939.js's
-// decode tables was part of the same change - each is called out at the point it bites below.
+// j1939.js's decode tables are held to the same sources; each place a table is easy to get wrong
+// is called out below.
 //
 // ── THE COMMANDS ─────────────────────────────────────────────────────────────
 // This file also OWNS the tractor's eight contract dir="in" signals - hitch, PTO, PTO mode, hand
@@ -28,12 +28,13 @@
 // section of that name below for the freshness rule and for the three with no decoder.
 //
 // INTEGRATION POINTS - the only changes required in the main files:
-//   index.html           <script src="isobus.js" defer> after carlito_contract.js and BEFORE
-//                        carlito.js (the packer, the uplink sources and the uplink decoder must
-//                        be registered by the time carlito.js evaluates)
+//   index.html           <script src="isobus.js" defer> after carlito-registry.js and
+//                        j1939-pack.js
 //   carlito-bridge.html  same script tag. That page loads neither sloppycan.js nor j1939.js,
 //                        so every cross-module read here is typeof-guarded.
-//   j1939.js             decode-table corrections, so the frames render named and scaled
+//   j1939.js             decode-table corrections, so the frames render named and scaled;
+//                        window.j1939DemoDrive, the demo's pedal merged into EEC2
+//   j1939-flavor.js      window.j1939Eec2Frame, EEC2's encoder (shared with the driver demand)
 //   tractor.js / truck.js  their controls are views over window.isobusCtl / isobusSetCtl
 //
 // Telemetry TX rides carlito.js's canForward gateway, which is what puts these on the wire and
@@ -43,55 +44,22 @@
   'use strict';
 
   // ── Wire primitives ─────────────────────────────────────────────────────────
-  // J1939/ISO 11783 29-bit id:
-  //   [28:26] priority  [25] EDP  [24] DP  [23:16] PDU format  [15:8] PDU specific  [7:0] SA
-  // PDU2 (PF >= 0xF0) is a broadcast and PS is part of the PGN; PDU1 (PF < 0xF0) puts the
-  // DESTINATION address in PS and the PGN does not include it. Address Claim (60928, PF 0xEE)
-  // is the one PDU1 message here, and its destination is the global address.
-  function ibId(pgn, prio, sa, da) {
-    const dp = (pgn >>> 16) & 1;
-    const pf = (pgn >>> 8) & 0xFF;
-    const ps = pf < 0xF0 ? ((da == null ? 0xFF : da) & 0xFF) : (pgn & 0xFF);
-    return ((((prio & 7) << 26) >>> 0) | (dp << 24) | (pf << 16) | (ps << 8) | (sa & 0xFF)) >>> 0;
-  }
-
-  // A frame's data starts as eight 0xFF bytes and fields are written INTO it. That is not
-  // laziness: in J1939 an all-ones field IS "not available", so a byte this module never
-  // touches states "no source for this" rather than claiming a zero - the same statement
-  // carlito.js's uplink makes by OMITTING an unwired signal.
-  function ibBlank() { return [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]; }
-
-  // A scaled unsigned SPN, little-endian, in j1939DecodeSPN's own {b,n,f,o} vocabulary so the
-  // two are exact inverses. Non-finite input writes nothing and the 0xFF..FF default stands.
-  // J1939-71 Table 1 reserves every raw value whose top byte is above 0xFA, so a real value
-  // clamps to 0xFA, 0xFAFF, ... rather than colliding with an indicator, error or N/A code.
-  function ibPut(d, b, n, val, f, o) {
-    const v = Number(val);
-    if (!Number.isFinite(v)) return;
-    const max = 0xFB * Math.pow(2, 8 * (n - 1)) - 1;
-    let raw = Math.round((v - (o || 0)) / f);
-    raw = Math.max(0, Math.min(max, raw));
-    for (let i = 0; i < n; i++) { d[b + i] = raw % 256; raw = Math.floor(raw / 256); }
-  }
-  // A bit-level SPN. `bit` is the 0-based LSB position within byte `b`, matching
-  // j1939DecodeSPN - so the standard's "5.7" (byte 5, bit 7 counting from 1) is b=4, bit=6.
-  function ibBits(d, b, bit, nbits, val) {
-    const mask = (((1 << nbits) - 1) << bit) & 0xFF;
-    d[b] = ((d[b] & ~mask) | ((val << bit) & mask)) & 0xFF;
-  }
+  // j1939-pack.js (window.J1939Pack): id build/parse, the 0xFF blank, the Table 1 clamp and the
+  // bit writer. Address Claim (60928, PF 0xEE) is the one PDU1 message here, and its destination
+  // is the global address. A bit position is 0-based within its byte, so "5.7" is b=4, bit=6.
+  const jp = window.J1939Pack;
 
   // The two-bit state vocabulary shared by nearly every discrete SPN in this file:
   // 00 off/disengaged/not-in-work, 01 on/engaged/in-work, 10 error, 11 not available.
   const IB_OFF = 0, IB_ON = 1;
 
   // ── Preferred source addresses ──────────────────────────────────────────────
-  // THE ONE PLACE AN ADDRESS IS DECLARED (dronecan.js's DC_ROSTER rule). All come off
+  // THE ONE PLACE AN ADDRESS IS DECLARED (dronecan-core.js's DC_ROSTER rule). All come off
   // isobus.net's SourceAddress table, and the Tractor ECU one is the load-bearing find:
   // SA 240 is "a gateway (see ISO 11783-4) between the tractor and the implement bus
   // representing the tractor and its messages on the 11783 network" - which is exactly what
   // this module is standing in for, so the four ISO 11783-7 messages come FROM it.
-  // j1939.js's own J1939_SA table disagreed with that table on most of its entries (it had
-  // 0x21/0x22/0x23 as the axles, where the real ones are 0x08/0x09/0x0A) - corrected there.
+  // The axles are 0x08/0x09/0x0A there; j1939.js's J1939_SA must agree.
   const SA_TECU      = 240;   // 0xF0 Tractor ECU
   const SA_ENGINE    = 0;     // 0x00 Engine #1
   const SA_AXLE_DRV1 = 9;     // 0x09 Axle - Drive #1  (the rear axle, whose diff lock EAC1 reports)
@@ -110,10 +78,7 @@
   // whenever jitter goes the wrong way, and halving EEC2's rate to avoid a magic number would
   // be the worse trade.
   const IB_MSGS = {
-    // SAE J1939-71. EEC2 byte 3 is SPN 92 Percent Load At Current Speed. NOT EEC1: J1939-71
-    // gives EEC1 (61444) bytes 2 and 3 as SPN 512 / 513, the two TORQUE parameters, and
-    // j1939.js's table had SPN 91/92 there - corrected in the same change as this file.
-    EEC2: { pgn: 61443, prio: 3, sa: SA_ENGINE,    ms: 50 },
+    // (EEC2, 61443, 50 ms: its layout is j1939-flavor.js's JF_MSGS.EEC2 - see ibEec2.)
     // Fuel Economy (Liquid). Bytes 1-2 are SPN 183 Engine Fuel Rate, 0.05 L/h per bit. It carries
     // the contract's `fuel_rate`, an NMEA 2000-flavored signal whose coverage is nmea2000.js's
     // (PGN 127489 on the boat): on a truck or tractor the same reading is an engine parameter
@@ -123,11 +88,9 @@
     EAC1: { pgn: 61446, prio: 6, sa: SA_AXLE_DRV1, ms: 500 },
     // Front Wheel Drive Status. 1.1 is SPN 2612 Front Wheel Drive Actuator Status.
     FWD:  { pgn: 64991, prio: 7, sa: SA_AXLE_STR,  ms: 500 },
-    // ISO 11783-7. THE PGN PAIRS ARE THE OTHER WAY ROUND FROM WHAT THIS REPO BELIEVED:
-    // 65091 is the rear PTO and 65093 is the rear hitch, per isobus.net ("Primary or Rear
-    // Power Take off Output Shaft" / "Primary or Rear Hitch Status"). j1939.js's ISOBUS_DB had
-    // 0xFE43 and 0xFE45 swapped, so a correct frame would have decoded under the wrong name -
-    // corrected alongside this file. 65091's rate is "100 ms when engaged, otherwise on
+    // ISO 11783-7. 65091 is the rear PTO and 65093 is the rear hitch, per isobus.net ("Primary
+    // or Rear Power Take off Output Shaft" / "Primary or Rear Hitch Status"); check them there
+    // before trusting a pattern-filled table. 65091's rate is "100 ms when engaged, otherwise on
     // request", which is why a disengaged PTO still publishes here: the alternative is a
     // request path this module does not have, and silence would read as a missing node.
     RPTO: { pgn: 65091, prio: 3, sa: SA_TECU, ms: 100 },
@@ -137,17 +100,16 @@
     // Address Claim: PDU1, global destination, and aperiodic by definition (see ibClaim).
     ACL:  { pgn: 60928, prio: 6, sa: SA_IMPLEMENT, da: 0xFF, ms: 0 },
   };
-  function ibFrame(m, data) { return { id: ibId(m.pgn, m.prio, m.sa, m.da), isExt: true, data }; }
 
   // ── Telemetry presence ──────────────────────────────────────────────────────
-  // dronecan.js gates its whole packer on one signature signal, because a drone is the only
+  // dronecan-core.js gates its whole packer on one signature signal, because a drone is the only
   // vehicle that publishes any of its flavor. ISOBUS CANNOT: `engine_load`, `engine_hours` and
   // `pto_state` are declared for the TRUCK as well as the tractor (the contract says so in
   // engine_load's own desc - "SPN 92 is a J1939 signal and the tractor's was always the
   // borrowed one"), so a vehicle gate would either drop the truck's engine load or invent a
   // tractor's hitch. Each message is therefore gated on ITS OWN signals: the game publishes
   // signals_for_vehicle, so an absent key is a real absence and not a zero.
-  const has = (t, k) => t && t[k] !== undefined && t[k] !== null;
+  const has = jp.has;
 
   // Contract `status` bit assignments. The layout is frozen by the contract, and these are the
   // only two bits this file reads - `status` itself stays CAN_MAP's signal to pack.
@@ -159,41 +121,41 @@
   const KMH_TO_MS = 1 / 3.6;
 
   // ── Builders ────────────────────────────────────────────────────────────────
-  function ibEec2(t) {
-    const d = ibBlank();
-    // SPN 92, byte 3, 1 %/bit, offset 0. Byte 2 (SPN 91 Accelerator Pedal Position) and byte 4
-    // (SPN 974 Remote Accelerator) stay "not available": the pedal is an UNFLAVORED contract
-    // signal and belongs to CAN_MAP's side of the coverage check, not this one.
-    ibPut(d, 2, 1, t.engine_load, 1, 0);
-    return ibFrame(IB_MSGS.EEC2, d);
+  // EEC2 is ONE frame shared with the driver demand: SPN 92 (engine_load, byte 3, 1 %/bit) is
+  // this file's, SPN 91 (the accelerator pedal, byte 2) the demo's while it drives. So the encoder
+  // is j1939-flavor.js's window.j1939Eec2Frame, which merges the two - one EEC2 from the engine,
+  // never two alternating - and this file decides when it goes out. `c` is the demand or null.
+  // Null when j1939-flavor.js is not loaded: no EEC2, rather than a throw that drops every frame.
+  function ibEec2(t, c) {
+    return typeof window.j1939Eec2Frame === 'function' ? window.j1939Eec2Frame(t, c || null) : null;
   }
 
   function ibLfe1(t) {
-    const d = ibBlank();
+    const d = jp.blank();
     // SPN 183, bytes 1-2 little-endian, 0.05 L/h per bit, offset 0. Bytes 3-8 (SPN 184 / 185
     // economy, SPN 51 throttle position) stay "not available": the game publishes no economy.
-    ibPut(d, 0, 2, t.fuel_rate, 0.05, 0);
-    return ibFrame(IB_MSGS.LFE1, d);
+    jp.put(d, 0, 2, t.fuel_rate, 0.05, 0);
+    return jp.msgFrame(IB_MSGS.LFE1, d);
   }
 
   function ibEac1(t) {
-    const d = ibBlank();
+    const d = jp.blank();
     // Byte 1 is SPN 927 Location, which identifies WHICH of several similar devices is
     // speaking. There is one axle controller here and no position number to give, so it stays
     // 0xFF - the standard's own "not available" - rather than an invented 0 meaning "front
     // left". 2.5 = byte 2, bit index 4.
-    ibBits(d, 1, 4, 2, t.diff_lock_state ? IB_ON : IB_OFF);
-    return ibFrame(IB_MSGS.EAC1, d);
+    jp.bits(d, 1, 4, 2, t.diff_lock_state ? IB_ON : IB_OFF);
+    return jp.msgFrame(IB_MSGS.EAC1, d);
   }
 
   function ibFwd(t) {
-    const d = ibBlank();
-    ibBits(d, 0, 0, 2, t.fwd_drive_state ? IB_ON : IB_OFF);
-    return ibFrame(IB_MSGS.FWD, d);
+    const d = jp.blank();
+    jp.bits(d, 0, 0, 2, t.fwd_drive_state ? IB_ON : IB_OFF);
+    return jp.msgFrame(IB_MSGS.FWD, d);
   }
 
   function ibRpto(t) {
-    const d = ibBlank();
+    const d = jp.blank();
     // Bytes 1-2 SPN 1883 Rear PTO output shaft speed, 0.125 1/min per bit. Absent on the truck,
     // whose chassis PTO the contract also flavors isobus but gives no shaft speed - so the
     // field states "not available" there rather than reporting a stopped shaft.
@@ -202,17 +164,17 @@
     // this module has one message for it. A truck's chassis PTO is really SPN 976 in PGN 65264,
     // which is the j1939 packer's flavor and not this one's - the split is the contract's, and
     // moving it would be a contract edit rather than a change here.
-    if (has(t, 'pto_rpm')) ibPut(d, 0, 2, t.pto_rpm, 0.125, 0);
+    if (has(t, 'pto_rpm')) jp.put(d, 0, 2, t.pto_rpm, 0.125, 0);
     // Bytes 3-4 SPN 1885 set point: the requested speed is an inbound signal (`pto_mode`), so
     // there is no set point on this side to report.
     // 5.7 = byte 5, bit index 6: SPN 2408 Rear Power Take Off Engagement.
-    ibBits(d, 4, 6, 2, t.pto_state ? IB_ON : IB_OFF);
-    return ibFrame(IB_MSGS.RPTO, d);
+    jp.bits(d, 4, 6, 2, t.pto_state ? IB_ON : IB_OFF);
+    return jp.msgFrame(IB_MSGS.RPTO, d);
   }
 
   function ibRhs(t) {
-    const d = ibBlank();
-    ibPut(d, 0, 1, t.hitch_pos_actual, 0.4, 0);            // SPN 1873, byte 1, 0.4 %/bit
+    const d = jp.blank();
+    jp.put(d, 0, 1, t.hitch_pos_actual, 0.4, 0);            // SPN 1873, byte 1, 0.4 %/bit
     // 2.7 SPN 1877 Rear Hitch In-work Indication stays "not available": in-work is whether the
     // implement is DOING ITS JOB, and the game has no such signal. Deriving it from
     // draft_force > 0 would be wrong for every implement that works above the ground - a mower
@@ -222,8 +184,8 @@
     // bytes 4-5 (SPN 1879 Rear Draft, 10 N/bit): draft_force is a PERCENTAGE of the tractor's
     // rated draft and SPN 1881 is the percentage field; the newton field has no source here
     // and stays "not available", which is the honest half of the pair to leave empty.
-    ibPut(d, 2, 1, t.draft_force, 0.8, -100);
-    return ibFrame(IB_MSGS.RHS, d);
+    jp.put(d, 2, 1, t.draft_force, 0.8, -100);
+    return jp.msgFrame(IB_MSGS.RHS, d);
   }
 
   // Both speed messages share a shape: a 16-bit speed, a 32-bit free-running distance and a
@@ -232,15 +194,15 @@
   // once by CAN_MAP in 0x526. Repeating it here would put the same number on the wire twice
   // under two identities, and claiming `odo` would fail the coverage check for good reason.
   function ibSpeedBody(t, kmh) {
-    const d = ibBlank();
-    ibPut(d, 0, 2, Number(kmh) * KMH_TO_MS, 0.001, 0);
+    const d = jp.blank();
+    jp.put(d, 0, 2, Number(kmh) * KMH_TO_MS, 0.001, 0);
     // Direction comes off the contract's frozen `status` reverse-gear bit, which is the only
     // direction statement the telemetry makes - both speed signals are unsigned. GATED ON
     // `status` BEING PRESENT: a payload without it (an older game build, a partial frame) would
     // otherwise read 0 here and claim FORWARD, which is a statement no source made. Every other
     // field in this file leaves 0xFF standing for exactly that reason, and this one is only not
-    // a plain ibPut because it is two bits.
-    if (has(t, 'status')) ibBits(d, 7, 0, 2, (stat(t) & ST_REVERSE) ? IB_OFF : IB_ON);
+    // a plain put because it is two bits.
+    if (has(t, 'status')) jp.bits(d, 7, 0, 2, (stat(t) & ST_REVERSE) ? IB_OFF : IB_ON);
     return d;
   }
   function ibWbsd(t) {
@@ -248,13 +210,13 @@
     // 8.3 SPN 1865 Key switch state: 00 off, 01 not off. The contract's status bit 0 IS the
     // key, so this is mirrored rather than modelled - and absent for the same reason as above
     // when `status` is, rather than claiming the key is off.
-    if (has(t, 'status')) ibBits(d, 7, 2, 2, (stat(t) & ST_IGNITION) ? IB_ON : IB_OFF);
+    if (has(t, 'status')) jp.bits(d, 7, 2, 2, (stat(t) & ST_IGNITION) ? IB_ON : IB_OFF);
     // Byte 7 SPN 1866 Maximum Time of Tractor Power stays "not available": the tractor holds
     // power for as long as the game is running, which is not a number of minutes.
-    return ibFrame(IB_MSGS.WBSD, d);
+    return jp.msgFrame(IB_MSGS.WBSD, d);
   }
   function ibGbsd(t) {
-    return ibFrame(IB_MSGS.GBSD, ibSpeedBody(t, t.ground_speed));
+    return jp.msgFrame(IB_MSGS.GBSD, ibSpeedBody(t, t.ground_speed));
   }
 
   // ── The implement's Address Claim ───────────────────────────────────────────
@@ -269,7 +231,7 @@
   // SO IT IS SENT ON CHANGE, NEVER PERIODICALLY. A claim is made when a control function joins
   // the bus, and there is no "unclaim" message in J1939 at all: an implement that leaves simply
   // stops talking and its address ages out. Unhitching therefore emits nothing, which is the
-  // same statement dronecan.js's offline nodes make by going silent.
+  // same statement dronecan-core.js's offline nodes make by going silent.
   const IB_MFR_CODE = 0;      // no manufacturer code is registered to this project, and 0 is the
                               // unassigned value - inventing someone else's would be a false claim
   const IB_IDENTITY = 1;      // serial number within the manufacturer code
@@ -282,8 +244,7 @@
   //   0-20 identity · 21-31 manufacturer code · 32-34 ECU instance · 35-39 function instance
   //   40-47 function · 48 reserved · 49-55 vehicle system (= ISO device class)
   //   56-59 vehicle system instance · 60-62 industry group · 63 arbitrary address capable
-  // j1939DecodeName had the last two at bits 57-59 and 60, so an industry group written
-  // correctly here decoded as something else - corrected alongside this file.
+  // j1939DecodeName must read industry group at 60-62 and self-configurable at 63.
   function ibName(devClass) {
     const lo = ((IB_IDENTITY & 0x1FFFFF) | ((IB_MFR_CODE & 0x7FF) << 21)) >>> 0;
     const hi = (((IB_FUNCTION & 0xFF) << 8) | ((devClass & 0x7F) << 17) |
@@ -292,16 +253,20 @@
             hi & 0xFF, (hi >>> 8) & 0xFF, (hi >>> 16) & 0xFF, (hi >>> 24) & 0xFF];
   }
 
+  // A bus that was not listening has no record of the claim, so carlito.js's resetPackers() clears
+  // this when a bus opens and when the link ends or resumes after a gap - the packer's `reset` below
+  // - and the next tick claims again. That is the claim a control function makes on joining a bus.
   let ibLastClaim = null;   // last (connected ? device class : -1) actually announced
+  const ibClass = (t) => Math.round(Number(t.implement_type) || 0) & 0x7F;
   function ibClaim(t) {
     if (!has(t, 'implement_connected')) return [];
     const conn = !!t.implement_connected;
-    const key = conn ? (Math.round(Number(t.implement_type) || 0) & 0x7F) : -1;
+    const key = conn ? ibClass(t) : -1;
     if (key === ibLastClaim) return [];
     ibLastClaim = key;
     if (!conn) return [];
     ibWarnDeviceClass(key);
-    return [ibFrame(IB_MSGS.ACL, ibName(key))];
+    return [jp.msgFrame(IB_MSGS.ACL, ibName(key))];
   }
 
   // The contract's implement_type enum is the machine-readable half of this claim, so it is the
@@ -322,7 +287,7 @@
   // ── Pack ────────────────────────────────────────────────────────────────────
   // carlito.js calls this on every telemetry message with `slow` alternating, so the natural
   // cadences are ~20 Hz (every call) and ~10 Hz (on `slow`). The 500 ms messages get a
-  // wall-clock gate rather than a counter - the same shape as dronecan.js's 1 Hz NodeStatus
+  // wall-clock gate rather than a counter - the same shape as dronecan-core.js's 1 Hz NodeStatus
   // sweep - because 500 ms is the standard's rate and must not drift with the frame rate.
   let ibLast500 = 0;
   function ibPack(t, slow) {
@@ -330,7 +295,10 @@
     const out = [];
     const now = Date.now();
 
-    if (has(t, 'engine_load')) out.push(ibEec2(t));                    // 50 ms
+    if (has(t, 'engine_load')) {                                       // 50 ms
+      const eec2 = ibEec2(t, typeof window.j1939DemoDrive === 'function' ? window.j1939DemoDrive() : null);
+      if (eec2) out.push(eec2);
+    }
 
     if (slow) {                                                        // 100 ms
       if (has(t, 'pto_state')) out.push(ibRpto(t));
@@ -362,8 +330,8 @@
               'pto_state', 'pto_rpm', 'hitch_pos_actual', 'draft_force',
               'wheel_speed', 'ground_speed',
               'implement_connected', 'implement_type'],
-    // `engine_hours` is no longer this flavor's (the contract unflavored it when the boat gained
-    // one), so its request-served declaration moved to carlito.js's CAN_MAP_ON_REQUEST.
+    // `engine_hours` is unflavored (the boat reports it too), so its request-served declaration
+    // lives in carlito.js's CAN_MAP_ON_REQUEST.
     unpackable: {
       wheel_slip: 'no SPN exists for it. Wheel slip IS wheel_speed running ahead of ground_speed, ' +
         'which is exactly why ISO 11783-7 defines the two speeds as separate messages (SPN 1862 in ' +
@@ -373,6 +341,27 @@
         'than the signal being unimplemented',
     },
     pack: ibPack,
+    reset: () => { ibLastClaim = null; },
+  });
+
+  // ── A request for the claim (J1939-81) ──────────────────────────────────────
+  // PGN 59904 asking for 60928 is how a node learns who is on the bus, and every control function
+  // answers it with its Address Claimed. The implement answers with the same NAME the claim above
+  // carried. With nothing attached there is no implement on the bus to answer - SILENCE, not a
+  // NACK (`nack: false`), because a NACK would come from an address nobody holds. j1939.js's
+  // request path does the answering; on carlito-bridge.html, which has none, this is inert.
+  // `signals` is empty on purpose: implement_connected / implement_type are already packed, on
+  // change, so this adds no coverage - and an entry there would arm the bridge page's
+  // request-served cross-check against a page with no request transport.
+  window.j1939RequestServers = window.j1939RequestServers || [];
+  window.j1939RequestServers.push({
+    pgn: IB_MSGS.ACL.pgn, abbr: 'ACL', sa: SA_IMPLEMENT, prio: IB_MSGS.ACL.prio,
+    signals: [],
+    nack: false,
+    build(t) {
+      if (!has(t, 'implement_connected') || !t.implement_connected) return null;
+      return ibName(ibClass(t));
+    },
   });
 
   // ── THE COMMANDS (the tractor's contract dir="in" signals) ───────────────────
@@ -416,18 +405,13 @@
   const ibLive = (r) => ibFresh(r) ? r.bus : r.panel;
   function ibHold(name, v) { const r = ibCmd[name]; r.bus = v; r.at = Date.now(); }
 
-  // The exact inverse of ibId. A PDU2 has no destination, so it reads as the global address.
-  function ibParseId(id) {
-    const dp = (id >>> 24) & 1, pf = (id >>> 16) & 0xFF, ps = (id >>> 8) & 0xFF;
-    return { pgn: (dp << 16) | (pf << 8) | (pf < 0xF0 ? 0 : ps), da: pf < 0xF0 ? ps : 0xFF, sa: id & 0xFF };
-  }
   // A short frame reads as "not available" past its end, the same all-ones a sender leaves.
   const ibByte = (d, i) => (d && i < d.length) ? (d[i] & 0xFF) : 0xFF;
   const ibTwo = (d, b, bit) => (ibByte(d, b) >> bit) & 3;
 
   function ibDecodeCommand(frame) {
     if (!frame.isExt || frame.isRtr) return;
-    const { pgn, da } = ibParseId(frame.id >>> 0);
+    const { pgn, da } = jp.parseId(frame.id >>> 0);
     const d = frame.data;
     if (pgn === IB_PGN_HPTOC) {
       // Byte 2 SPN 1875 Rear hitch position command, 0.4 %/bit; raw 251-255 are a one-byte
@@ -497,8 +481,19 @@
   // backwards and impossible to eyeball - the 29-bit id build, each SPN's scale and offset,
   // bit-level field placement, and the NAME layout. Where j1939.js is loaded the frames are
   // additionally round-tripped through ITS decoder, so this module's encoder is checked by an
-  // independent implementation that was already here rather than by its own arithmetic.
+  // independent implementation rather than by its own arithmetic.
+  // HERMETIC: the state the checks touch is snapshotted here and put back in a `finally`, so a
+  // check that throws cannot leave a test value driving the game.
   function isobusSelfTest() {
+    const claim = ibLastClaim, cmd = {};
+    for (const k of Object.keys(ibCmd)) cmd[k] = Object.assign({}, ibCmd[k]);
+    try { return ibSelfTestChecks(); }
+    finally {
+      ibLastClaim = claim;
+      for (const k of Object.keys(ibCmd)) Object.assign(ibCmd[k], cmd[k]);
+    }
+  }
+  function ibSelfTestChecks() {
     const failures = [];
     const eq = (what, got, want) => {
       const g = JSON.stringify(got), w = JSON.stringify(want);
@@ -507,13 +502,13 @@
     const hex = (d) => d.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
 
     // 1. Id build. WBSD from the TECU: priority 3, PDU2, PF 0xFE, PS 0x48, SA 0xF0.
-    eq('WBSD id', ibId(65096, 3, SA_TECU).toString(16).toUpperCase(), 'CFE48F0');
+    eq('WBSD id', jp.buildId(65096, 3, SA_TECU).toString(16).toUpperCase(), 'CFE48F0');
     // Address Claim is PDU1: PS is the GLOBAL DESTINATION, not part of the PGN.
-    eq('Address Claim id', ibId(60928, 6, SA_IMPLEMENT, 0xFF).toString(16).toUpperCase(), '18EEFF80');
+    eq('Address Claim id', jp.buildId(60928, 6, SA_IMPLEMENT, 0xFF).toString(16).toUpperCase(), '18EEFF80');
     if (typeof j1939ParseId === 'function') {
-      eq('WBSD id parses back', j1939ParseId(ibId(65096, 3, SA_TECU)),
+      eq('WBSD id parses back', j1939ParseId(jp.buildId(65096, 3, SA_TECU)),
         { priority: 3, dp: 0, pf: 0xFE, pgn: 65096, da: 0xFF, sa: 240 });
-      eq('Address Claim id parses back', j1939ParseId(ibId(60928, 6, SA_IMPLEMENT, 0xFF)),
+      eq('Address Claim id parses back', j1939ParseId(jp.buildId(60928, 6, SA_IMPLEMENT, 0xFF)),
         { priority: 6, dp: 0, pf: 0xEE, pgn: 60928, da: 0xFF, sa: 128 });
     }
 
@@ -537,7 +532,10 @@
     eq('RPTO disengaged with no shaft speed (the truck case)',
       hex(ibRpto({ pto_state: false }).data),
       'FF FF FF FF 3F FF FF FF');
-    eq('EEC2 42 % load', hex(ibEec2({ engine_load: 42 }).data), 'FF FF 2A FF FF FF FF FF');
+    //    EEC2's encoder is j1939-flavor.js's; without it there is no EEC2 to check (ibEec2 is null).
+    const eec2Here = typeof window.j1939Eec2Frame === 'function';
+    if (!eec2Here) failures.push('j1939-flavor.js is not loaded on this page, so EEC2 (its shared encoder) was not checked');
+    if (eec2Here) eq('EEC2 42 % load', hex(ibEec2({ engine_load: 42 }).data), 'FF FF 2A FF FF FF FF FF');
     //    12.5 L/h -> 250 = 0xFA, little-endian FA 00.
     eq('LFE1 12.5 L/h', hex(ibLfe1({ fuel_rate: 12.5 }).data), 'FA 00 FF FF FF FF FF FF');
     eq('EAC1 rear diff locked', hex(ibEac1({ diff_lock_state: true }).data), 'FF DF FF FF FF FF FF FF');
@@ -555,7 +553,7 @@
     eq('a real key-off status still says off',
       hex(ibWbsd({ wheel_speed: 18, status: 0 }).data), '88 13 FF FF FF FF FF F1');
     //    ...and a value past the top of the scale clamps to the top of the valid range.
-    eq('over-range clamps under the reserved codes', ibEec2({ engine_load: 9999 }).data[2], 0xFA);
+    if (eec2Here) eq('over-range clamps under the reserved codes', ibEec2({ engine_load: 9999 }).data[2], 0xFA);
 
     // 4. The NAME. Tillage (device class 2), agriculture (industry group 2), self-configurable.
     const nm = ibName(2);
@@ -569,17 +567,12 @@
       eq('NAME function', back.fn, IB_FUNCTION);
     }
 
-    // 5. Round-trip every frame through j1939.js's own decoder. It reads the ACTIVE database,
-    //    so the ISO 11783-7 messages only resolve with the J1939 tab in ISO 11783 mode - say so
-    //    rather than skipping silently, because a silent skip is how a check rots.
+    // 5. Round-trip every frame through j1939.js's own decoder, through ITS ISO 11783 database
+    //    explicitly - never the tab's active one, which would make the result depend on the mode.
     if (typeof j1939DecodePGN === 'function') {
       const rt = (label, pgn, frame, want) => {
-        const got = j1939DecodePGN(pgn, frame.data);
-        if (!got.length) {
-          failures.push(label + ': no decoder entry for PGN ' + pgn + ' in the active database ' +
-            '(switch the J1939 tab to ISO 11783 mode and re-run)');
-          return;
-        }
+        const got = j1939DecodePGN(pgn, frame.data, ISOBUS_DB);
+        if (!got.length) { failures.push(label + ': no decoder entry for PGN ' + pgn + ' in ISOBUS_DB'); return; }
         for (const name of Object.keys(want)) {
           const f = got.find(x => x.name === name);
           if (!f) { failures.push(label + ': decoder returned no field "' + name + '"'); continue; }
@@ -588,7 +581,7 @@
           eq(label + ' ' + name, String(f.display).replace(/\u00A0/g, ' '), want[name]);
         }
       };
-      rt('EEC2', 61443, ibEec2({ engine_load: 42 }), { 'Percent Load At Current Speed': '42 %' });
+      if (eec2Here) rt('EEC2', 61443, ibEec2({ engine_load: 42 }), { 'Percent Load At Current Speed': '42 %' });
       rt('LFE1', 65266, ibLfe1({ fuel_rate: 12.5 }), { 'Fuel Rate': '12.5 L/h' });
       rt('WBSD', 65096, ibWbsd({ wheel_speed: 18, status: ST_IGNITION }),
         { 'Wheel-based machine speed': '5.000 m/s', 'Wheel-based machine direction': 'Forward' });
@@ -602,39 +595,45 @@
 
     // 6. The claim is aperiodic: the same implement must not re-announce, and unhitching must
     //    emit nothing at all (J1939 has no "unclaim").
-    const saved = ibLastClaim;
     ibLastClaim = null;
     eq('claim on attach', ibClaim({ implement_connected: true, implement_type: 2 }).length, 1);
     eq('no re-claim while unchanged', ibClaim({ implement_connected: true, implement_type: 2 }).length, 0);
     eq('a different implement re-claims', ibClaim({ implement_connected: true, implement_type: 5 }).length, 1);
     eq('detach is silence', ibClaim({ implement_connected: false, implement_type: 0 }).length, 0);
     eq('no implement signal, no claim', ibClaim({}).length, 0);
-    ibLastClaim = saved;
+    //    ...but a bus that opened (or a link that came back) hears the same implement claim again.
+    ibClaim({ implement_connected: true, implement_type: 2 });
+    window.carlitoFlavorPackers.find(p => p.flavor === 'isobus').reset();
+    eq('reset re-claims the same implement', ibClaim({ implement_connected: true, implement_type: 2 }).length, 1);
+    //    The request server answers with that NAME, and with nothing attached says nothing.
+    const acl = window.j1939RequestServers.find(s => s.pgn === 60928);
+    eq('a request for 60928 answers with the NAME', hex(acl.build({ implement_connected: true, implement_type: 2 })), hex(ibName(2)));
+    eq('no implement: no answer (and no NACK)', [acl.build({ implement_connected: false }), acl.nack], [null, false]);
 
     // 7. The commands: each message decodes into its own signals, a "don't care" field refreshes
     //    nothing, the guidance status gates the curvature, a withdrawn command expires back to the
     //    panel, and a panel edit clears a bus value. Built with this file's own encoder primitives,
     //    so the field positions are checked against the same {b, bit} vocabulary the packer uses.
-    const savedCmd = JSON.parse(JSON.stringify(ibCmd));
     const src = (n) => window.carlitoUplinkSources[n]();
-    const cmdFrame = (pgn, sa, da, d) => ({ id: ibId(pgn, 3, sa, da), isExt: true, data: d });
+    const cmdFrame = (pgn, sa, da, d) => ({ id: jp.buildId(pgn, 3, sa, da), isExt: true, data: d });
     for (const k of Object.keys(ibCmd)) ibCmd[k].bus = undefined;
+    ibCmd.hitch_pos.panel = 100; ibCmd.guidance_curvature.panel = undefined;   // the resting panel, whatever the user set
     eq('resting: hitch raised, guidance absent', [src('hitch_pos'), src('guidance_curvature')], [100, undefined]);
 
-    let d = ibBlank();
-    ibPut(d, 1, 1, 62, 0.4, 0);       // rear hitch 62 %
-    ibBits(d, 6, 4, 2, 1);            // engage the rear PTO
-    ibBits(d, 7, 4, 2, 1);            // 1000 r/min
+    let d = jp.blank();
+    jp.put(d, 1, 1, 62, 0.4, 0);       // rear hitch 62 %
+    jp.bits(d, 6, 4, 2, 1);            // engage the rear PTO
+    jp.bits(d, 7, 4, 2, 1);            // 1000 r/min
     ibDecodeCommand(cmdFrame(IB_PGN_HPTOC, 0x80, null, d));
     eq('HPTOC hitch / PTO / mode', [src('hitch_pos'), src('pto'), src('pto_mode')], [62, 1, 1]);
-    d = ibBlank();                    // every field "don't care" / not available
+    d = jp.blank();                    // every field "don't care" / not available
     ibDecodeCommand(cmdFrame(IB_PGN_HPTOC, 0x80, null, d));
     eq('an all-ones HPTOC changes nothing', [src('hitch_pos'), src('pto'), src('pto_mode')], [62, 1, 1]);
 
     const gsc = (curv, status, da) => {
-      const g = ibBlank();
-      ibPut(g, 0, 2, curv, 0.25, -8032);
-      ibBits(g, 2, 0, 2, status);
+      const g = jp.blank();
+      jp.put(g, 0, 2, curv, 0.25, -8032);
+      jp.bits(g, 2, 0, 2, status);
       return cmdFrame(IB_PGN_GSC, 0x1C, da, g);
     };
     ibDecodeCommand(gsc(40, 1, SA_TECU));
@@ -647,9 +646,9 @@
     eq('"not intended to steer" lets go of the wheel', src('guidance_curvature'), undefined);
 
     const av = (flowPct, state) => {
-      const a = ibBlank();
-      ibPut(a, 0, 1, flowPct, 0.4, 0);
-      ibBits(a, 2, 0, 4, state);
+      const a = jp.blank();
+      jp.put(a, 0, 1, flowPct, 0.4, 0);
+      jp.bits(a, 2, 0, 4, state);
       return cmdFrame(IB_PGN_AV0C, 0x80, null, a);
     };
     ibDecodeCommand(av(40, 1));
@@ -664,7 +663,6 @@
     ibDecodeCommand(av(50, 1));
     window.isobusSetCtl({ scv_flow: 20 });
     eq('a panel edit clears the bus value', [src('scv_flow'), window.isobusCtl().bus.scv_flow], [20, false]);
-    for (const k of Object.keys(ibCmd)) Object.assign(ibCmd[k], savedCmd[k]);
 
     if (failures.length) console.error('ISOBUS self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
     else console.log('ISOBUS self-test: all checks passed.');

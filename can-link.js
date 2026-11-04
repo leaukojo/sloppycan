@@ -17,6 +17,7 @@
 //   terminalMode, termLog(d,l) - SLCAN serial-terminal passthrough (SloppyCAN only)
 //   escHtml(s)                 - HTML-escape for raw-line diagnostics
 //   parseErrors, totalFrames, frameRateBuffer, bytesReceived - RX stat counters
+//     (frameRateBuffer is fed through countRxFrame / rateWindowPush below)
 //   disconnectSerial()         - page teardown, called when a read loop dies
 //   DOM ids #statBytes, #deviceInfo, #baudRate
 // On index.html these are defined by sloppycan.js; carlito-bridge.js supplies its own.
@@ -39,6 +40,33 @@ const SERIAL_USB_FILTERS = [
   {vendorId: 0x0483, productId: 0x5740},
   {vendorId: 0x1d50, productId: 0x606f}
 ];
+
+// ── Frame-rate windows ─────────────────────────────────────────────────────────
+// A rate window is a time-ordered array of frame timestamps, read as "entries in the last 1 s". It
+// is pruned on PUSH, not on render: rAF stops in a background tab and the RX pumps / demo timers do
+// not. Pruning waits until the oldest entry is 2 s old, so it costs one splice per second; the cap
+// only bounds a pathological burst (rates above RATE_WIN_CAP / 2 per second then read low).
+// performance.now(), not Date.now(): a wall-clock step backwards would unsort the window.
+const RATE_WIN_CAP = 16384;
+function rateWindowPush(win) {
+  const now = performance.now();
+  win.push(now);
+  if (now - win[0] > 2000 || win.length > RATE_WIN_CAP) {
+    win.splice(0, win.length - Math.min(rateWindowCount(win), RATE_WIN_CAP / 2));
+  }
+}
+// Entries newer than 1 s (binary search - the window is time-ordered).
+function rateWindowCount(win) {
+  const now = performance.now();
+  let lo = 0, hi = win.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (now - win[mid] >= 1000) lo = mid + 1; else hi = mid; }
+  return win.length - lo;
+}
+// The one place a received frame is counted into the header stats.
+function countRxFrame() {
+  totalFrames++;
+  rateWindowPush(frameRateBuffer);
+}
 
 // ── gs_usb (candleLight / CANable-native) ──────────────────────────────────────
 // Binary WebUSB protocol - does NOT use SLCAN text. Selected via the Adapter dropdown.
@@ -433,8 +461,7 @@ async function gsUsbPump() {
           const id    = can_id & (isExt ? CAN_EFF_MASK : CAN_SFF_MASK);
           const data = [];
           for (let i = 0; i < n; i++) data.push(dv.getUint8(off + 12 + i));
-          totalFrames++;
-          frameRateBuffer.push(Date.now());
+          countRxFrame();
           // Report dlc as the bytes actually present (n), not the raw header field, so a garbled
           // or short transfer can't make downstream renderers/exporters read phantom bytes.
           if (!paused) ingestFrame({ id, isExt, isRtr, dlc: n, data });
@@ -513,6 +540,18 @@ async function usbSerialPump() {
   } catch(e) {
     if (usbSerDev) { log(`Serial read error: ${e.message}`, 'err'); disconnectSerial(); }
   }
+}
+
+// The running readLoop's promise: it settles once the loop's finally has released the reader lock.
+let readLoopDone = null;
+function startReadLoop() { readLoopDone = readLoop(); }
+// Stop the Web Serial read loop and wait until it has released the port's reader lock - close()
+// rejects on a locked stream and would leave the port open. Null `port` BEFORE calling this: the
+// loop's finally runs disconnectSerial whenever `port` is still set.
+async function stopReadLoop() {
+  try { if (reader) await reader.cancel(); } catch (_) {}
+  const done = readLoopDone; readLoopDone = null;
+  await done;   // readLoop catches its own errors, so this never rejects
 }
 
 async function readLoop() {
@@ -642,8 +681,7 @@ function parseSLCAN(line) {
 
     if (!frame) return;
 
-    totalFrames++;
-    frameRateBuffer.push(Date.now());
+    countRxFrame();
 
     if (!paused) {
       ingestFrame(frame);

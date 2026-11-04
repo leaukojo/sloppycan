@@ -74,7 +74,7 @@ async function bridgeConnect() {
       connMode = 'serial';
       port = await navigator.serial.requestPort();
       await port.open({ baudRate: 115200 });
-      readLoop();
+      startReadLoop();
     }
 
     if (connMode !== 'gsusb') {        // let the UART settle, then probe version/serial (SLCAN)
@@ -94,8 +94,17 @@ async function bridgeConnect() {
     armDeferredBusOpen();
   } catch (e) {
     if (e.name !== 'NotFoundError') log('Connection error: ' + e.message, 'err');
-    try { if (port) await port.close(); } catch (_) {}
-    port = null; usbSerDev = null; connMode = 'serial';
+    // Undo whatever opened, as sloppycan.js connectSerial does: a gs_usb device back out of START and
+    // closed (else its interface stays claimed and the next Connect cannot claim it), and a Web Serial
+    // port only after its read loop has released the reader lock (see stopReadLoop). `port` is nulled
+    // first so the loop's finally does not run disconnectSerial over a half-built session.
+    try { if (connMode === 'gsusb' && usbSerDev) await gsSetMode(false, false); } catch (_) {}
+    try { if (usbSerDev) await usbSerDev.close(); } catch (_) {}
+    usbSerDev = null; usbSerIn = null; usbSerOut = null;
+    const p = port; port = null;
+    await stopReadLoop();
+    try { if (p) await p.close(); } catch (_) {}
+    connMode = 'serial';
   }
 }
 
@@ -108,6 +117,10 @@ async function bridgeBusOpen() {
     await sendCommand(listenOnly ? 'L' : 'O');
   }
   busIsOpen = true;
+  // The bus opens AFTER the game's first telemetry (see below), and canForward drops everything
+  // until then - so the packers re-announce their one-shot frames (the implement's claim, the
+  // drone's latched commands) now that something is listening.
+  if (window.carlitoBusReady) window.carlitoBusReady();
 }
 
 // ── Deferred bus open ───────────────────────────────────────────────────────────
@@ -151,9 +164,10 @@ async function disconnectSerial() {
     const dev = usbSerDev; usbSerDev = null; usbSerIn = null; usbSerOut = null;
     try { await dev.close(); } catch (e) {}
   } else {
-    try { if (reader) await reader.cancel(); } catch (_) {}
-    try { if (port) await port.close(); } catch (_) {}
-    port = null; reader = null;
+    const p = port; port = null;   // first, so readLoop's finally does not re-enter (see stopReadLoop)
+    await stopReadLoop();
+    try { if (p) await p.close(); } catch (_) {}
+    reader = null;
   }
   busIsOpen = false; frameBuffer = ''; termBuffer = ''; bytesReceived = 0;
   connMode = 'serial';

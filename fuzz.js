@@ -16,6 +16,7 @@ let fuzzTimer = null;
 let fuzzCount = 0;
 let fuzzBusy = false;
 const FUZZ_MAX_FAILS = 5;   // auto-stop after this many consecutive TX failures (e.g. adapter unplugged)
+const FUZZ_BURST_MAX = 500; // frames per tick; mirrored in #fuzzBurst's max
 let fzFailStreak = 0;
 // run-time cursors (not persisted)
 let fzIdCur = 0, fzObsCur = 0, fzDlcCur = 0, fzSeqBits = 0, fzSweepCur = 0;
@@ -106,7 +107,10 @@ function fuzzCfgChange() {
   fuzzCfg.payMode = radio('fuzzPayMode') || 'random';
   fuzzCfg.bitPat  = radio('fuzzBitPat') || 'rand';
   fuzzCfg.gap     = Math.max(1, parseInt(document.getElementById('fuzzGap').value, 10) || 50);
-  fuzzCfg.burst   = Math.max(1, parseInt(document.getElementById('fuzzBurst').value, 10) || 1);
+  const burstEl = document.getElementById('fuzzBurst');
+  fuzzCfg.burst   = Math.min(FUZZ_BURST_MAX, Math.max(1, parseInt(burstEl.value, 10) || 1));
+  // max="500" does not stop typing, so show the cap rather than a number that is not being sent.
+  if (parseInt(burstEl.value, 10) > FUZZ_BURST_MAX) burstEl.value = FUZZ_BURST_MAX;
   document.querySelectorAll('#fuzzRandomBytes input').forEach(el => {
     fuzzCfg.randomBytes[+el.dataset.bi] = el.checked;
   });
@@ -208,6 +212,7 @@ async function fuzzTick() {
   fuzzBusy = true;
   try {
     for (let b = 0; b < fuzzCfg.burst; b++) {
+      if (!fuzzRunning) break;  // Stop lands mid-burst, not after it
       const id = fuzzNextId();
       if (id === null) continue; // observed mode with empty list
       const dlc = fuzzNextDlc();
@@ -238,6 +243,15 @@ function fuzzToggleRun() {
   fuzzTimer = setInterval(fuzzTick, fuzzCfg.gap);
   if (window.txAutoExpand) window.txAutoExpand();
   fuzzUpdateIndicator();
+}
+
+// The interval is armed once at start, so a Gap edit mid-run re-arms it - on the input's CHANGE
+// (Enter, blur, spinner), never per keystroke: typing 250 passes through a 2 ms gap on the way.
+function fuzzGapCommit() {
+  fuzzCfgChange();
+  if (!fuzzRunning || !fuzzTimer) return;
+  clearInterval(fuzzTimer);
+  fuzzTimer = setInterval(fuzzTick, fuzzCfg.gap);
 }
 
 function fuzzStop() {
@@ -314,14 +328,30 @@ window.fuzzCollect = function () {
 
 window.fuzzApply = function (cfg) {
   fuzzStop(); // never auto-run on load/workspace switch
-  fuzzCfg = Object.assign(fuzzDefaultCfg(), cfg || {});
+  const def = fuzzDefaultCfg();
+  fuzzCfg = Object.assign(fuzzDefaultCfg(), (cfg && typeof cfg === 'object') ? cfg : {});
+  // A workspace file is untrusted: the enums feed a querySelector and classList.add, so anything
+  // off-list falls back to its default rather than throwing halfway through applySettings.
+  const ENUMS = { idMode: ['range', 'single', 'observed'], idScan: ['seq', 'rand'], obsScan: ['seq', 'rand'],
+                  dlcMode: ['fixed', 'rand', 'inc'], payMode: ['random', 'mask', 'bitgrid'], bitPat: ['rand', 'seq', 'sweep'] };
+  for (const [k, ok] of Object.entries(ENUMS)) if (!ok.includes(fuzzCfg[k])) fuzzCfg[k] = def[k];
+  fuzzCfg.isExt = !!fuzzCfg.isExt;
+  for (const k of ['idStart', 'idEnd', 'singleId']) fuzzCfg[k] = (Number(fuzzCfg[k]) || 0) >>> 0;
+  fuzzCfg.dlcFixed = Math.min(8, Math.max(0, parseInt(fuzzCfg.dlcFixed, 10) || 0));
+  fuzzCfg.gap   = Math.max(1, parseInt(fuzzCfg.gap, 10) || 50);
+  fuzzCfg.burst = Math.min(FUZZ_BURST_MAX, Math.max(1, parseInt(fuzzCfg.burst, 10) || 1));
   // Repair nested arrays if a partial/legacy object came in.
   if (!Array.isArray(fuzzCfg.randomBytes) || fuzzCfg.randomBytes.length !== 8)
     fuzzCfg.randomBytes = [true,true,true,true,true,true,true,true];
+  fuzzCfg.randomBytes = fuzzCfg.randomBytes.map(Boolean);
   if (!Array.isArray(fuzzCfg.byteMasks) || fuzzCfg.byteMasks.length !== 8)
     fuzzCfg.byteMasks = Array.from({length:8}, () => ({ mode:'rand', value:0 }));
+  fuzzCfg.byteMasks = fuzzCfg.byteMasks.map(m => (m && ['rand', 'fixed', 'inc'].includes(m.mode))
+    ? { mode: m.mode, value: (m.value | 0) & 0xFF } : { mode: 'rand', value: 0 });
   if (!Array.isArray(fuzzCfg.bitGrid) || fuzzCfg.bitGrid.length !== 8)
     fuzzCfg.bitGrid = Array.from({length:8}, () => Array.from({length:8}, () => 'fuzz'));
+  fuzzCfg.bitGrid = fuzzCfg.bitGrid.map(row => Array.from({length:8}, (_, c) =>
+    (Array.isArray(row) && ['fuzz', 'always', 'never'].includes(row[c])) ? row[c] : 'fuzz'));
   fuzzWriteToDOM();
 };
 

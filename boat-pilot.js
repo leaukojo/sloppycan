@@ -27,7 +27,7 @@
 // 'sheet' has no presence rule (mirrored verbatim, absent = 0 = hauled in), so it is always
 // sourced straight off the slider.
 //
-// Integration: index.html (script after boat.js, before carlito.js - #boatPilotBtn ships
+// Integration: index.html (script after boat.js - #boatPilotBtn ships
 // style="display:none", vehicle-panel.js shows it) · sloppycan.js (_buttonsWrap id list).
 // Live-only: no persistence.
 
@@ -36,32 +36,6 @@
 
   const style = document.createElement('style');
   style.textContent = `
-.bap-window {
-  position:fixed; z-index:900; top:72px; left:430px; width:230px;
-  background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
-  box-shadow:0 8px 24px #0006; font-family:var(--sans); color:var(--text);
-  display:none; flex-direction:column; overflow:hidden;
-}
-.bap-window.open { display:flex; }
-.bap-header {
-  display:flex; align-items:center; gap:8px; cursor:move; user-select:none;
-  padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
-  font-size:12px; font-weight:600; letter-spacing:.02em;
-}
-.bap-header .bap-dot { width:8px; height:8px; border-radius:50%; background:var(--amber); flex-shrink:0; }
-.bap-header .bap-title { flex:1; }
-.bap-close {
-  background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px;
-  line-height:1; padding:2px 6px; border-radius:5px;
-}
-.bap-close:hover { background:var(--bg); color:var(--text); }
-.bap-scaleouter { overflow:hidden; }
-.bap-body { width:230px; transform-origin:top left; padding:12px 14px 16px; box-sizing:border-box; }
-.bap-rule { height:1px; background:var(--border); margin:9px 0 8px; }
-.bap-sec-lbl {
-  display:flex; justify-content:space-between; align-items:baseline;
-  font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--text3); margin-bottom:6px;
-}
 .bap-seg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .bap-seg button {
   padding:6px 4px; font-size:11px; font-family:var(--sans); text-transform:uppercase;
@@ -82,16 +56,9 @@
   letter-spacing:.06em; color:var(--text3); margin-bottom:4px; }
 .bap-sheet-row .v { font-family:var(--mono); font-size:11px; color:var(--text); letter-spacing:0; }
 .bap-range { width:100%; }
-.bap-resize {
-  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
-  background:linear-gradient(135deg,transparent 50%,var(--border2) 50%,var(--border2) 60%,transparent 60%,transparent 75%,var(--border2) 75%,var(--border2) 85%,transparent 85%);
-}
 `;
   document.head.appendChild(style);
 
-  const BASE_W = 230;
-  const PANEL_ID = 'boat-pilot';
-  const FAMILY = 'boat';
   const HEADING_STEPS = [-10, -1, 1, 10];
 
   const wrap360 = (deg) => ((deg % 360) + 360) % 360;
@@ -103,8 +70,6 @@
   const bap = { sheet: 0 };
   const pilot = () => (window.nmea2000PilotCtl ? window.nmea2000PilotCtl() : { navMode: 0, headingCmd: null });
   const setPilot = (p) => { if (window.nmea2000SetPilot) window.nmea2000SetPilot(p); };
-  let tel = null;
-  let scale = () => {};
   let el = {};
 
   // ── Uplink sourcing - the permanent registry, never a claim ─────────────────
@@ -113,27 +78,18 @@
     sheet: () => bap.sheet,
   });
 
-  // ── Window DOM ──────────────────────────────────────────────────────────────
-  const win = document.createElement('div');
-  win.className = 'bap-window';
-  win.id = 'boatPilotWindow';
-  win.innerHTML = `
-  <div class="bap-header" id="bapHeader" title="Commands the boat's autopilot and sail over the uplink - the three contract 'in' signals boat.js's own dashboard has no widget for. 'rudder' is not here: the boat is still steered on the RAMN steering axis. Drag to move, grip the bottom-right corner to resize.">
-    <span class="bap-dot"></span>
-    <span class="bap-title">Boat autopilot</span>
-    <button class="bap-close" id="bapCloseBtn" title="Close (Esc)">&#10005;</button>
-  </div>
-  <div class="bap-scaleouter" id="bapScaleOuter">
-   <div class="bap-body" id="bapBody">
+  // ── Panel ───────────────────────────────────────────────────────────────────
+  // No claim and no follow (see header): the window opens only by hand.
+  const BODY = `
 
-    <div class="bap-sec-lbl" title="contract nav_mode - the request, mirrored verbatim. STANDBY hands the rudder to the helm; HEADING HOLD asks the pilot to steer the commanded course. What it is ACTUALLY doing (nav_mode_actual) reads back on the boat dashboard's Autopilot chip.">Mode</div>
+    <div class="vp-sec-lbl" title="contract nav_mode - the request, mirrored verbatim. STANDBY hands the rudder to the helm; HEADING HOLD asks the pilot to steer the commanded course. What it is ACTUALLY doing (nav_mode_actual) reads back on the boat dashboard's Autopilot chip.">Mode</div>
     <div class="bap-seg">
       <button id="bapStandby" title="nav_mode = 0. Hand-steered on the RAMN rudder axis.">Standby</button>
       <button id="bapAuto" title="nav_mode = 1. The pilot steers 'heading_cmd' if this window has sent one, or the course it captured at the moment you last engaged.">Auto</button>
     </div>
 
-    <div class="bap-rule"></div>
-    <div class="bap-sec-lbl" title="contract heading_cmd - a compass bearing, only meaningful in Auto. Presence IS the command: this window sends nothing until the first nudge below, so engaging Auto alone captures whatever course the boat is already on (the dashboard's Target chip reads it back) rather than steering to an arbitrary number.">Heading</div>
+    <div class="vp-rule"></div>
+    <div class="vp-sec-lbl" title="contract heading_cmd - a compass bearing, only meaningful in Auto. Presence IS the command: this window sends nothing until the first nudge below, so engaging Auto alone captures whatever course the boat is already on (the dashboard's Target chip reads it back) rather than steering to an arbitrary number.">Heading</div>
     <div class="bap-hdg">
       <span class="bap-hdg-v uncaptured" id="bapHdgV">captured</span>
     </div>
@@ -144,27 +100,20 @@
       <button data-d="10"  title="Nudge the commanded heading +10 degrees.">+10</button>
     </div>
 
-    <div class="bap-rule"></div>
+    <div class="vp-rule"></div>
     <div class="bap-sheet-row" title="contract sheet - how far the boom is allowed to swing, 0 hauled in hard to 100 fully eased. A LIMIT, not a position: the boom lines up with the wind (luffing) once eased past the apparent wind angle. Read the result on the boat dashboard's wind rose - the boom needle and the AoA readout.">
       <span>Sheet</span><span class="v" id="bapSheetV">0%</span>
     </div>
     <input type="range" class="bap-range" id="bapSheet" min="0" max="100" value="0">
 
-   </div>
-  </div>
-  <div class="bap-resize" id="bapResize"></div>
 `;
-
-  // ── Window open / close ──────────────────────────────────────────────────────
-  const isOpen = () => win.classList.contains('open');
-  function setOpen(open) {
-    if (isOpen() === open) return;
-    win.classList.toggle('open', open);
-    if (open) scale(win.offsetWidth || BASE_W);
-    const b = document.getElementById('boatPilotBtn');
-    if (b) b.classList.toggle('active', open);
-  }
-  function boatPilotToggle() { setOpen(!isOpen()); }
+  const panel = window.makeVehiclePanel({
+    id: 'boat-pilot', family: 'boat', btn: 'boatPilotBtn', winId: 'boatPilotWindow',
+    cssPrefix: 'bap', title: 'Boat autopilot', baseW: 230, left: 430, dot: 'var(--amber)',
+    headerTip: "Commands the boat's autopilot and sail over the uplink - the three contract 'in' signals boat.js's own dashboard has no widget for. 'rudder' is not here: the boat is still steered on the RAMN steering axis. Drag to move, grip the bottom-right corner to resize.",
+    bodyHtml: BODY,
+    render: () => render(),
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────────
   // Also on every telemetry push while open: a 127237 on the bus can change the pilot state
@@ -181,6 +130,7 @@
   function nudgeHeading(delta) {
     let h = pilot().headingCmd;
     if (h === null) {
+      const tel = panel.tel();
       const base = Number(tel && tel.heading_target);
       h = Number.isFinite(base) ? Math.round(base) : 0;
     }
@@ -188,12 +138,9 @@
     render();
   }
 
-  window.vehiclePanelSubscribe(function (t) { tel = t; if (isOpen()) render(); });
-
   // ── Wire ────────────────────────────────────────────────────────────────────
   (function wire() {
-    document.body.appendChild(win);
-    const q = (id) => win.querySelector('#' + id);
+    const q = panel.q;
 
     el = {
       standby: q('bapStandby'), auto: q('bapAuto'),
@@ -207,31 +154,8 @@
     }
     el.sheet.addEventListener('input', () => { bap.sheet = parseInt(el.sheet.value, 10) || 0; render(); });
 
-    q('bapCloseBtn').addEventListener('click', () => setOpen(false));
-    document.addEventListener('keydown', e => {
-      if (e.key !== 'Escape' || e._scEscHandled || !isOpen()) return;   // shared flag across windows
-      e._scEscHandled = true; setOpen(false);
-    });
-
-    if (window.makeFloating) {
-      scale = window.makeFloating({
-        win, header: q('bapHeader'), grip: q('bapResize'),
-        outer: q('bapScaleOuter'), body: q('bapBody'),
-        baseW: BASE_W, closeSel: '.bap-close',
-      });
-    } else {
-      console.warn('Boat autopilot panel: makeFloating is missing - load ramn.js before boat-pilot.js.');
-    }
-
-    if (window.vehiclePanelRegister) {
-      window.vehiclePanelRegister({
-        id: PANEL_ID, family: FAMILY, btn: 'boatPilotBtn', isOpen,
-        close: () => setOpen(false),
-      });
-    }
-
     render();
   })();
 
-  window.boatPilotToggle = boatPilotToggle;
+  window.boatPilotToggle = panel.toggle;
 })();

@@ -1,144 +1,106 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Browser CAN bus monitor for **SLCAN** and **gs_usb** (candleLight / CANable / RAMN) adapters. No
+build, no dependencies, no backend: open `index.html` in Chrome/Edge (Web Serial; WebUSB for gs_usb
+and the Android fallback), or `python -m http.server 8000`. No hardware: the **Demo** button.
 
-## Project Overview
+## Where things are documented
 
-Browser-based CAN bus monitor for **SLCAN** and **gs_usb** (candleLight / CANable / RAMN) USB-to-CAN adapters. No build step, no dependencies, no backend required. Open `index.html` directly in Chrome or Edge (Web Serial API required on desktop; Android Chrome uses a WebUSB fallback). The adapter protocol is chosen with the **Adapter** dropdown (`SLCAN` / `gs_usb`); gs_usb is WebUSB-only.
+- **A file's own behaviour lives in that file:** its header comment for the overview, the code's
+  comments for the detail. Read the header before editing a module.
+- **`.claude/modules.md`** holds only what spans files: integration points into the core,
+  cross-module flows, and features with no file of their own (OBD-II / KWP2000 in `sloppycan.js`,
+  the N2K / ISOBUS modes of `j1939.js`, `dtc.html`). **`.claude/core-arch.md`**: core sections,
+  data structures, wire formats, UI helpers.
+- This file: repo-wide rules and the file map only. Keep it under the budget
+  `static-checks.mjs` enforces.
 
-## Running Locally
+## File map
 
-Open `index.html` directly in Chrome/Edge. Web Serial API requires `file://` or HTTPS:
+Core (classic scripts, one shared global scope, loaded in this order):
+- `can-link.js` - CAN transport (gs_usb + SLCAN open, RX pumps, parse, serialized write); reused by the bridge
+- `diag-parse.js` - OBD-II / UDS / KWP2000 decoders + tables; also loaded by `explainers/dtc.html`
+- `sloppycan.js` - the app (navigate by `// ── Section ──`); `index.html`, `sloppycan.css`
 
-```
-python -m http.server 8000
-# open http://localhost:8000/index.html
-```
+Shared (deferred, before their users):
+- `carlito-registry.js` - every Carlito registry, created empty first; `carlitoIsFamily`, the which-machine rule
+- `j1939-pack.js` - `window.J1939Pack`, the one J1939/N2K packing helper (self-contained)
+- `j1939-tables.js` - the one J1939 / N2K / ISOBUS dictionary + pure decoders; **edit tables here, never copy them**
+- `carlito_contract.js` - generated contract (see below); `vehicle-panel.js` - the shared panel mechanism
 
-Web Serial works from `file://` or `localhost`; HTTPS is only needed to reach the page from another device on the network.
+Tabs: `graph.js`, `fuzz.js`, `j1939.js` (J1939 / N2K / ISOBUS + the J1939-21 request path),
+`chademo.js`, `xcp.js`, `canopen.js`, `dronecan-core.js` (codec, roster, packer; no DOM) +
+`dronecan.js` (receive path, services, tab).
 
-Demo mode (no hardware): click the **Demo** button.
+Flavor packers (no tab): `isobus.js`, `j1939-flavor.js`, `nmea2000.js`, `cleanopen.js`,
+`iso11992.js`, `canaerospace.js`.
 
-## Architecture
+Carlito link and panels: `carlito.js` (the game window, telemetry → CAN, uplink), `ramn.js`
+(RAMN dashboard + Control Panel, `makeFloating`), `drone.js`, `truck.js`, `tractor.js`,
+`boat.js`, `boat-pilot.js`, `train.js`, `plane.js`.
 
-Core files:
+Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_relay.py`) ·
+`carlito-bridge.html` + `.js` (standalone RAMN↔Carlito bridge, no link to the app) ·
+`explainers/` (standalone reference pages) · `.github/scripts/` (CI checks).
 
-- **`index.html`** - layout skeleton and inline styles; links CSS and JS
-- **`sloppycan.css`** - dark theme, CSS variables, component styles (~1840 lines)
-- **`sloppycan.js`** - all application logic (~4700 lines), structured with `// ── Section ──` comments
-- **`can-link.js`** - shared CAN transport layer (gs_usb + SLCAN device open / RX pumps / frame parse / serialized write), split out of `sloppycan.js`. Loaded (non-`defer`) **before** `sloppycan.js`; all three core scripts share one global lexical scope, so the connection state (`connMode`/`port`/`usbSerDev`/`busIsOpen`/…) and primitives it declares are the same bindings `sloppycan.js` references. Reused as-is by the standalone bridge (see below)
-- **`j1939-tables.js`** - the one copy of the J1939 dictionary (`J1939_SA` / `J1939_FMI` / `J1939_FUNCTION` / `J1939_INDUSTRY` / `J1939_DB`) plus the DOM-free decoders that read it (`j1939ParseId`, `j1939DecodeSPN`, `j1939DecodeDTC(s)`, `j1939DecodeName`, `j1939PgnLabel`). `defer`red immediately **before** `j1939.js` in `index.html`, and also loaded by `explainers/dtc.html` and `explainers/j1939-explainer.html` - **edit J1939 tables here, never copy them into a page**
-- **`diag-parse.js`** - pure OBD-II / UDS / KWP2000 payload decoders + reference tables (~420 lines), split out of `sloppycan.js`. Loaded (non-`defer`) immediately **before** `sloppycan.js` because the core's DIAG-MODE palettes read these tables at eval time. Also loaded by `explainers/dtc.html` (after `../j1939-tables.js`, before its own inline script), which reuses its `obdDtcCode`/`udsDtcCode`/`UDS_DTC_STATUS_NAMES` for structured OBD/UDS DTC decoding instead of carrying a second copy of the SAE J2012 / ISO 14229 split
+## Conventions and gotchas
 
-Standalone page (not part of the SloppyCAN app, no link to/from it):
+- **Shared global scope:** `can-link.js`, `diag-parse.js`, `sloppycan.js` (and `j1939-tables.js`)
+  share one lexical scope. **Never redeclare a name across them** (a SyntaxError spanning scripts).
+  Bolt-on modules are deferred, talk via `window.*`, and should reuse core helpers
+  (`window.withTxLock`, `canHexBytes`, `txReady`, …) rather than copy them.
+- **`… remove to revert` hook comments are navigation aids**, not a promise that every module is
+  independently removable.
+- **Bus data is untrusted:** ids, bytes and decoded strings go through `escHtml()` or
+  `textContent` before any `innerHTML`. `log()` escapes its message already.
+- **Live tables update in place** (`renderKeyedTable` / `renderKeyedRows` / `setHtmlIfChanged`),
+  never a whole-table `innerHTML`, which restarts the hover fade, splits clicks and wipes
+  selection. Generated rows use `data-*` + one delegated listener, never inline `onclick`. Tables
+  keyed by bus ids are capped (`FRAMES_MAX`, `J1939_PGN_MAX`, DroneCAN's reassembly caps).
+- **Flavored contract signals are packed by their flavor module, not `CAN_MAP`.** A module pushes
+  `{ flavor, signals, pack(t, slow) }` (+ optional `unpackable`, `onRequest`, `mirrors`,
+  `reset()`) onto `window.carlitoFlavorPackers`; `carlito.js`'s `checkCanCoverage()` holds
+  `CAN_MAP` to the unflavored out signals and each packer to its flavor, and the smoke test fails
+  on an unpacked flavor. `mirrors` (decision 1: truck / tractor J1939 copies of rpm / kmh / …) is
+  the one sanctioned "same signal twice".
+- **Inbound:** a module owning a contract "in" signal registers `{ name: () => value }` on
+  `window.carlitoUplinkSources` (one signal, one source) and **decodes that command off the bus**
+  via `window.carlitoUplinkDecoders`, into its own state. A decoder **skips frames from the
+  address its module transmits that message from**, or it would read its own echo (127237's
+  `nav_mode_actual`) back as the command. Periodic commands expire to the panel value; on-change
+  ones latch; a panel edit clears a bus value. `window.carlitoUplinkOverrides` is a *claim*
+  checked first, entries compose, and an override **must return `undefined` when not in control**
+  (0 would mean "centred").
+- **Numbers come off a primary source, never a plan document or web summary:** DSDL files +
+  pydronecan for DroneCAN; J1939-71 / J1939-81 / isobus.net for J1939 and ISOBUS. This has caught
+  wrong tables more than once. One approved exception: `iso11992.js`'s [SEC]-tagged PGNs
+  (ISO 11992-2 is paywalled). J1939-71 Table 1 judges a value by its **top byte**, so encoders
+  (`J1939Pack.put`) clamp to 0xFA / 0xFAFF / 0xFAFFFFFF. A mode or value shown only in a figure is
+  not written; leave the field "not available".
+- **`carlito_contract.js` is generated:** never hand-edit it; regenerate in the `carlito` repo
+  (`node tools/gen_js_contract.mjs`). It loads before `carlito.js`. The runtime version-mismatch
+  warning is the only drift guard.
+- **A contract change is paired across two repos:** the version bump lands on `dev` of **both**
+  `carlito` and `sloppycan`, and both are promoted to stable together. Promoting one alone puts
+  stable on mismatched versions and signals are misread.
 
-- **`carlito-bridge.html`** + **`carlito-bridge.js`** - a minimal RAMN↔Carlito bridge for users who bring their own CAN tooling. Loads `can-link.js` (transport) + `ramn.js` (decode → `ramnGetState`) + `carlito.js` (the game link), with `carlito-bridge.js` supplying small host shims (`log`/`ingestFrame`/`connectSerial`/`disconnectSerial`/`canForward` + the connect bar). It just decodes RAMN control frames (plus the protocol command frames the modules it loads decode through `carlitoUplinkIngestFrame`) into the embedded game and forwards the game's telemetry (`0x520`–`0x528`) back onto the wire - no dashboards, tabs, demo, or workspaces. Connect bar offers gs_usb + SLCAN; Carlito opens automatically on connect
+## Verifying
 
-Optional bolt-on modules (deferred scripts; integration hooks live in the core files, and modules may share core helpers exposed on `window.*`):
+`node --check <file>.js`, then the three CI checks:
+`node .github/scripts/static-checks.mjs` (inline handlers, script tags, this file's size) ·
+`python -m unittest discover -s scripting -p "test_*.py"` (relay) ·
+`node .github/scripts/smoke.mjs` (headless Chrome: load, every `window.*SelfTest` fresh and per
+demo traffic, golden frames; needs `npm install --no-save --no-package-lock puppeteer` once).
+After an **intended** frame change: `node .github/scripts/smoke.mjs --update-golden` and list each
+difference. Self-tests stay hermetic (snapshot/restore state, explicit database, never the tab's
+mode). `window.carlitoDebugInjectTelemetry(values, opts)` feeds telemetry with no game (re-inject every
+50–100 ms; stale after 600 ms). Behaviour beyond that: Demo mode in a browser.
 
-| File | Tab / feature |
-|------|---------------|
-| `j1939.js` | J1939 / N2K / ISOBUS tab. Also owns **the J1939-21 request path** (PGN 59904 in, the parameter group or a 59392 NACK back out) - the handful of J1939-71 groups whose transmission repetition rate is "On request" have no periodic frame by design, so there is no way to see one without asking. Two are registered on `window.j1939RequestServers` and answered out of `window.carlitoTelemetry()`: **65261 CCSS** (SPN 74 -> `speed_limit`) and **65253 HOURS** (SPN 247 -> `engine_hours`), which is what retired both signals' coverage opt-outs. `j1939EncodeSPN` is the exact inverse of `j1939DecodeSPN` and reads the same `J1939_DB` descriptors, so there is no second scale table. Three outcomes, all deliberate: the group, a NACK when the vehicle has no such parameter, or **silence** when nothing is on the link. Also **sources the three J1939-73 DM1 lamp states** onto `carlito.js`'s uplink (`red_stop` / `amber_warn` / `protect_lamp`, four-state selectors in the tab): the contract carries them as plain bools and THIS SIDE OWNS THE FLASH RATE (`j1939LampBit`), because J1939-73's flash-1Hz / flash-2Hz lamp states are urgency and a rate is a property of the source. The game has no blink timer for any lamp. The truck's `trailer_ebs_fault` / `trailer_abs_lamp` are sourced from the same four-state selectors without being DM1: neither has a CAN carrier here (J2497 rides the power line, ISO 11992 is its own bus), so the selector is the fault injected from the bench. Must load **before** `carlito.js` |
-| `graph.js` | Graph tab |
-| `fuzz.js` | Fuzzing tab |
-| `chademo.js` | CHAdeMO tab |
-| `xcp.js` | XCP-on-CAN tab |
-| `canopen.js` | CANopen tab |
-| `dronecan.js` | DroneCAN tab: a real DroneCAN (UAVCAN v0) transfer encoder (29-bit ids, tail byte, multi-frame CRC) + transfer reassembly/decode, carrying **all three transfer kinds** - broadcast messages, addressed **services**, and **anonymous** messages (`dcParseAnyId` is the one place that decides which an id is, and it returns the reassembly key with it: a service keys on *both* node ids and a direction, an anonymous transfer is single-frame by construction because there is no source id to key on). The services are `uavcan.protocol.GetNodeInfo` (1), `RestartNode` (5) and `param.GetSet` (11), served **out of `DC_ROSTER` and the per-node NodeStatus this module already publishes** - a service is a bus concept, not a game-state concept, so **none of it touched the contract**. A node that is not publishing answers nothing (the same silence a failed node gives); a RestartNode acknowledges and then really leaves the bus for `DC_REBOOT_MS` before returning at `uptime_sec` 0; `uavcan.node.status_period_ms` is a real writable parameter, which is why the NodeStatus sweep is per node. The client is a maintenance tool at node **127** (DroneCAN reserves 126/127 for tools) and never retries - an unanswered request is information. **Dynamic node ID allocation** has both ends here and they talk **over the bus**: the allocatee emits real anonymous transfers, six unique-id bytes at a time, and the allocator's grant comes back through `ingestFrame`. Also the **flavor packer** for the contract's `dronecan`-flavored signals - `esc.Status` / `BatteryInfo` / `Fix2` / `range_sensor.Measurement` / `ahrs.Solution` / `ArmingStatus` / `hardpoint.Status` / `camera_gimbal.Status` / `air_data.StaticPressure` / `air_data.RawAirData`, plus one `NodeStatus` (341) per ONLINE node at 1 Hz from an 8-entry **node roster** (`DC_ROSTER`, the one place a node id is declared; its length is asserted against the contract's `node_health` count). An offline node - `node_online` bit clear - **stops publishing**, which is the whole reading. `dcCtl` is the single owner of **every** drone inbound signal, contributed to `carlito.js`'s uplink through `window.carlitoUplinkSources`: the tab carries widgets for seven of them (`node_fail` by clicking a roster row, `flight_mode`, `led`, `beep`, `hardpoint_cmd`, `gimbal_pitch`/`gimbal_yaw`), while `arm` and `climb` have no tab widget on purpose - they are flight controls and live on `drone.js`'s floating panel, which drives this object rather than keeping a second copy. `window.dronecanCtl`/`dronecanSetCtl`/`dronecanPrearmNames`/`dronecanRoster` are that panel's accessors; `led`/`beep`/`hardpoint_cmd`/the gimbal pair additionally emit `LightsCommand` (1081) / `BeepCommand` (1080) / `hardpoint.Command` (1070) / `camera_gimbal.AngularCommand` (**1040**, not 1042) **and** `actuator.ArrayCommand` (1010) from the FC node **on change only**, and `dcUplinkDecode` reads `LightsCommand` / `hardpoint.Command` / `AngularCommand` (1081 / 1070 / 1040 - not `BeepCommand`) back off the bus from any OTHER node into `dcCtl` (latched, and never relayed). **Data type ids come off the DSDL file names and signatures off `pydronecan`, never off a plan document** - the method is validated by re-deriving the nine that were already in `DC_MSGS` and getting them back identical, which is the only reason a new one can be trusted (a wrong signature is invisible on a single-frame transfer and produces frames this decoder accepts on a multi-frame one). The hardpoint, gimbal and air-data peripherals publish from the FC node rather than roster entries of their own, because the roster IS the contract's `node_health` index space - so `node_fail` cannot take them off the bus, a stated limitation rather than an oversight. Loads after `carlito_contract.js`, **before** `carlito.js` |
-| `isobus.js` | **Flavor packer plus the tractor's commands, no tab** - the contract's `isobus`-flavored signals as real ISO 11783-7 / SAE J1939 frames: `WBSD` (65096) / `GBSD` (65097) / `RPTO` (65091) / `RHS` (65093) from the Tractor ECU at SA 240, `EEC2` (61443, SPN 92) and `LFE1` (65266, SPN 183 <- `fuel_rate`, an `nmea2000`-flavored signal sent here only beside `engine_load`, so a car or boat puts none on the bus) from the engine, `EAC1` (61446, SPN 569) and `FWD` (64991, SPN 2612) from the axles at 500 ms, and the implement's **Address Claim** (60928) whose NAME device class IS `implement_type` - sent ON CHANGE, because attaching *is* the claim and J1939 has no "unclaim". `wheel_slip` is declared `unpackable` (no SPN exists for it); `engine_hours` is unflavored (the boat reports it too), so its `onRequest` declaration lives in `carlito.js`'s `CAN_MAP_ON_REQUEST`; PGN 65253 is request-only and j1939.js's request path answers it. Gated **per signal, not per vehicle** - `engine_load` / `pto_state` / `engine_hours` are the truck's too. ISOBUS is J1939 on the wire, so `j1939.js` renders every frame (Mode ▸ ISO 11783) and there is no second view. It also **owns the tractor's eight commands** (`window.isobusCtl`/`isobusSetCtl`; tractor.js and truck.js's PTO button are views) and decodes three ISO 11783-7 command PGNs off the bus - 65090 Hitch and PTO, 44288 Guidance System, 65072 Aux valve 0, every field off isobus.net's own SPN pages; `diff_lock`/`fwd_drive`/`hand_throttle` are panel-only (TC1's positions are J1939-71's; MFWD and the hand throttle have no command message). Self-test: `window.isobusSelfTest()`. Loads after `carlito_contract.js`, **before** `carlito.js` |
-| `j1939-flavor.js` | **Flavor packer only, no tab** - the contract's `j1939`-flavored signals as real SAE J1939 parameter groups: `ERC1` (61440) @100 ms from **Retarder - Driveline SA 0x10** (SPN 520 <- `retarder_state`) and `AIR1` (65198) @**1 s** from **Brakes - System Controller SA 0x0B** (SPN 1087/1088 <- `air_primary`/`air_secondary`), and `ETC2` (61445) @100 ms from **Transmission #1 SA 0x03** (SPN 526 <- `gear_ratio`, truck and tractor; SPN 524/523 from the engaged `gear` byte in TC1's encoding, a CVT's range). **The only flavor whose layout is entirely LOOKED UP** - every signal has a real SPN, so no proprietary id is invented for any of them, and every number came off SAE J1939-71 itself. **SPN 520 is negative and the contract's signal is a magnitude** (the dashboard bar would fill backwards otherwise), so the packer negates it - that is the one place the sign lives. SPN 900 Retarder Torque Mode is written **only** for mode `0000b`, the one value J1939-71 states in text; the rest are TABLE SPN899_A, a *figure*, so anything else leaves the field "not available" rather than claiming a mode this file never read. `axle_load` is declared `onRequest`: PGN **65258 VW** is request-only and `j1939.js` answers it from **Axle - Drive #1 (0x09)**, not the engine - the first request server that is not an engine function, which is why that path's "it is *X* that carries this one" note now reads the server's own `sa`. **NOT folded into `j1939.js`**, because `carlito-bridge.html` loads this and not that, and the truck would lose its frames there. Also owns the truck's `retarder` stalk (`window.j1939FlavorCtl`/`SetCtl`), panel-only (its TSC1 decoder is not written). **Owns the J1939 driver demand**: EEC2 SPN 91 / EBC1 SPN 521 / VDC2 SPN 1807 / TC1 SPN 525 / CCVS SPN 70 / 597 decode into `accel`/`brake`/`steer`/`gear`/`handbrake`/`brakeLamp` as `carlitoUplinkOverrides` claims (300 ms TTL; a not-available raw refreshes nothing, which is what keeps `isobus.js`'s own EEC2 from zeroing the pedal), and `window.j1939DriveFrames` is the encoder `j1939.js`'s J1939 / ISO 11783 demos send the RAMN Control Panel through (not while a drone is on the link: a live pedal would lock its keyboard fallback out). Self-test: `window.j1939FlavorSelfTest()`. Loads after `carlito_contract.js`, **before** `carlito.js` |
-| `cleanopen.js` | **No tab, no packer** - owns the garbage truck's `body_cmd` (CiA 422 body network) and decodes it from a CANopen RPDO1 (COB-ID 0x210). CiA 422's object dictionary is members-only, so the node id (0x10), the mapping (byte 0 = the contract enum) and the 500 ms deadline are **declared device configuration**, never CiA 422 numbers; a lapsed deadline drops the command (the contract's stow-on-drop rule). Self-test: `window.cleanopenSelfTest()`. Loads after `carlito_contract.js`, **before** `carlito.js`, on both pages |
-| `ramn.js` | RAMN dashboard (floating instrument-cluster window) + RAMN Control Panel (demo-only driving window). Its `makeFloating` is the shared window-mechanics helper (drag + uniform-scale resize), reused by every vehicle panel. `ramnSetPairOpen` / `ramnSetDashOpen` are the two ways a panel steps it aside. The Control Panel's **Disable traffic** stops the demo's RAMN frames and clears the decoded state; `carlito.js` flips it on the edges of the game's `challenge` envelope field, so hand-sent frames drive an attempt. `window.ramnSeen(name)` reports whether an `IN_SOURCES` field has been decoded since the last `ramnClear` - "seen", not fresh, so one hand-sent frame keeps latching forever; `demoSetBaseTraffic` calls `ramnClear` on leaving `'ramn'`, so a non-RAMN base traffic omits the driving controls instead of repeating the last decoded values. The Control Panel greys only the controls the base traffic cannot carry (`BASE_CARRIES`: all but lights/key under J1939 / ISO 11783, steer only under NMEA 2000); its values reach those demos through `window.ramnCtrlGet`, and only while `ramnTrafficOn()` |
-| `vehicle-panel.js` | **No tab, no window** - the shared mechanism behind every vehicle panel. Owns the **telemetry fan-out** (`carlito.js` calls exactly one `window.carlitoOnTelemetry`, so panels subscribe rather than assign); **which machine is on the link** (`vehiclePanelIsFamily` - a `dir:'out'` signal the contract gives to exactly ONE family being present IS the vehicle); **the RAMN handoff** (`vehiclePanelClaim(id, open, takes)`, `'pair'` for a machine the RAMN controls do not fit and `'dash'` for one they do - and the record of what was up belongs to the **chain** of panels, because a vehicle change hands over without passing through "no link"); **the `?vehicle=` deep link** (`vehiclePanelRequestVehicle`, one confirm, since asking costs a reload); and **which toolbar button is shown** (a panel's button is up only while its machine is on the link or its window is open). `vehiclePanelRequestForProto` is the one bus → machine table - `dronecan` → drone, `j1939` → truck, `iso11783` → tractor, `nmea2000` → boat - under one rule: **a protocol view asks for its machine when the user selects that protocol** (the DroneCAN tab on show, the J1939 tab on a mode button). Loads after `carlito_contract.js`, **before** every panel |
-| `drone.js` | Drone dashboard + Drone Control, the RAMN pair's shape for an aircraft. It exists because the game's own drone controls (ARM, MODE, HOOK, FAIL, climb) are `bridge_owned` and hide the moment sloppyCAN takes the link, and because `arm`/`climb` had no uplink source at all - so the drone could not take off from here. **It owns no signal state**: the switches are `dronecan.js`'s `dcCtl`, reached through `window.dronecanCtl`/`dronecanSetCtl`, so the DroneCAN tab and this panel are two windows onto one set. The three shared axes (`accel`/`brake`/`steer`, plus `key`) are CLAIMED from the RAMN controls through `window.carlitoUplinkOverrides` while the panel is flying and handed back when it is not. Opens and closes itself on the telemetry through `vehicle-panel.js`, which owns the detection, the fan-out, the handoff, the `#droneBtn` visibility and the DroneCAN tab's vehicle request: it **replaces** the RAMN pair rather than joining it (`vehiclePanelClaim(..., 'pair')`), restoring whatever was up when it took over. The link runs both ways, asymmetrically: the panel follows the telemetry for free, while opening the **DroneCAN tab** asks (a confirm) to put a drone on the link, which costs a **reload** because the vehicle is a boot parameter - the game's `?vehicle=<variant>` deep link, via `window.carlitoSelectVehicle`. There is deliberately no "change vehicle" contract signal, so this needed no game-side change. The contract's `key` is a car's ignition barrel, so the panel offers the two positions the airframe has - a flight pack you plug in - rather than the three the signal carries. Loads after `ramn.js` + `dronecan.js`, **before** `carlito.js` |
-| `truck.js`, `tractor.js` | One floating dashboard each, following the link like `drone.js` but taking **`'dash'`** rather than `'pair'` - both are driven with the RAMN controls, so only the cluster is replaced and the Control Panel keeps driving. They claim no uplink signal and own none: each carries a Commands section that is a view over the owning modules (isobus.js; plus cleanopen.js and j1939-flavor.js on the truck), ringing a control amber while a bus frame holds it. **Currently the RAMN cluster verbatim** (same DOM, same `window.ramnGetState()`, redrawn on the telemetry push): a STARTING POINT, meant to be edited apart onto each machine's own signals - `air_primary`/`retarder_state`/`trailer_*`, `hitch_pos_actual`/`pto_rpm`/`draft_force`. `boat.js` is what that edit looks like when it is done. Load after `vehicle-panel.js`, **before** `carlito.js` |
-| `boat.js` | The boat's floating instrument panel, same `'dash'` claim and no uplink signal. **TELEMETRY ONLY** - nothing is read from `window.ramnGetState()`, which carries what sloppyCAN COMMANDS rather than what the boat measures, and the RAMN Control Panel stays up beside it showing exactly that command half. Every instrument is a PAIR whose gap is the reading: a bow-up wind rose carrying `awa` (red from port, green from starboard), `twd` referenced to the bow and the boom from `sail_angle`, where the gap between spar and needle is the **angle of attack** (`awa - sail_angle`, an identity the contract states) and its collapse is **luffing**; an echo sounder with 30 s of `depth` soundings drawn as a bed rising at the hull, the contract's own shoal `warn` as a dashed line, and the `-1` sentinel as `- - -` with a BREAK in the trace rather than a zero; a north-up compass carrying `heading` against `cog` (their gap is the crab angle) with the autopilot's `heading_target` as a bug and `current_set` on the rim; `stw` against `sog` with the tide's contribution called out; `rudder_actual`/`trim`, the engine block, the three `tank_level` instances, and marine tell-tales off `status` bits 0/1/6 (bit 1's "on the ground" is AGROUND for a hull). Ranges, warn thresholds and the `nav_mode_actual` enum are read off the contract and never retyped. **`sheet` is not here**: it is `dir:"in"` with no telemetry echo, so it belongs to the autopilot control head, `boat-pilot.js`, which owns it. That head is only a view over `nav_mode`/`heading_cmd`: `nmea2000.js` owns those two and also decodes them off PGN 127237 (`window.nmea2000PilotCtl`/`nmea2000SetPilot`); `rudder` is `nmea2000.js`'s, decoded off PGN 127245's Angle Order (not from `SA_HELM`, 300 ms TTL) and sourced only while a boat is on the link, since the game lets a present `rudder` steer any vehicle; the NMEA 2000 demo sends the RAMN steer slider as that order. Load after `vehicle-panel.js`, **before** `carlito.js` |
-| `train.js` | **No claim, no tab** - Pantograph/Doors toggles plus a `pantograph_state`/`doors_state`/`catenary_volts` readback, following the boat-pilot.js pattern: `pantograph`/`doors` are OWNED here, permanently, in `window.carlitoUplinkSources` (nothing else sources them, so there is nothing to hand back to), and the train is still driven on the RAMN accel/brake axes, so this window takes no `vehiclePanelClaim`. Pantograph starts RAISED (a locally driven train's own default), doors start shut. Load after `vehicle-panel.js` + `ramn.js`, **before** `carlito.js` |
-| `plane.js` | **No claim, no tab** - an Elevator slider that springs back to centre on release (plane.gd reads it as a pitch-torque command, so a yoke nobody holds commands nothing) and a latching Flaps slider with a `flaps_actual` readback, following the boat-pilot.js pattern: `elevator`/`flaps` are OWNED here, permanently, in `window.carlitoUplinkSources`, no CANaerospace frame decode. The plane is still flown on the RAMN accel/brake/steer axes, so this window takes no `vehiclePanelClaim`. Load after `vehicle-panel.js` + `ramn.js`, **before** `carlito.js` |
-| `carlito.js` | Carlito game link - floating window embedding the Godot game (loaded from one of two hardcoded channels, `…/carlito/stable/` or `…/carlito/dev/`, picked by the header selector / `?carlitoBuild=` / auto-pair on a `/dev/` path); sends all RAMN controls into it (drive + handbrake/ignition/headlights) and emits the car telemetry it sends back as CAN `0x520`–`0x528` (50/100 ms) via `window.canForward` - ingested once for the dashboards and, when a bus is open, transmitted on the wire and shown as a single `FW` (forward) dump entry (gateway model: counts as RX+TX; plain RX when no bus). Closing the window tears down the iframe (stops the game). Consumes `window.CARLITO_CONTRACT` (from `carlito_contract.js`, loaded first) for the message field names + CAN-map coverage check; sends gear `R` as `0xFF`; both sides `console.warn` once on contract-version mismatch. The uplink is built from three registries in order - `window.carlitoUplinkOverrides` (a temporary claim), `IN_SOURCES` (RAMN state) and `window.carlitoUplinkSources` (a protocol module's own controls), the last fed from frames by a fourth, `window.carlitoUplinkDecoders` (see the flavored-signal gotcha) - and pushes each telemetry payload to `window.carlitoOnTelemetry`, with `null` when the link goes away. `window.carlitoSelectVehicle(variant)` reloads the iframe through the game's `?vehicle=` deep link (a VARIANT id, spent on the load it causes). Game-side bridge lives in the `carlito` repo |
-| `script-link.js` | **Script link, no tab** - live CAN I/O with user scripts through the local relay `scripting/sloppycan_relay.py` (stdlib Python: WS `29540` for this page, raw TCP `29541` for scripts, line-aware broadcast, never back to the sender; Origin allowlist + Host check + 127.0.0.1 bind, because WebSockets have no CORS and a real adapter makes this a path onto a physical bus; the TCP port drops a connection that opens with an HTTP request line, since any web page can `fetch()` a localhost port and its body lines would otherwise become frames). **Click-only opt-in** (header **Script** button → explainer window → Connect; nothing persists, so every load starts disconnected; `?scriptLink=<port>` only sets the port), never on load: Chrome 147+ puts a Local Network Access prompt on a public origin opening localhost. Wire format is the cansend grammar, one frame per `\n` line - `123#DEADBEEF`, **id width decides the frame format** (3 hex = 11-bit, 8 = 29-bit), `123#R4` remote, no FD/timestamps. Out: two hooks, `ingestFrameBody` (RX + demo + telemetry; at its TOP, because a module hook below can answer synchronously - `j1939ServeRequest` → `canForward` - and scripts must see the request before its answer) and `recordTxFrame` (sloppyCAN's own TX), batched per task via a microtask. In: an ordered FIFO (not coalesced - ISO-TP bursts share an id) drained through `window.canForward`, the gateway model, which is why `canForward` returns its transmit promise; the frame being injected is the echo guard (identity, not a flag). Deliberately **not** in `can-link.js`: a tap there misses demo, telemetry and our own TX, and `sendCommand` is a no-op on gs_usb and in demo. Client helper + examples: `scripting/sloppybus.py`, `scripting/example.py` |
+## Deploy: two channels
 
-OBD-II, KWP2000, UDS, DTC decoder, NMEA 2000, and ISOBUS are sub-modes implemented inside the core files or `j1939.js` - no separate feature module (the OBD/UDS/KWP payload **decoders + tables** live in the core-split `diag-parse.js`; the sub-mode UI controllers stay in `sloppycan.js`).
-
-Many module integration hooks in the core files carry `// … remove to revert` comments. Treat these as navigation aids that mark where a module plugs in - not a hard "every module must be independently removable" contract. Modules may depend on shared core helpers (e.g. `window.withTxLock`, `window.canRelTs`/`canHexBytes`/`canParseIntAuto`, `window.txReady`, `window.fuzzTxFrame`); prefer reusing those over re-implementing per module.
-
-Standalone reference pages live in `explainers/`: `isotp-explainer.html` (+ `isotp-2016.html`, ISO 15765-2:2016 large-payload extensions), `obd2-explainer.html`, `kwp2000-explainer.html`, `uds-explainer.html`, `nmea2000-explainer.html`, `iso11783-explainer.html`, `ev-charging-explainer.html`, `xcp-explainer.html`, `canopen-explainer.html`, `dronecan-explainer.html`, `j1939-explainer.html`, `dtc.html` (DTC decoder), `can-signals-explainer.html` (ground-up CAN walkthrough: bus schematic → editable bitstream → two-way frame parse table → physical-layer oscilloscope → arbitration waveform; linked from the Frame Inspector's bitstream). Each is self-contained (only external dependency: Google Fonts), except `dtc.html`, which loads `../diag-parse.js` and `../j1939-tables.js` so its OBD/UDS and J1939 decoding cannot drift from the app, and `j1939-explainer.html`, which loads `../j1939-tables.js` for the same reason on J1939 alone.
-
-## Conventions & gotchas
-
-- **Shared global scope:** `can-link.js`, `diag-parse.js`, and `sloppycan.js` are classic (non-module) scripts sharing one global lexical scope — a `let`/`const`/`function` declared in one is the same binding everywhere. **Never redeclare a name across them** (a duplicate `let` is a SyntaxError that spans scripts). Bolt-on modules are `defer`red and talk to the core via `window.*`.
-- **Untrusted bus data → escape before the DOM:** CAN ids, payload bytes, and decoded ASCII/DTC strings are device-controllable. Route them through `escHtml()` (escapes `& < > " '`) or `textContent` before any `innerHTML`/attribute interpolation. `log()` already escapes its whole message — don't double-escape into it.
-- **Flavored contract signals are packed by their flavor module, not by `CAN_MAP`:** the contract's
-  `flavor` field borrows a protocol's signal names/semantics "without implementing its CAN frames -
-  frame layout stays on the sloppyCAN side". That layout lives in the protocol's own module, which
-  pushes `{ flavor, signals, pack(t, slow) }` onto `window.carlitoFlavorPackers` (plus an optional
-  `unpackable: { signal: reason }` - signals it declares it will never pack - and an optional
-  `onRequest: { signal: reason }` - signals carried by a parameter group that only exists when
-  something asks for it. The coverage check subtracts both from the gap list and reports each on
-  its own line, because "nothing carries this, by decision" and "there is a frame for this the
-  moment you ask" are different claims) and must therefore be
-  loaded **before `carlito.js`**. The inbound mirror of this is `window.carlitoUplinkSources`: a
-  module that owns a control for a contract "in" signal registers `{ name: () => value }` there and
-  `carlito.js`'s contract-driven uplink picks it up (one signal, one source - a name in both that map
-  and `IN_SOURCES` warns). **A module that owns a command also DECODES it off the bus**: it pushes
-  `frame => void` onto `window.carlitoUplinkDecoders`, which `carlito.js`'s `carlitoUplinkIngestFrame`
-  walks from three places - `sloppycan.js` `ingestFrameBody` (RX + the telemetry echo), `txSendOne`
-  (frames sent by hand) and `carlito-bridge.js` `ingestFrame` - writing into the module's own state,
-  so the value still leaves through its one source. A decoder **skips frames from the address its
-  module itself transmits that message from** (the echo would read 127237's `nav_mode_actual` back as
-  the command). A periodic command (ISO 11783-7, the CANopen RPDO) expires after a stated timeout back
-  to the panel value; an on-change one (DroneCAN, 127237) latches; a panel edit clears a bus value. **A third registry, `window.carlitoUplinkOverrides`, is checked before
-  both and is a CLAIM rather than a home**: a control surface for a machine the RAMN controls do not
-  fit (`drone.js`'s sticks) takes a shared axis while it is driving. Its entries **compose** (a second claimant wraps the first; `drone.js`'s sticks win over `j1939-flavor.js`'s bus driver demand in either load order). An override **must return
-  `undefined` when it is not in control** - that is the whole protocol, and it is what makes the RAMN
-  panel drive again the moment the claim lapses; returning 0 instead would be one source saying
-  "centred" over another saying "hard left". `carlito.js`'s `checkCanCoverage()` holds `CAN_MAP` to exactly the
-  *unflavored* "out" signals and each registered packer to its own flavor's; a flavor with no packer
-  loaded is silent. `dronecan.js` is the first such module, `isobus.js` the second, `j1939-flavor.js` the third.
-- **A packer's PGN/SPN numbers come off a primary source, never off a plan document** — the same
-  rule `dronecan.js` follows for DSDL ids and signatures, and it earns its keep: writing
-  `isobus.js` found four wrong tables in `j1939.js` (0xFE43/0xFE45 had the rear PTO and rear hitch
-  **swapped**, EEC1 carried SPN 91/92 where J1939-71 has 512/513, `J1939_SA` had the axles at
-  0x21–0x23 instead of 0x08–0x0A, and `j1939DecodeName` read the NAME's industry group and
-  self-configurable bit three bits low) — plus the front PTO/hitch SPNs, which had been filled in
-  by pattern from the rear ones and were wrong to a man. All were corrected in the same change,
-  along with `isoDemoFrames()` and the explainer, which had been built to match them. The sources
-  are the ISOBUS Data Dictionary (isobus.net — its PGN/SPN and SourceAddress tables), J1939-71 and
-  J1939-81 — **not** web-search summaries or a DBC of unknown provenance, both of which
-  contradicted the dictionary during that work. `j1939-flavor.js` is the same rule paying off
-  again: all three of its groups (ERC1 61440, AIR1 65198, VW 65258) were read straight out of
-  J1939-71 and added to `J1939_DB` with their neighbouring SPNs. It also shows where the rule
-  **stops**: SPN 900's mode names are a *figure* in that document, not text, so the packer writes
-  only the one mode the prose states and leaves the field "not available" otherwise. **`j1939-71.pdf` is text, not a scan**: `pdftotext -layout` gives the PGN tables with the SPN column shifted a row (pair SPNs with bit positions in order), plain `pdftotext` the SPN definitions. Reading it found `J1939_DB`'s ETC2 with SPN 524/523 on the wrong bytes. A later pass found VEP1/AMB/VD/DD/CCVS/VDS layouts wrong, SPN 96 filed under 65257 (it is DD's), and DM3 at 0xFECE (it is 0xFECC). **J1939-71 Table 1 judges a multi-byte value by its TOP byte** (≤0xFA valid, FB parameter-specific, FC–FD reserved, FE error, FF not available), so every encoder (`j1939EncodeSPN`/`jfPut`/`ibPut`) clamps to 0xFA, 0xFAFF, 0xFAFFFFFF.
-- **`carlito_contract.js` is generated, not hand-edited:** it sets `window.CARLITO_CONTRACT` and is a committed synced copy of the `carlito` repo's canonical `contract/carlito_contract.json`. Regenerate from the carlito repo (`node tools/gen_js_contract.mjs`), not here. It must load before `carlito.js` (script tags already ordered in `index.html` + `carlito-bridge.html`). The runtime version-mismatch warning is the drift guard (no CI here).
-- **A contract change is a paired change across two repos.** The game and sloppyCAN agree by version number, so a bump lands on the `dev` branch of **both** `carlito` and `sloppycan` together, and both get promoted to stable together. Promoting one alone puts a live stable pair on mismatched versions — the runtime warning fires and signals are misread.
-- **Verifying changes:** there is no test suite. Syntax-check with `node --check <file>.js`; verify behaviour by opening `index.html` and using **Demo** mode (no hardware needed). Navigate `sloppycan.js` by its `// ── Section ──` headers (map in `core-arch.md`). CI runs the `node --check` sweep plus a sanity load of `carlito_contract.js`; everything else is verified by driving.
-
-## Deploy — two channels
-
-Both channels are served from the `gh-pages` branch, which CI rewrites as a single orphan
-commit and force-pushes (nothing in that history is worth keeping):
-
-| | URL | Updated by |
-|---|---|---|
-| stable | <https://leaukojo.github.io/sloppycan/> | *Promote dev → stable* (manual) |
-| dev | <https://leaukojo.github.io/sloppycan/dev/> | every push to `dev` |
-
-Stable sits at the **gh-pages root**, not in a `stable/` subdirectory — unlike carlito, which
-needs sibling dirs under a redirect page because its PWA service-worker scopes would nest and
-intercept each other. sloppyCAN ships no service worker, so there is no scope to nest and
-stable keeps the root URL already published in the README.
-
-Promotion **copies the published `/dev/` bytes**, never re-copies from the branch, so what you
-approved on dev is what goes stable. Ritual: Actions → *Promote dev → stable* → Run workflow.
-Paired with carlito's promote whenever the contract version moved (see above).
-
-**The Carlito window auto-pairs channels:** sloppyCAN served from a path containing `/dev/`
-defaults to the dev game, everything else to stable — so `/sloppycan/dev/` drives
-`/carlito/dev/` without anyone selecting anything. The header selector and `?carlitoBuild=`
-override that; a `?carlitoUrl=` local override replaces both and hides the selector.
-
-## Detailed references
-
-- **[.claude/core-arch.md](.claude/core-arch.md)** - script section list, key data structures, gs_usb wire-format, byte colour semantics.
-- **[.claude/modules.md](.claude/modules.md)** - per-module docs for graph, fuzz, OBD-II, KWP2000, NMEA 2000, ISOBUS, DTC, CHAdeMO, XCP, CANopen (integration points).
+CI rewrites `gh-pages` as one orphan commit. **dev** (<https://leaukojo.github.io/sloppycan/dev/>)
+updates on every push to `dev`; **stable** (the gh-pages root) only via Actions → *Promote dev →
+stable*, which copies the published `/dev/` bytes, so what was approved on dev is what goes
+stable. No service worker, so no subdirectory is needed for stable. A page served from a `/dev/`
+path pairs with Carlito's dev game, anything else with stable; the header selector,
+`?carlitoBuild=` and `?carlitoUrl=` override that.

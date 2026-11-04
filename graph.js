@@ -1,5 +1,6 @@
 // ── Graph (signal value over time) ────────────────────────────────────────────
-// Self-contained module. All graph state + canvas rendering lives here.
+// Self-contained module. All graph state + canvas rendering lives here. Each signal keeps its
+// own history ring (fed by graphIngestFrame); nothing is backfilled from dumpLog.
 //
 // INTEGRATION POINTS - the only changes required in the main files:
 //
@@ -623,6 +624,23 @@ function drawGraph() {
   // Plot border
   ctx.strokeStyle = COL.axis; ctx.lineWidth = 1;
   ctx.strokeRect(plotL + 0.5, plotT + 0.5, plotR - plotL - 1, plotB - plotT - 1);
+
+  // A full ring that starts inside the window: GRAPH_CAP samples cover less time than was asked for
+  // at this signal's rate, so say so instead of leaving the left of the plot quietly empty. Drawn
+  // before the hover readout, which goes on top of it.
+  let keptMs = Infinity;
+  for (const sig of graphSignals) {
+    const b = sig.buf;
+    if (b.count < b.cap) continue;
+    const t0 = b.t[b.head];                       // full ring: head is the oldest
+    if (t0 > tLo) keptMs = Math.min(keptMs, b.t[(b.head - 1 + b.cap) % b.cap] - t0);
+  }
+  if (keptMs < Infinity) {
+    ctx.font = '10px ' + sans;
+    ctx.fillStyle = cs.getPropertyValue('--amber').trim() || '#f59e0b';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`history limited to ${(keptMs / 1000).toFixed(keptMs < 10000 ? 1 : 0)} s at this rate`, plotL + 6, plotT + 6);
+  }
 
   // Hover crosshair + readout
   let hover = null;

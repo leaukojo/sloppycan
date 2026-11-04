@@ -136,7 +136,7 @@
 .ramn-joypad button.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
 /* Traffic off: the simulated frames stop, so the controls that feed them grey out. */
 .ramn-header .ramn-dot.ctrl.off { background:var(--text3); }
-.ramn-ctrl-off .ramn-sec:not(.ramn-traffic-sec), .ramn-sec.ramn-sec-off { opacity:.35; pointer-events:none; }
+.ramn-ctrl-off .ramn-sec:not(.ramn-traffic-sec):not(.ramn-uplink-sec), .ramn-sec.ramn-sec-off { opacity:.35; pointer-events:none; }
 .ramn-base-note { margin-top:6px; font-size:10px; color:var(--amber); }
 .ramn-hint {
   margin-top:6px; padding-top:9px; border-top:1px solid var(--border);
@@ -153,13 +153,18 @@
 // Drag (header, clamped to viewport) + resize (grip → uniform scale of body).
 // Returns applyScale(width). Adapted from the resize-handle idiom in sloppycan.js.
 // `closeSel` is the header button a drag must NOT start on; another module reusing this
-// (drone.js) names its own class rather than being made to borrow `.ramn-close`.
-function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW = 640,
-                        closeSel = '.ramn-close' }) {
-  // Drag and resize each attach their window-level move/up listeners only while the
-  // gesture is active and remove them on release, so no global listeners persist
-  // between interactions (the windows are toggled, never destroyed - there is no
-  // teardown hook to detach a permanent listener from).
+// (vehicle-panel.js) names its own class rather than being made to borrow `.ramn-close`.
+//
+// Drag and resize each attach their window-level move/up listeners only while the
+// gesture is active and remove them on release, so no global listeners persist
+// between interactions (the windows are toggled, never destroyed - there is no
+// teardown hook to detach a permanent listener from).
+//
+// makeDraggable is the drag half alone, for a window whose resize is its own (carlito.js
+// resizes in real pixels so the game canvas gets real pixels, not a uniform scale). `shield`
+// covers the page for the length of the drag: a window holding an IFRAME needs it, because a
+// mouseup released over the frame goes to the frame's document and the drag would never end.
+function makeDraggable({ win, header, closeSel, shield = false }) {
   let sx = 0, sy = 0, sl = 0, st0 = 0;
   header.addEventListener('mousedown', e => {
     if (e.target.closest(closeSel)) return;
@@ -168,6 +173,12 @@ function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW 
     const r = win.getBoundingClientRect(); sl = r.left; st0 = r.top;
     win.style.right = 'auto';
     document.body.style.userSelect = 'none';
+    let cover = null;
+    if (shield) {
+      cover = document.createElement('div');
+      cover.style.cssText = 'position:fixed;inset:0;z-index:9999;cursor:move';
+      document.body.appendChild(cover);
+    }
     const onMove = ev => {
       let nl = sl + (ev.clientX - sx), nt = st0 + (ev.clientY - sy);
       nl = Math.max(0, Math.min(window.innerWidth - 40, nl));
@@ -178,10 +189,16 @@ function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW 
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       document.body.style.userSelect = '';
+      if (cover) cover.remove();
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   });
+}
+
+function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW = 640,
+                        closeSel = '.ramn-close' }) {
+  makeDraggable({ win, header, closeSel });
 
   function applyScale(w) {
     const scale = w / baseW;
@@ -369,6 +386,12 @@ ctrlWin.innerHTML = `
     <div class="ramn-sec" data-ctl="handbrake">
       <div class="ramn-toggle" id="ramnCtrlHand" data-color="red">Handbrake</div>
     </div>
+    <div class="ramn-sec ramn-uplink-sec">
+      <div class="ramn-row2">
+        <div class="ramn-toggle" id="ramnCtrlTcsOff" title="Traction control off (contract tcs_off, cars only). RAMN has no frame for it, so it goes straight into the game's uplink - and stays live while traffic is off.">TC off</div>
+        <div class="ramn-toggle" id="ramnCtrlEscOff" title="Stability control off (contract esc_off, cars and trucks) - traction control goes off with it. RAMN has no frame for it, so it goes straight into the game's uplink - and stays live while traffic is off.">ESC off</div>
+      </div>
+    </div>
     <div class="ramn-hint">
       <b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
       <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.<br>
@@ -408,6 +431,16 @@ const ramnCtrl = {
   horn: 0, lights: 1, key: 3,     // key defaults to Ignition so demo driving passes Carlito's engine gate
   turnL: 0, turnR: 0, handbrake: 0
 };
+
+// The two switches with NO RAMN frame behind them (contract tcs_off / esc_off): the Control Panel
+// OWNS them and registers them in carlito.js's carlitoUplinkSources, like train.js's pantograph.
+// "Absence is meaningful": undefined while the panel is not in use (no demo; the bridge page), so
+// the game keeps its own default; the toggle's value while it is (absent and false both mean the
+// system is on). j1939-flavor.js's EBC1 decode claims tcs_off over this while a bus frame holds it.
+const ramnSw = { tcs_off: false, esc_off: false };
+window.carlitoUplinkSources = window.carlitoUplinkSources || {};
+window.carlitoUplinkSources.tcs_off = () => demoEnabled ? ramnSw.tcs_off : undefined;
+window.carlitoUplinkSources.esc_off = () => demoEnabled ? ramnSw.esc_off : undefined;
 
 // Whether the demo emits the RAMN frames at all (sloppycan.js demoTick asks ramnTrafficOn).
 // Off is "nothing on the bus": the decoded state is cleared, so the uplink stops repeating the
@@ -642,6 +675,8 @@ function syncCtrlUI() {
   cel.joypad.querySelector('button[data-joy="5"]').classList.toggle('on', !!ramnCtrl.turnL);
   cel.joypad.querySelector('button[data-joy="4"]').classList.toggle('on', !!ramnCtrl.turnR);
   cel.hand.classList.toggle('on', !!ramnCtrl.handbrake); cel.hand.classList.toggle('red', !!ramnCtrl.handbrake);
+  cel.tcsOff.classList.toggle('on', ramnSw.tcs_off); cel.tcsOff.classList.toggle('amber', ramnSw.tcs_off);
+  cel.escOff.classList.toggle('on', ramnSw.esc_off); cel.escOff.classList.toggle('amber', ramnSw.esc_off);
 }
 
 // Which of this panel's controls a non-RAMN demo base traffic still carries, and in what. The
@@ -735,6 +770,7 @@ function ramnSetTraffic(on) {
     gearTop: ctrlWin.querySelector('#ramnCtrlGearTop'),
     lights: ctrlWin.querySelector('#ramnCtrlLights'), key: ctrlWin.querySelector('#ramnCtrlKey'),
     hand: ctrlWin.querySelector('#ramnCtrlHand'),
+    tcsOff: ctrlWin.querySelector('#ramnCtrlTcsOff'), escOff: ctrlWin.querySelector('#ramnCtrlEscOff'),
     traffic: ctrlWin.querySelector('#ramnCtrlTraffic'), body: ctrlWin.querySelector('#ramnCtrlBody'),
     dot: ctrlWin.querySelector('.ramn-dot.ctrl'), baseNote: ctrlWin.querySelector('#ramnCtrlBaseNote')
   };
@@ -785,6 +821,8 @@ function ramnSetTraffic(on) {
   cel.joypad.addEventListener('mousedown', joyPress);
 
   cel.hand.addEventListener('click', () => { ramnCtrl.handbrake = ramnCtrl.handbrake ? 0 : 1; syncCtrlUI(); });
+  cel.tcsOff.addEventListener('click', () => { ramnSw.tcs_off = !ramnSw.tcs_off; syncCtrlUI(); });
+  cel.escOff.addEventListener('click', () => { ramnSw.esc_off = !ramnSw.esc_off; syncCtrlUI(); });
 
   // Global mouse-up releases momentary joystick state (joy byte + horn).
   window.addEventListener('mouseup', () => {
@@ -836,7 +874,8 @@ window.ramnCtrlToggle = ramnCtrlToggle;
 window.ramnSetPairOpen = ramnSetPairOpen;   // ← used by drone.js to hand the vehicle over
 // The DASHBOARD alone - vehicle-panel.js's 'dash' handoff, for a machine the RAMN controls fit.
 window.ramnSetDashOpen = setDashOpen;
-window.makeFloating = makeFloating;         // ← shared window mechanics (drone.js reuses them)
+window.makeFloating = makeFloating;         // ← shared window mechanics (vehicle-panel.js reuses them)
+window.makeDraggable = makeDraggable;       // ← the drag half alone (carlito.js)
 window.ramnDemoStarted = ramnDemoStarted;
 window.ramnSetTraffic = ramnSetTraffic;               // ← carlito.js, on a challenge starting / ending
 window.ramnSyncTrafficUI = syncTrafficUI;             // ← sloppycan.js demoSetBaseTraffic

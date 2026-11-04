@@ -554,8 +554,11 @@ thead th.sort-desc .sort-arrow::after { content: '↓'; opacity: 1; }
 
 tbody tr {
   border-bottom: 1px solid var(--border);
-  transition: background 0.15s;
 }
+/* Safe globally only because no table recreates its rows on a timer (live tables go through
+   renderKeyedRows; the Traffic Dump keys its rows by entry). A table that rebuilds with innerHTML
+   several times a second would restart this fade forever and flicker. */
+tbody tr { transition: background 0.15s; }
 
 tbody tr:hover { background: var(--bg3); }
 

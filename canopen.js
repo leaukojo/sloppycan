@@ -544,27 +544,25 @@ function coUpdateButtons() {
 function coRenderNodes() {
   const el = document.getElementById('co-nodemap');
   if (!el) return;
-  if (!coNodes.size) {
-    el.innerHTML = '<div class="co-empty">No nodes seen yet.<br>' +
+  const ids = [...coNodes.keys()].sort((a, b) => a - b);
+  window.renderKeyedTable(el, {
+    tableClass: 'co-tbl',
+    theadHtml: '<tr><th>Node</th><th>State</th><th>Last seen</th><th>Messages</th></tr>',
+    emptyHtml: '<div class="co-empty">No nodes seen yet.<br>' +
       'Heartbeats (0x700+node) and any traffic populate this map.<br>' +
-      'In <b>Demo</b> mode, switch the demo base traffic to CANopen (open this tab) for simulated nodes - no hardware needed.</div>';
-    return;
-  }
-  const rows = [...coNodes.keys()].sort((a, b) => a - b).map(id => {
+      'In <b>Demo</b> mode, switch the demo base traffic to CANopen (open this tab) for simulated nodes - no hardware needed.</div>',
+  }, ids, id => id, id => {
     const n = coNodes.get(id);
     const stName = n.state == null ? '-' : (CO_NMT_STATE[n.state] || coH(n.state));
     const cls = n.state == null ? '' : (CO_STATE_CLASS[n.state] || '');
     const tags = [...n.types].filter(Boolean).map(t => `<span class="co-tag">${t}</span>`).join('');
-    return `<tr>
-      <td class="co-node">${id} <span style="color:var(--text3)">(${coH(id)})</span></td>
-      <td><span class="co-chip ${cls}">${stName}</span></td>
-      <td class="co-ts">${n.lastSeen ? coRelTs(n.lastSeen) : '-'}</td>
-      <td>${tags || '<span style="color:var(--text3)">-</span>'}</td>
-    </tr>`;
-  }).join('');
-  el.innerHTML = `<table class="co-tbl">
-    <thead><tr><th>Node</th><th>State</th><th>Last seen</th><th>Messages</th></tr></thead>
-    <tbody>${rows}</tbody></table>`;
+    return { cells: [
+      { cls: 'co-node', html: `${id} <span style="color:var(--text3)">(${coH(id)})</span>` },
+      `<span class="co-chip ${cls}">${stName}</span>`,
+      { cls: 'co-ts', html: n.lastSeen ? coRelTs(n.lastSeen) : '-' },
+      tags || '<span style="color:var(--text3)">-</span>',
+    ] };
+  });
 }
 
 function canopenOnShow() {
@@ -618,16 +616,16 @@ const coTab = window.makeStackedLogTab({
   onTick: coUpdateButtons,
   renderTop: coRenderNodes,
   coalesce: (prev, e) => e.kind === 'pdo' && prev.kind === 'pdo' && prev.id === e.id && (e.ts - prev.ts) < CO_PDO_COALESCE_MS,
-  rowHtml: (e) => {
+  row: (e) => {
     const cnt = e.count && e.count > 1 ? ` <span style="color:var(--text3)">×${e.count}</span>` : '';
-    return `<tr class="${e.emcy ? 'emcy-row' : ''}">
-        <td class="co-ts"><a href="#" onclick="isotpSeeCanTraffic(${e.ts});return false" title="See this frame in the Traffic Dump" class="co-seecan">⊞</a> ${coRelTs(e.ts)}</td>
-        <td class="co-id">${coH(e.id, 3)}</td>
-        <td class="co-node">${e.node || '-'}</td>
-        <td class="co-type ${CO_TYPE_CLS[e.kind] || ''}">${e.type}</td>
-        <td class="co-raw">${e.data.length ? coHexBytes(e.data) : '-'}</td>
-        <td class="co-dec">${e.summary || ''}${cnt}</td>
-      </tr>`;
+    return { cls: e.emcy ? 'emcy-row' : '', data: { seecanTs: e.ts }, cells: [
+      { cls: 'co-ts', lead: '<a href="#" data-seecan="" title="See this frame in the Traffic Dump" class="co-seecan">⊞</a>', html: coRelTs(e.ts) },
+      { cls: 'co-id', html: coH(e.id, 3) },
+      { cls: 'co-node', html: e.node || '-' },
+      { cls: `co-type ${CO_TYPE_CLS[e.kind] || ''}`, html: e.type },
+      { cls: 'co-raw', html: e.data.length ? coHexBytes(e.data) : '-' },
+      { cls: 'co-dec', html: `${e.summary || ''}${cnt}` },
+    ] };
   },
 });
 

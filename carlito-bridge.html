@@ -94,11 +94,15 @@ body.zen .carlito-window .carlito-io { display: none !important; }
   <!-- RAMN decoder (ramnGetState / ramnIngestFrame) and the Carlito link, reused unchanged. -->
   <script src="ramn.js" defer></script>
   <script src="carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
-  <script src="dronecan.js" defer></script><!-- DroneCAN transfer encoder + carlito dronecan-flavor packer; must precede carlito.js -->
-  <script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; must precede carlito.js -->
-  <script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal); must precede carlito.js -->
-  <script src="nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig); must precede carlito.js -->
-  <script src="cleanopen.js" defer></script><!-- the garbage truck's body command (CANopen RPDO decoder); must precede carlito.js -->
+  <script src="carlito-registry.js" defer></script><!-- every Carlito registry, created empty; must precede every module that registers -->
+  <script src="j1939-pack.js" defer></script><!-- the one J1939 / NMEA 2000 frame-packing helper (window.J1939Pack); must precede every packer -->
+  <script src="dronecan-core.js" defer></script><!-- DroneCAN codec + carlito dronecan-flavor packer (the tab half, dronecan.js, is index.html only) -->
+  <script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer -->
+  <script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal) -->
+  <script src="nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig) -->
+  <script src="cleanopen.js" defer></script><!-- the garbage truck's body: command (CANopen RPDO decoder) and state (TPDO1 packer) -->
+  <script src="iso11992.js" defer></script><!-- carlito iso11992-flavor packer (the trailer's EBS21 / EBS22) -->
+  <script src="canaerospace.js" defer></script><!-- carlito canaerospace-flavor packer (flaps_actual) -->
   <script src="carlito.js" defer></script>
 </body>
 </html>

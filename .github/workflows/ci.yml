@@ -1,9 +1,10 @@
 # Syntax gate on every push/PR; publish the dev channel on a push to dev.
 #
-# There is no build step and no test suite here (see CLAUDE.md: verify by opening
-# index.html in Demo mode). `node --check` is the one gate that can run
-# unattended - these are classic non-module scripts sharing a global lexical
-# scope, so a stray syntax error takes the whole page down, not just one file.
+# There is no build step. `node --check` catches syntax - these are classic
+# non-module scripts sharing a global lexical scope, so a stray syntax error takes
+# the whole page down, not just one file. The static checks, the relay tests and
+# the headless-Chrome smoke test (.github/scripts/) catch what only shows up at
+# runtime. No dependency is committed: puppeteer is installed here only.
 name: CI
 
 on:
@@ -50,8 +51,35 @@ jobs:
             console.log("contract v" + c.version + ", " + c.signals.length + " signals");
           '
 
+      # Inline on*="..." handlers call functions that exist; every <script src> exists.
+      - name: Static checks
+        run: node .github/scripts/static-checks.mjs
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python checks
+        run: |
+          python -m py_compile scripting/*.py
+          python -m unittest discover -s scripting -p 'test_*.py' -v
+
+  # Both app pages load clean, every window.*SelfTest passes (fresh and after demo traffic),
+  # each demo base traffic runs, and telemetry reaches the frame table.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install puppeteer (CI only - nothing is committed)
+        run: npm install --no-save --no-package-lock puppeteer
+      - name: Smoke test
+        run: node .github/scripts/smoke.mjs
+
   publish-dev:
-    needs: check
+    needs: [check, smoke]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     permissions:
@@ -70,7 +98,8 @@ jobs:
           mkdir -p ../site
           rsync -a ./ ../site/ \
             --exclude .git --exclude .github --exclude .claude \
-            --exclude .gitattributes --exclude CLAUDE.md --exclude CONTRIBUTING.md
+            --exclude .gitattributes --exclude CLAUDE.md --exclude CONTRIBUTING.md \
+            --exclude /AUDIT.md --exclude /audit --exclude 'scripting/test_*.py'
 
       - name: Publish to gh-pages:/dev/
         env:

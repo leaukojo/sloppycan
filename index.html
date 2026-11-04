@@ -11,8 +11,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="sloppycan.css">
+<script src="carlito-registry.js" defer></script><!-- every Carlito registry, created empty; must precede every module that registers (j1939.js included) -->
+<script src="j1939-pack.js" defer></script><!-- the one J1939 / NMEA 2000 frame-packing helper (window.J1939Pack); must precede j1939.js and every packer -->
 <script src="j1939-tables.js" defer></script><!-- shared J1939 dictionary + pure decoders (also loaded by explainers/dtc.html + j1939-explainer.html); must precede j1939.js -->
-<script src="j1939.js" defer></script><!-- J1939 module; also sources the DM1 lamp states for carlito.js's uplink, so it must precede carlito.js -->
+<script src="j1939.js" defer></script><!-- J1939 module; also sources the DM1 lamp states for carlito.js's uplink -->
 <script src="graph.js" defer></script><!-- Graph module -->
 <script src="fuzz.js" defer></script><!-- Fuzzing module -->
 <script src="chademo.js" defer></script><!-- CHAdeMO module -->
@@ -21,12 +23,15 @@
 <script src="ramn.js" defer></script><!-- RAMN dashboard module -->
 <script src="carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
 <script src="vehicle-panel.js" defer></script><!-- shared vehicle-panel mechanism (telemetry fan-out, link detection, RAMN handoff, ?vehicle= deep link); needs carlito_contract.js and must precede every panel below -->
-<script src="dronecan.js" defer></script><!-- DroneCAN module (also the carlito dronecan-flavor packer; must precede carlito.js) -->
-<script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; frames decode in the J1939 tab's ISO 11783 mode. Must precede carlito.js -->
-<script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal); must precede carlito.js -->
-<script src="nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig); frames decode in the J1939 tab's nmea2000 mode. Must precede carlito.js -->
-<script src="cleanopen.js" defer></script><!-- the garbage truck's body command (CANopen RPDO decoder + uplink source); must precede carlito.js -->
-<script src="drone.js" defer></script><!-- Drone dashboard + control windows: needs ramn.js (makeFloating) and dronecan.js (dcCtl), and must precede carlito.js, which snapshots its uplink overrides -->
+<script src="dronecan-core.js" defer></script><!-- DroneCAN codec + carlito dronecan-flavor packer + dcCtl uplink sources (no DOM; the bridge page loads only this half) -->
+<script src="dronecan.js" defer></script><!-- DroneCAN tab: receive path, services, allocation, demo, self-test; needs dronecan-core.js -->
+<script src="isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; frames decode in the J1939 tab's ISO 11783 mode -->
+<script src="j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal) -->
+<script src="nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig); frames decode in the J1939 tab's nmea2000 mode -->
+<script src="cleanopen.js" defer></script><!-- the garbage truck's body: command (CANopen RPDO decoder + uplink source) and state (TPDO1, the cleanopen-flavor packer) -->
+<script src="iso11992.js" defer></script><!-- carlito iso11992-flavor packer (the trailer's EBS21 / EBS22); needs j1939-pack.js -->
+<script src="canaerospace.js" defer></script><!-- carlito canaerospace-flavor packer (flaps_actual as a CANaerospace NOD) -->
+<script src="drone.js" defer></script><!-- Drone dashboard + control windows: needs ramn.js (makeFloating) and dronecan.js (dcCtl) -->
 <script src="truck.js" defer></script><!-- Truck dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
 <script src="tractor.js" defer></script><!-- Tractor dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
 <script src="boat.js" defer></script><!-- Boat dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
@@ -94,6 +99,7 @@
       <div class="hstat" title="CAN / adapter error frames seen."><div class="hstat-val" id="statErrors">0</div><div class="hstat-lbl">Errors</div></div>
       <div class="hstat" title="Total payload bytes received."><div class="hstat-val" id="statBytes">0</div><div class="hstat-lbl">Bytes</div></div>
     </div>
+    <div class="hstat" id="statIdsCap" style="display:none" title="ID list capped - oldest IDs dropped"><div class="hstat-lbl" style="color:var(--amber)">IDs capped</div></div>
     <div class="hstat" title="Traffic Dump memory in use. At 100% the oldest frames are dropped (capacity set under Connect ▸ Buffer size)."><div class="hstat-val" id="statDumpBuf">0%</div><div class="hstat-lbl">Memory</div></div>
   </div>
   <div id="pausedBadge" style="display:none" class="badge-paused">
@@ -745,6 +751,7 @@
       <option value="65261">65261 CCSS - speed_limit (SPN 74)</option>
       <option value="65253">65253 HOURS - engine_hours (SPN 247)</option>
       <option value="65258">65258 VW - axle_load (SPN 582), from 0x09</option>
+      <option value="60928">60928 Address Claimed - the implement's NAME, from 0x80</option>
     </select></label>
     <span id="j1939ReqStatus" class="dc-note"></span>
   </div>
@@ -873,13 +880,13 @@
 
 <div id="dronecanWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-dronecan" style="display:none">
   <div class="dc-config">
-    <label><input type="checkbox" id="dcTxEnabled" checked onchange="dronecanCfgChange()" title="Publish the Carlito drone's esc_* telemetry as DroneCAN transfers"> Publish drone telemetry</label>
+    <label><input type="checkbox" id="dcTxEnabled" checked onchange="dronecanCfgChange()" title="Publish the Carlito drone's telemetry as DroneCAN transfers, and answer service requests and node-id allocations from the bus. Off = listen only."> Transmit (telemetry + replies)</label>
     <label>FC node <input type="text" id="dcFcNode" value="1" onchange="dronecanCfgChange()" title="Node-ID the FC's own messages (ArmingStatus, LightsCommand, BeepCommand) are published from. The eight bus nodes take their ids from the roster."></label>
     <span class="dc-note">Publishing rides the Carlito window; decode is always on.</span>
     <a href="explainers/dronecan-explainer.html" target="_blank" rel="noopener" class="learn-link">Learn how DroneCAN works ↗</a>
   </div>
   <!-- Bench controls for the drone's four inbound signals. STATIC markup, deliberately: #dc-panes
-       is rebuilt by innerHTML at ~15 fps, which would tear an open dropdown or colour picker out
+       rewrites its changed cells at ~15 fps, which would tear an open dropdown or colour picker out
        from under the pointer. Failure injection is a click on a roster row in that pane instead. -->
   <div class="dc-config">
     <label>Flight mode <select id="dcFlightMode" onchange="dronecanCtlChange()" title="contract flight_mode - the mode the operator is ASKING for. What the FC is actually in is mode_actual, in the pane below."></select></label>
@@ -900,7 +907,7 @@
     <span class="dc-note">The mount slews at a finite rate, so gimbal_*_actual chases these rather than matching them.</span>
   </div>
   <!-- The service client: a maintenance tool at node 127 asking the roster questions. Static
-       markup for the reason the two bars above are - #dc-panes is rebuilt at ~15 fps and would
+       markup for the reason the two bars above are - #dc-panes rewrites its cells at ~15 fps and would
        tear an open dropdown out from under the pointer. -->
   <div class="dc-config">
     <span class="dc-note">Services (from node 127, a maintenance tool):</span>
@@ -1042,8 +1049,8 @@
   <section class="fuzz-sec">
     <div class="fuzz-sec-title">Timing</div>
     <div class="fuzz-row">
-      <label class="fuzz-inline">Gap (ms) <input type="number" id="fuzzGap" class="fuzz-num" min="1" value="50" oninput="fuzzCfgChange()"></label>
-      <label class="fuzz-inline">Frames per tick <input type="number" id="fuzzBurst" class="fuzz-num" min="1" value="1" oninput="fuzzCfgChange()"></label>
+      <label class="fuzz-inline">Gap (ms) <input type="number" id="fuzzGap" class="fuzz-num" min="1" value="50" oninput="fuzzCfgChange()" onchange="fuzzGapCommit()"></label>
+      <label class="fuzz-inline">Frames per tick <input type="number" id="fuzzBurst" class="fuzz-num" min="1" max="500" value="1" oninput="fuzzCfgChange()"></label>
     </div>
     <div class="fuzz-row mt6">
       <button class="btn fuzz-start" id="fuzzStartBtn" onclick="fuzzToggleRun()">Start fuzzing</button>

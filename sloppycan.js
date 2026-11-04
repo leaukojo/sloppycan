@@ -1,55 +1,30 @@
-// ── sloppyCAN - Architecture Overview ───────────────────────────────────────
-// Single-file HTML app using the Web Serial API (Chrome/Edge only).
+// ── sloppyCAN - core application logic ──────────────────────────────────────
+// The app's core: connection UI, ID List, Traffic Dump, TX Scheduler, Frame Inspector, ISO-TP /
+// OBD-II / UDS / KWP2000, demo mode, workspaces. Classic (non-module) script sharing ONE global
+// lexical scope with can-link.js (transport: SLCAN over Web Serial / WebUSB CDC, gs_usb over
+// WebUSB) and diag-parse.js (diagnostic decoders + tables), both loaded before it - never
+// redeclare a name across the three. Bolt-on modules are deferred and talk to it via window.*.
 //
-// SERIAL LAYER
-//   connectSerial() opens the port at 115200 baud, sends V/N for version,
-//   then opens the CAN bus (O or L). readLoop() reads bytes into frameBuffer
-//   (CAN mode) or termBuffer (terminal mode). processBuffer() parses SLCAN
-//   lines; parseSLCAN() converts them into frame objects fed to ingestFrame().
+// can-link.js parses frames into ingestFrame(); frames (Map<frameKey, frame>, one entry per ID,
+// capped at FRAMES_MAX) and dumpLog (RingBuffer, DUMP_MAX entries) are the data model.
+// frameKey(f) = "E:<id>" (EXT) or "S:<id>" (STD). One rAF loop, throttled to RENDER_INTERVAL,
+// draws whichever of the ID List / Traffic Dump is on show; updateStats() runs every tick.
+// Toolbar filters: STD/EXT, DATA/RTR, ID list with ranges ("024, 100-1FF") + Exclude, data
+// substring (hex/ASCII), Only unseen / Only highlighted (byte colours), Only RX.
 //
-// DATA MODEL
-//   frames      - Map<key, frame>: one entry per unique CAN ID, updated live.
-//   dumpLog     - RingBuffer(DUMP_MAX, default 100000): every received/sent frame in order.
-//   frameNotes  - Map<key, string>: user notes, persists across clear.
-//   notchedBytes / stableBytes - set after a Notch run; drive byte colouring.
-//   notchSnapshot - Map<key, {ts, data}> taken at notch start.
-//
-// RENDERING
-//   Single RAF loop throttled to 100ms. Calls rerenderTable() (ID List) or
-//   renderDump() (Traffic Dump) depending on active tab. Terminal tab pauses
-//   CAN rendering. updateStats() runs every tick regardless of tab.
-//
-// BYTE COLOURS (ID List only, RX frames only)
-//   Green  - hot: changed within hotMs (configurable, default 500ms)
-//   Amber  - noisy: changed during notch window
-//   Grey   - stable: unchanged during notch, current value = snapshot value
-//   White  - unclassified: not notched, not recently changed
-//   (TX-only frames have no byte colouring)
-//
-// FILTERS (toolbar)
-//   Frame type (STD/EXT), Data type (DATA/RTR), ID list with ranges
-//   (e.g. "024, 100-1FF"), Exclude toggle, Data substring (hex/ASCII),
-//   Only unseen (white/green bytes), Only highlighted (green only, subset),
-//   Only RX (hides TX-only frames).
-//
-// TABS (main view)
-//   ID List | Traffic Dump | Frame Inspector | Serial Terminal
-//   Switching to Serial Terminal closes the bus (sends C) and sets terminalMode.
-//   Switching back flushes buffers and resumes CAN parsing.
-//
-// KEY IDs
-//   frameKey(f) = "E:<id>" (EXT) or "S:<id>" (STD) - used in all Maps.
+// Navigate by the `// ── Section ──` headers. CLAUDE.md has the rules, .claude/core-arch.md the
+// section list, data structures and byte-colour semantics.
 
 // port, reader → can-link.js (shared transport)
 let paused = false;
-let frames = new Map(); // frameKey → {id, isExt, isRtr, dlc, data, byteChangedAt, count, firstSeen, lastSeen, timestamps, hasRx, hasTx}
+let frames = new Map(); // frameKey → {id, isExt, isRtr, dlc, data, byteChangedAt, count, firstSeen, lastSeen, timestamps (a rate window, can-link.js), hasRx, hasTx}
 let totalFrames = 0;
 let parseErrors = 0;
 // frameBuffer, termBuffer → can-link.js (shared transport)
 let sortKey = 'id';
 let sortAsc = true;
 let terminalMode = false;
-let frameRateBuffer = []; // timestamps
+let frameRateBuffer = []; // timestamps - a rate window, fed by countRxFrame (can-link.js)
 let bytesReceived = 0;
 let lastRenderTime = 0;
 let changedIds = new Set();
@@ -121,7 +96,9 @@ function setFrameColor(key, color) {
 function refreshFrameColorInDump(key) {
   const color = frameColors.get(key) || '';
   dumpRowEls.forEach(tr => {
-    if (tr.dataset.frameKey === key) tr.style.borderLeft = `3px solid ${color || 'transparent'}`;
+    if (tr.dataset.frameKey !== key) return;
+    tr.style.borderLeft = `3px solid ${color || 'transparent'}`;
+    tr.cells[1].style.color = color || 'var(--amber)';
   });
 }
 
@@ -163,6 +140,9 @@ const frameNotes = new Map(); // key → note string
 
 function saveNotes() {
   scheduleSave(); // persist into the active workspace
+  // Dump rows are built once and kept, so rebuild the visible ones to show the edited note.
+  dumpRowElsDirty = true; dumpLastFirst = -1;
+  if (dumpViewActive) renderDump();
 }
 
 // ── Ring buffer - O(1) push and oldest-first iteration ──────────────────────
@@ -172,8 +152,10 @@ class RingBuffer {
     this.cap  = capacity;
     this.head = 0; // points to oldest entry
     this.size = 0;
+    this.pushed = 0; // entries ever pushed; also the next item's `seq` (stamped on push, never reset)
   }
   push(item) {
+    item.seq = this.pushed++;   // absolute order: the oldest retained entry is seq `pushed - size`
     if (this.size < this.cap) {
       this.buf[(this.head + this.size) % this.cap] = item;
       this.size++;
@@ -204,7 +186,8 @@ const DUMP_ROW_H = 26;  // px per row (must match CSS)
 const DUMP_VISIBLE = 60; // rows rendered at a time
 let dumpLog = new RingBuffer(DUMP_MAX);
 let dumpViewActive = false;
-let dumpRowEls = new Map(); // absIndex → <tr> element, for incremental rendering
+let idsViewActive = true;   // the ID List is the view on load
+let dumpRowEls = new Map(); // dump entry → <tr> element, for incremental rendering
 let dumpRowElsDirty = false; // true = clear all cached rows on next renderDump
 
 function setBufferSize(size) {
@@ -307,7 +290,7 @@ function addTxMessage() {
 
 function removeTxMessage(seq) {
   const msg = txMessages.find(m => m.seq === seq);
-  if (msg) { clearInterval(msg.timer); msg.timer = null; }
+  if (msg) { msg.enabled = false; txCancel(msg); }   // also stops a send already in flight
   txMessages = txMessages.filter(m => m.seq !== seq);
   renderTxRows();
   scheduleSave();
@@ -323,7 +306,7 @@ function renderTxRows() {
       <span class="tx-sep"></span>
       <span class="tx-lbl">ID</span>
       <input type="text" style="width:${msg.ext?80:50}px" maxlength="${maxIdLen}"
-        value="${msg.id.toUpperCase().padStart(maxIdLen,'0')}"
+        value="${escHtml(msg.id.toUpperCase().padStart(maxIdLen,'0'))}"
         oninput="txSyncField(${msg.seq},'id',this.value)"
         placeholder="${msg.ext?'00000000':'000'}">
       <select onchange="txSetExt(${msg.seq}, this.value==='EXT')">
@@ -343,14 +326,14 @@ function renderTxRows() {
       <span class="tx-sep"></span>
       <span class="tx-lbl">Data (hex)</span>
       <input type="text" style="width:${Math.max(80, msg.dlc*27)}px" maxlength="${msg.dlc*3}"
-        value="${msg.data}" placeholder="hex bytes"
+        value="${escHtml(msg.data)}" placeholder="hex bytes"
         oninput="txSyncField(${msg.seq},'data',this.value)"
         class="${!msg.rtr && !txValidateData(msg) ? 'tx-data-invalid' : ''}"
         ${msg.rtr ? 'disabled' : ''}>
       <span class="tx-sep"></span>
       <span class="tx-lbl">Period</span>
       <input type="number" style="width:64px;${msg.period < 10 ? 'border-color:var(--red);background:#f8717115;' : ''}" min="10" max="60000" step="10"
-        value="${msg.period}" onchange="txSetPeriod(${msg.seq}, parseInt(this.value))">
+        value="${escHtml(String(msg.period))}" onchange="txSetPeriod(${msg.seq}, parseInt(this.value))">
       <span class="tx-lbl" style="${msg.period < 10 ? 'color:var(--red)' : ''}">ms</span>
       <span class="tx-sep"></span>
       <input type="checkbox" title="Enable - send periodically" ${msg.enabled ? 'checked' : ''}
@@ -408,7 +391,7 @@ function txAutoDisable(seq) {
   const msg = txMessages.find(m => m.seq === seq);
   if (!msg || !msg.enabled) return;
   msg.enabled = false;
-  clearInterval(msg.timer); msg.timer = null;
+  txCancel(msg);
   const el = document.getElementById(`txstat-${seq}`);
   if (el) { el.textContent = 'OFF'; el.className = 'tx-status stopped'; }
   // Uncheck the enable checkbox if still in DOM
@@ -436,7 +419,7 @@ function txSyncField(seq, field, val) {
     if (onceBtn) onceBtn.disabled = !valid;
     if (!valid && msg.enabled) {
       msg.enabled = false;
-      clearInterval(msg.timer); msg.timer = null;
+      txCancel(msg);
       const el = document.getElementById(`txstat-${seq}`);
       if (el) { el.textContent = 'OFF'; el.className = 'tx-status stopped'; }
     }
@@ -476,7 +459,7 @@ function txSetDlc(seq, dlc) {
   // Re-validate after adjusting data
   if (!txValidateData(msg) && msg.enabled) {
     msg.enabled = false;
-    clearInterval(msg.timer); msg.timer = null;
+    txCancel(msg);
   }
   renderTxRows();
 }
@@ -515,7 +498,7 @@ function txSetEnabled(seq, enabled) {
     txSendOne(msg);   // immediate first send
     txArm(msg);       // then a self-rescheduling loop
   } else {
-    clearInterval(msg.timer); msg.timer = null;
+    txCancel(msg);
   }
   const el = document.getElementById(`txstat-${seq}`);
   if (el) {
@@ -528,14 +511,21 @@ function txSetEnabled(seq, enabled) {
 // Arm a TX message's periodic send as a self-rescheduling timeout: the next send is queued only
 // AFTER the current one resolves, so on a slow/stalled bus (write latency > period) sends can't
 // pile up in the serialized write queue the way setInterval-over-an-async-callback would. Cancel
-// the usual way - clearInterval/clearTimeout(msg.timer) (interchangeable) + msg.timer = null. The
-// re-arm guard mirrors the enable/suspend flags the cancel sites set, so a disable or suspend that
-// lands during the await simply skips the next re-arm.
+// with txCancel(msg). msg.timer is null while a send is in flight, so clearing it alone cannot
+// stop that loop; the generation counter does - each arm and each cancel bumps it, and a tick
+// re-arms only if it is still the current generation. A disable -> enable (or suspend -> resume)
+// landing during the await therefore leaves exactly one loop.
+function txCancel(msg) {
+  clearTimeout(msg.timer); msg.timer = null;
+  msg.gen = (msg.gen || 0) + 1;
+}
 function txArm(msg) {
+  const gen = msg.gen = (msg.gen || 0) + 1;
   const tick = async () => {
+    if (gen !== msg.gen) return;
     msg.timer = null;                 // this firing consumed the handle
     await txSendOne(msg);
-    if (msg.enabled && !txSuspended) msg.timer = setTimeout(tick, msg.period);
+    if (gen === msg.gen && msg.enabled && !txSuspended) msg.timer = setTimeout(tick, msg.period);
   };
   msg.timer = setTimeout(tick, msg.period);
 }
@@ -571,21 +561,35 @@ async function txTransmitRaw(msg) {
   } else await sendCommand(txBuildSlcan(msg));
 }
 
+// The ID List costs ~45 µs per row per render (measured: 2,000 IDs ≈ 90 ms of every 100 ms tick,
+// 5,000 ≈ 220 ms), so random-ID traffic past FRAMES_MAX drops the least recently seen unpinned IDs -
+// a tenth at a time, so the scan is not per frame - and the header's "capped" badge says so.
+const FRAMES_MAX = 2000;
+let framesCapped = false;
+function framesMakeRoom() {
+  if (frames.size < FRAMES_MAX) return;
+  const old = [];
+  for (const [k, f] of frames) if (!pinnedKeys.has(k)) old.push([f.lastSeen, k]);
+  old.sort((a, b) => a[0] - b[0]);
+  const drop = Math.min(old.length, frames.size - Math.floor(FRAMES_MAX * 0.9));
+  for (let i = 0; i < drop; i++) frames.delete(old[i][1]);
+  if (drop > 0) framesCapped = true;
+}
+
 // Record a transmitted frame into the dump log + frames map. Shared by txSendOne, fuzzTxFrame and
 // isotpTxCan. `data` is stored by reference - pass a caller-owned array that won't be mutated after.
 function recordTxFrame(id, isExt, isRtr, dlc, data) {
   const now = Date.now();
   dumpLog.push({ ts: now, isTx: true, id, isExt, isRtr, dlc, data });
-  dumpFilterDirty = true;
   const key = frameKey({ isExt, id });
   if (frames.has(key)) {
     const ex = frames.get(key);
-    ex.hasTx = true; ex.count++; ex.lastSeen = now; ex.timestamps.push(now);
-    if (ex.timestamps.length > 120) ex.timestamps.splice(0, 20);
+    ex.hasTx = true; ex.count++; ex.lastSeen = now; rateWindowPush(ex.timestamps);
     if (!ex.hasRx) { ex.data = data; ex.dlc = dlc; ex.isRtr = isRtr; } // ID list shows latest TX payload
   } else {
+    framesMakeRoom();
     frames.set(key, { id, isExt, isRtr, dlc, data,
-      byteChangedAt: [], count: 1, firstSeen: now, lastSeen: now, timestamps: [now],
+      byteChangedAt: [], count: 1, firstSeen: now, lastSeen: now, timestamps: [performance.now()],
       hasRx: false, hasTx: true });
   }
   if (window.scriptLinkFrame) scriptLinkFrame({ id, isExt, isRtr, dlc, data }); // ← Script link hook (our own TX)
@@ -632,7 +636,7 @@ function txSendOnce(btn, seq) {
 }
 
 function stopAllTx() {
-  txMessages.forEach(m => { clearInterval(m.timer); m.timer = null; m.enabled = false; });
+  txMessages.forEach(m => { txCancel(m); m.enabled = false; });
   txSuspended = false;
   const btn = document.getElementById('txSuspendBtn');
   if (btn) {
@@ -777,13 +781,15 @@ window.canParseIntAuto = (str) => {
 // log ring (append + cap + optional same-id coalesce) + table builder (empty-state, near-bottom
 // scroll-follow). This owns all of that; the module supplies only its decode/session/TX specifics.
 //
-// cfg: { wrapId, logElId, tableClass, theadHtml, emptyHtml, rowHtml(e), renderTop(),
+// cfg: { wrapId, logElId, tableClass, theadHtml, emptyHtml, row(e), renderTop(),
 //        onTick?, coalesce?(prev,e), renderMs=67, logMax=600, readoutElId?, txHintElId? }
+// row(e) returns a renderKeyedRows row spec ({ cls?, cells: [...] }); rows are keyed by entry.
 // returns: { markDirty, pushLog, clearLog, render, ready, showTxHint, readout }
 window.makeStackedLogTab = function (cfg) {
-  const renderMs = cfg.renderMs || 67;     // ~15 fps cap on the full-table innerHTML rebuild
+  const renderMs = cfg.renderMs || 67;     // ~15 fps cap on the render
   const logMax   = cfg.logMax   || 600;
   let log = [];
+  let seq = 0;                             // per-entry key for the keyed log rows
   let dirty = false, wasHidden = true, lastRender = 0, lastTick = 0;
 
   function markDirty() { dirty = true; }
@@ -796,6 +802,7 @@ window.makeStackedLogTab = function (cfg) {
       prev.ts = e.ts; prev.data = e.data; prev.summary = e.summary;
       prev.count = (prev.count || 1) + 1; dirty = true; return;
     }
+    e.seq = ++seq;
     log.push(e);
     if (log.length > logMax) log.shift();
     dirty = true;
@@ -803,17 +810,14 @@ window.makeStackedLogTab = function (cfg) {
 
   function clearLog() { log = []; dirty = true; }
 
-  // Rebuild the frame-log table, preserving scroll: stick to the bottom if already near it,
-  // else hold the prior scroll position (an innerHTML rebuild otherwise resets scrollTop to 0).
+  // Update the frame-log table in place (keyed by entry, so a coalesced entry updates its own row),
+  // sticking to the bottom if already near it.
   function renderLog() {
     const el = document.getElementById(cfg.logElId);
     if (!el) return;
-    if (!log.length) { el.innerHTML = cfg.emptyHtml; return; }
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    const prevTop = el.scrollTop;
-    el.innerHTML = `<table class="${cfg.tableClass}"><thead>${cfg.theadHtml}</thead><tbody>` +
-      log.map(cfg.rowHtml).join('') + '</tbody></table>';
-    if (nearBottom) el.scrollTop = el.scrollHeight; else el.scrollTop = prevTop;
+    renderKeyedTable(el, cfg, log, e => e.seq, cfg.row);
+    if (log.length && nearBottom) el.scrollTop = el.scrollHeight;
   }
 
   function render() {
@@ -859,6 +863,7 @@ function resetConnectionState() {
   stableBytes.clear();
   notching      = false;
   notchSnapshot = null;
+  dumpFilterDirty = true;   // "Only unseen" reads the notch state
 }
 
 // Keep the Data-filter placeholder in step with the Display format, so it's clear
@@ -1201,7 +1206,7 @@ function toggleTxSuspend() {
   const btn = document.getElementById('txSuspendBtn');
   if (txSuspended) {
     // Stop all running timers
-    txMessages.forEach(m => { if (m.timer) { clearInterval(m.timer); m.timer = null; } });
+    txMessages.forEach(m => txCancel(m));
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="5 3 19 12 5 21 5 3"/></svg> Resume All`;
     btn.classList.add('active-notch'); // amber highlight
     log('TX suspended', 'warn');
@@ -1221,13 +1226,7 @@ function toggleTxSuspend() {
 // openWebUSBCDC (Android CDC-ACM open) → can-link.js (shared transport)
 
 // ── gs_usb transport ───────────────────────────────────────────────────────────
-// Device/protocol primitives → can-link.js (shared transport): openGsUsb,
-// gsBitTimingPass, gsCalcBitTiming, gsSetBitTiming, gsSetMode, usbRecoverStall,
-// gsUsbPump, gsUsbPackFrame. gsUsbBuildFrame (TX-scheduler glue) stays below.
-
-// gsBitTimingPass, gsCalcBitTiming, gsSetBitTiming, gsSetMode, USB_MAX_STALLS,
-// usbRecoverStall, gsUsbPump, gsUsbPackFrame → can-link.js (shared transport).
-
+// The gs_usb device primitives live in can-link.js; only the TX-scheduler glue is here.
 function gsUsbBuildFrame(msg) {
   return gsUsbPackFrame(parseInt(msg.id, 16), msg.ext, msg.rtr, txDataBytes(msg));
 }
@@ -1307,7 +1306,7 @@ async function connectSerial() {
       port = await navigator.serial.requestPort();
       await port.open({ baudRate: 115200 });
       log('Port opened successfully', 'ok');
-      readLoop();
+      startReadLoop();
     }
 
     if (connMode !== 'gsusb') {
@@ -1365,9 +1364,14 @@ async function connectSerial() {
         ws.close();
       }
     } catch(_) {}
-    try { if (port) await port.close(); } catch(_) {}
+    // A started read loop holds the port's reader lock, and close() rejects on a locked stream - the
+    // port would stay open and the next Connect fail with "already open". Cancel the reader and let
+    // the loop's finally release the lock first. `port` is nulled BEFORE that, so the finally does not
+    // take this half-built session for a live one and run disconnectSerial over it.
+    const p = port; port = null;
+    await stopReadLoop();
+    try { if (p) await p.close(); } catch(_) {}
     try { if (usbSerDev) await usbSerDev.close(); } catch(_) {}
-    port = null;
     usbSerDev = null; usbSerIn = null; usbSerOut = null;
     slcanSocket = null; slcanSocketUrl = '';
     connMode = 'serial';
@@ -1421,15 +1425,20 @@ async function disconnectSerial() {
     usbSerDev = null; usbSerIn = null; usbSerOut = null;
     try { await dev.close(); } catch(e) {}
   } else {
-    try { if (reader) { await reader.cancel(); } } catch(_) {}
-    try { if (port) { await port.close(); } } catch(_) {}
-    port = null;
+    // `port` first, so readLoop's finally does not start a second, overlapping disconnectSerial; then
+    // wait for the loop to release the reader lock, which close() needs (see stopReadLoop).
+    const p = port; port = null;
+    await stopReadLoop();
+    try { if (p) { await p.close(); } } catch(_) {}
     reader = null;
   }
   resetConnectionState();
   stopAllTx();
   if (window.fuzzStop) window.fuzzStop();
   if (window.obdStop) window.obdStop();
+  // An ISO-TP transaction cannot finish without the bus: end it, so no timer outlives the link and
+  // its entry does not sit on "waiting…".
+  { const el = isotpPendingEl; isotpCancelAll(); isotpPendingEl = null; if (el) isotpMarkError(el, 'disconnected'); }
   if (window.xcpStop) window.xcpStop();
   if (window.canopenStop) window.canopenStop();
   if (window.dronecanStop) window.dronecanStop();
@@ -1494,7 +1503,6 @@ function ingestFrameBody(frame, opts) {
 
   // Always append to dump log (ring buffer - O(1), no GC pressure)
   dumpLog.push({ ts: now, isTx: false, isFwd: fwd, id: frame.id, isExt: frame.isExt, isRtr: frame.isRtr, dlc: frame.dlc, data: frame.data.slice() });
-  dumpFilterDirty = true;
   // Here, not with the module hooks below: one of them can answer synchronously (j1939ServeRequest →
   // canForward), and scripts must see the request before its answer, as the dump does.
   if (window.scriptLinkFrame) scriptLinkFrame(frame); // ← Script link hook
@@ -1522,14 +1530,14 @@ function ingestFrameBody(frame, opts) {
     existing.lastSeen = now;
     existing.hasRx = true;
     if (fwd) { existing.hasTx = true; existing.isFwd = true; }
-    existing.timestamps.push(now);
-    if (existing.timestamps.length > 120) existing.timestamps.splice(0, 20);
+    rateWindowPush(existing.timestamps);   // age-pruned (can-link.js), so the Rate column is not capped
   } else {
+    framesMakeRoom();
     frames.set(key, {
       id: frame.id, isExt: frame.isExt, isRtr: frame.isRtr,
       dlc: frame.dlc, data: frame.data,
       byteChangedAt: frame.data.map(() => now),
-      count: 1, firstSeen: now, lastSeen: now, timestamps: [now],
+      count: 1, firstSeen: now, lastSeen: now, timestamps: [performance.now()],   // rate window clock (can-link.js)
       hasRx: true, hasTx: fwd, isFwd: fwd
     });
     changedIds.add(key);
@@ -1547,11 +1555,12 @@ function ingestFrameBody(frame, opts) {
 }
 
 function updateStats() {
-  const now = Date.now();
-  while (frameRateBuffer.length > 0 && now - frameRateBuffer[0] > 1000) frameRateBuffer.shift();
   document.getElementById('statIds').textContent    = frames.size;
+  const capEl = document.getElementById('statIdsCap');
+  const capShow = framesCapped ? '' : 'none';
+  if (capEl.style.display !== capShow) capEl.style.display = capShow;
   document.getElementById('statTotal').textContent  = totalFrames.toLocaleString();
-  document.getElementById('statRate').textContent   = frameRateBuffer.length;
+  document.getElementById('statRate').textContent   = rateWindowCount(frameRateBuffer);
   document.getElementById('statErrors').textContent = parseErrors;
   const pct = Math.round(dumpLog.size / DUMP_MAX * 100);
   document.getElementById('statDumpBuf').textContent = pct + '%';
@@ -1567,10 +1576,11 @@ function startRenderLoop() {
     if (ts - lastRenderTime >= RENDER_INTERVAL) {
       lastRenderTime = ts;
       updateStats();
-      if (!terminalMode) {
-        if (dumpViewActive) renderDump();
-        else rerenderTable();
-      }
+      if (!terminalMode && dumpViewActive) renderDump();
+      // Behind another tab the ID List is not drawn at all (it costs ~45 µs a row; switchViewTab
+      // draws it on the way back), and the flashes queued meanwhile would be stale by then.
+      if (!terminalMode && idsViewActive) rerenderTable();
+      else changedIds.clear();
     }
     rafId = requestAnimationFrame(loop);
   }
@@ -1639,6 +1649,7 @@ function rerenderTable() {
   // Pinned IDs stay visible in the ID List even when the filter would hide them.
   // (The Traffic Dump filter is separate and still applies to everything there.)
   let rows = Array.from(frames.values()).filter(f => applyFilter(f, flt) || pinnedKeys.has(frameKey(f)));
+  const rateOf = new Map(rows.map(f => [f, rateWindowCount(f.timestamps)]));   // once per render: column + sort
 
   // Sort each group (pinned / unpinned) independently, then concat
   const cmp = (a, b) => {
@@ -1648,7 +1659,7 @@ function rerenderTable() {
       case 'type': va = (a.isExt ? 1 : 0); vb = (b.isExt ? 1 : 0); break;
       case 'len': va = a.dlc; vb = b.dlc; break;
       case 'count': va = a.count; vb = b.count; break;
-      case 'rate': va = a.timestamps.length; vb = b.timestamps.length; break;
+      case 'rate': va = rateOf.get(a); vb = rateOf.get(b); break;
       case 'age': va = a.lastSeen; vb = b.lastSeen; break;
       default: va = a.id; vb = b.id;
     }
@@ -1687,6 +1698,7 @@ function rerenderTable() {
     if (!visibleKeys.has(row.dataset.key)) tbody.removeChild(row);
   });
 
+  const flashRows = [];   // rows whose "changed" flash restarts this tick (one reflow for all, below)
   rows.forEach((f, i) => {
     const key = frameKey(f);
     const idHex = f.isExt
@@ -1714,7 +1726,7 @@ function rerenderTable() {
           '<span class="byte byte-pad">00</span>'.repeat(Math.max(0, hexSlots - f.data.length)) +
           (f.data.length ? `<span class="byte ascii-str" style="margin-left:6px;color:var(--text2);letter-spacing:0.02em">${f.data.map((b, i) => (b >= 32 && b < 127) ? `<span style="${byteClass(i) === ' noisy' ? 'color:var(--amber)' : byteClass(i) === ' hot' ? 'color:var(--green)' : byteClass(i) === ' stable' ? 'color:var(--text3);opacity:0.55' : ''}">${escHtml(String.fromCharCode(b))}</span>` : `<span style="color:var(--text3)">.</span>`).join('')}</span>` : '')
         : f.data.map((b, i) => `<span class="byte${byteClass(i)}">${escHtml(formatByte(b, fmt))}</span>`).join('');
-    const rate = f.timestamps.filter(t => now2 - t < 1000).length;
+    const rate = rateOf.get(f);
     const ageMs = now2 - f.lastSeen;
     const ageStr = ageMs < 1000 ? `${ageMs}ms` : `${(ageMs/1000).toFixed(1)}s`;
     const fresh = ageMs < 500;
@@ -1748,12 +1760,7 @@ function rerenderTable() {
     }
 
     // ── Row-level state (always applied) ──────────────────────────────────────
-    const changed = changedIds.has(key);
-    if (changed) {
-      row.classList.remove('changed');
-      void row.offsetWidth; // force reflow to restart CSS animation
-      row.classList.add('changed');
-    }
+    if (changedIds.has(key)) flashRows.push(row);
     const isNewId  = notchSnapshot !== null && !notchSnapshot.has(key);
     const isPinned = pinnedKeys.has(key);
     const colorStr = frameColors.get(key) || '';
@@ -1765,7 +1772,7 @@ function rerenderTable() {
     if (row.dataset.pinned !== (isPinned ? '1' : '0')) {
       row.dataset.pinned = isPinned ? '1' : '0';
       const pinSvg = `<svg viewBox="0 0 24 24" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
-      row.cells[0].innerHTML = `<button class="pin-btn${isPinned ? ' pinned' : ''}" data-pin onclick="togglePin('${key}');event.stopPropagation()" title="${isPinned ? 'Unpin' : 'Pin to top'}">${pinSvg}</button>`;
+      row.cells[0].innerHTML = `<button class="pin-btn${isPinned ? ' pinned' : ''}" data-pin title="${isPinned ? 'Unpin' : 'Pin to top'}">${pinSvg}</button>`;
     }
 
     // ── cells[1-3, 8]: rarely-changing static content ─────────────────────────
@@ -1782,8 +1789,9 @@ function rerenderTable() {
       row.cells[8].title       = noteStr;
     }
 
-    // ── cell[4]: data bytes - always update (byte colors are time-dependent) ──
-    row.cells[4].innerHTML = dataHtml;
+    // ── cell[4]: data bytes - byte colors are time-dependent, but write only on change so a
+    // selection in the data column survives the tick ──
+    setHtmlIfChanged(row.cells[4], dataHtml);
 
     // ── cells[5-7]: live counters - always update ─────────────────────────────
     row.cells[5].textContent = f.count.toLocaleString();
@@ -1797,6 +1805,12 @@ function rerenderTable() {
     }
   });
 
+  // Restart the CSS "changed" flash: remove, ONE forced reflow for every row, re-add.
+  if (flashRows.length) {
+    for (const row of flashRows) row.classList.remove('changed');
+    void tbody.offsetWidth;
+    for (const row of flashRows) row.classList.add('changed');
+  }
   changedIds.clear();
 }
 
@@ -1846,6 +1860,7 @@ function switchViewTab(name) {
   }
 
   dumpViewActive = name === 'dump';
+  idsViewActive = name === 'ids';
 
   document.getElementById('vtab-ids').classList.toggle('active', name === 'ids');
   document.getElementById('vtab-dump').classList.toggle('active', name === 'dump');
@@ -1885,8 +1900,18 @@ function switchViewTab(name) {
   document.getElementById('graphWrap').style.display    = name === 'graph'   ? 'flex' : 'none';
   document.getElementById('fuzzWrap').style.display     = name === 'fuzz'    ? 'flex' : 'none';
 
-  // In demo mode, opening a tab with its own base traffic offers to switch to it.
-  if (name === 'j1939' && window.demoMaybeSwitch && window.j1939GetProto) {
+  // In demo mode, opening a tab with its own base traffic offers to switch to it (the traffic
+  // already follows the Carlito vehicle, demoOnTelemetry). Outside demo, the J1939 tab shown with
+  // a truck, tractor or boat on the link selects that machine's mode - ONCE per vehicle per link
+  // (j1939TabFollowKind), so a mode the user picks afterwards stands.
+  const linkProto = (name === 'j1939' && !demoMode)
+    ? demoVehicleTraffic(window.carlitoTelemetry ? window.carlitoTelemetry() : null) : null;
+  if (linkProto && DEMO_J1939_KINDS.includes(linkProto.kind) && window.j1939SetProto) {
+    if (linkProto.kind !== j1939TabFollowKind) {
+      j1939TabFollowKind = linkProto.kind;
+      if (window.j1939GetProto() !== linkProto.kind) { window.j1939SetProto(linkProto.kind); scheduleSave(); }
+    }
+  } else if (name === 'j1939' && window.demoMaybeSwitch && window.j1939GetProto) {
     const m = window.j1939GetProto();
     const lbl = m === 'nmea2000' ? 'NMEA 2000' : m === 'iso11783' ? 'ISO 11783' : 'J1939';
     window.demoMaybeSwitch(m, lbl);
@@ -1904,6 +1929,7 @@ function switchViewTab(name) {
   // Showing this tab IS selecting a protocol, because it holds exactly one; the J1939 tab holds
   // three and asks on its mode buttons instead. One table for both, in vehicle-panel.js.
   if (name === 'dronecan' && window.vehiclePanelRequestForProto) window.vehiclePanelRequestForProto('dronecan');
+  if (name === 'ids')   rerenderTable();   // the render loop skips it while hidden, and is stopped after a disconnect
   if (name === 'term')  { document.getElementById('termInput').focus(); updateTermTrafficWarn(); }
   if (name === 'isotp') { document.getElementById('isotpInput').focus(); obdOnShow(); }
   updateNotchBtn();
@@ -1939,6 +1965,7 @@ function onFilterChange() {
 // filter placeholder, then re-renders (dump only when its view is active).
 function onByteFormatChange() {
   dumpFilterDirty = true; dumpLastSize = -1; dumpLastFirst = -1;
+  dumpRowElsDirty = true; // kept dump rows hold bytes formatted the old way
   syncDataPlaceholder();
   rerenderTable();
   if (dumpViewActive) renderDump();
@@ -1980,9 +2007,10 @@ let dumpStartTs = null; // relative time base
 let dumpAutoScroll = true; // follows new frames unless user scrolls up
 let dumpScrollLocked = false; // user explicitly paused auto-scroll
 let dumpLastFirst = -1, dumpLastLast = -1, dumpLastSize = -1, dumpLastHead = -1; // dirty-check
-let dumpLastFilterSig = ''; // last applied filter predicate; change ⇒ index→entry map shifts, evict row cache
-let dumpFilterDirty = true;  // set when filter changes or new frame arrives
-let dumpFilterCache = null;  // cached filtered array; null = no active filter
+let dumpFilterDirty = true;  // set when the filter (or the notch state it reads) changes: full re-filter
+let dumpFilterCache = null;  // cached filtered array, in seq order; null = no active filter
+let dumpFilterSig   = '';    // the filter the cache was built for (JSON of getFilter())
+let dumpFilterNext  = 0;     // seq of the first dumpLog entry the cache has not looked at yet
 
 function onDumpScroll() {
   const wrap = document.getElementById('dumpWrap');
@@ -2019,23 +2047,30 @@ function renderDump() {
   const flt = getFilter();
   const hasFilter = hasActiveFilter(flt);
 
-  // When the filter PREDICATE changes, the cached rows (keyed by viewport index) now map to
-  // different entries, since index i indexes the filtered array. Evict the row cache. Gated on
-  // the predicate itself - NOT on dumpFilterDirty (which also fires on every new frame, where
-  // the filtered prefix stays stable and the cache is still valid).
-  const filterSig = JSON.stringify(flt);
-  if (filterSig !== dumpLastFilterSig) { dumpRowElsDirty = true; dumpLastFilterSig = filterSig; }
-
-  // Apply filter using ring buffer's O(result) filter method; cache result until dirty
+  // The filtered view is kept incrementally: only entries pushed since the last render are tested,
+  // and entries the ring has overwritten are dropped off the front. The whole ring is re-filtered only
+  // when the filter itself changes (its signature, or dumpFilterDirty for the notch state it reads).
   if (!hasFilter) {
     dumpFilterCache = null;
     dumpFilterDirty = false;
-  } else if (dumpFilterDirty) {
-    dumpFilterCache = dumpLog.filter(e => applyFilter(e, flt));
-    dumpFilterDirty = false;
-    // The filtered array grows with a stable prefix (ring buffer only wraps after 100k
-    // entries), so existing index→entry mappings stay valid - no full row eviction needed.
-    // Genuine ring-wrap invalidation is handled below via dumpLog.head.
+  } else {
+    const sig = JSON.stringify(flt);
+    const firstSeq = dumpLog.pushed - dumpLog.size;
+    if (dumpFilterDirty || !dumpFilterCache || sig !== dumpFilterSig) {
+      dumpFilterCache = dumpLog.filter(e => applyFilter(e, flt));
+      dumpFilterSig = sig;
+      dumpFilterDirty = false;
+    } else if (dumpFilterNext < dumpLog.pushed) {
+      let drop = 0;
+      while (drop < dumpFilterCache.length && dumpFilterCache[drop].seq < firstSeq) drop++;
+      if (drop) dumpFilterCache.splice(0, drop);
+      for (let q = Math.max(dumpFilterNext, firstSeq); q < dumpLog.pushed; q++) {
+        const e = dumpLog.get(q - firstSeq);
+        if (applyFilter(e, flt)) dumpFilterCache.push(e);
+      }
+    }
+    dumpFilterNext = dumpLog.pushed;
+    // No row eviction needed: rows are keyed by entry (see below), so a ring wrap only moves them.
   }
   const filtered = dumpFilterCache; // null = use ring buffer directly
 
@@ -2060,8 +2095,6 @@ function renderDump() {
 
   // Skip redraw if the visible window and data size haven't changed
   if (firstRow === dumpLastFirst && lastRow === dumpLastLast && dumpLog.size === dumpLastSize && dumpLog.head === dumpLastHead) return;
-  // When ring buffer wraps, head advances - cached rows now map to stale entries
-  if (dumpLog.head !== dumpLastHead && dumpLastHead !== -1) dumpRowElsDirty = true;
   dumpLastFirst = firstRow;
   dumpLastLast  = lastRow;
   dumpLastSize  = dumpLog.size;
@@ -2078,51 +2111,61 @@ function renderDump() {
     dumpRowElsDirty = false;
   }
 
-  // Add missing rows for the current viewport
-  for (let i = firstRow; i <= lastRow; i++) {
-    if (dumpRowEls.has(i)) continue;
-    const e = getEntry(i);
-    const relMs  = e.ts - (dumpStartTs ?? e.ts);
-    const relStr = (relMs / 1000).toFixed(3) + 's';
-    const idHex  = '0x' + e.id.toString(16).toUpperCase().padStart(e.isExt ? 8 : 3, '0');
-    const typeLabel = e.isRtr ? 'RTR' : e.isExt ? 'EXT' : 'STD';
-    const typeClass = e.isRtr ? 'rtr' : e.isExt ? 'ext' : 'std';
-    const dirBadge  = e.isFwd
-      ? ' <span class="td-type fw">FW</span>'
-      : e.isTx
-        ? ' <span class="td-type tx">TX</span>'
-        : ' <span class="td-type rx">RX</span>';
-    const tr = document.createElement('tr');
-    const fk = frameKey(e);
-    const dumpColor = frameColors.get(fk) || '';
-    const isNewDump = notchSnapshot !== null && !notchSnapshot.has(fk);
-    tr.style.cssText = `transform:translateY(${i * DUMP_ROW_H}px);position:absolute;width:100%;cursor:pointer;border-left:3px solid ${dumpColor || 'transparent'}`;
-    if (isNewDump) tr.classList.add('new-id');
-    tr.title = 'Click to inspect';
-    tr.dataset.frameKey = fk;
-    tr.innerHTML = `
-      <td style="color:var(--text3)">${relStr}</td>
-      <td style="color:${dumpColor || 'var(--amber)'};font-weight:500;font-family:var(--mono)">${idHex}</td>
-      <td><span class="td-type ${typeClass}">${typeLabel}</span>${dirBadge}</td>
-      <td style="color:var(--text2);text-align:center">${e.dlc}</td>
-      <td class="td-data">${formatDumpData(e, fk)}</td>
-      <td style="color:var(--text3);font-family:var(--sans);font-size:11px;font-style:italic;padding:3px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${escHtml(frameNotes.get(frameKey(e)) || '')}</td>
-    `;
-    tr.addEventListener('click', () => inspectFrame(e));
-    tbody.appendChild(tr);
-    dumpRowEls.set(i, tr);
-  }
-
-  // Evict rows that scrolled far outside the viewport (keep a generous buffer)
+  // Rows are keyed by ENTRY, not by index: once the ring wraps, every entry's index drops by one per
+  // new frame, and index keys recreated every visible row on every render (restarting the hover
+  // fade, splitting clicks). Keyed by entry, a row only moves. Only the viewport creates rows; the
+  // buffer around it keeps (and repositions) rows already built; everything else is evicted.
+  const relStr = e => ((e.ts - (dumpStartTs ?? e.ts)) / 1000).toFixed(3) + 's';
   const evictBuffer = DUMP_VISIBLE * 2;
-  dumpRowEls.forEach((tr, idx) => {
-    if (idx < firstRow - evictBuffer || idx > lastRow + evictBuffer) {
-      tbody.removeChild(tr);
-      dumpRowEls.delete(idx);
+  const keepLo = Math.max(0, firstRow - evictBuffer), keepHi = Math.min(total - 1, lastRow + evictBuffer);
+  const keep = new Set();
+  for (let i = keepLo; i <= keepHi; i++) {
+    const e = getEntry(i);
+    let tr = dumpRowEls.get(e);
+    if (!tr) {
+      if (i < firstRow || i > lastRow) continue;
+      tr = dumpBuildRow(e);
+      tbody.appendChild(tr);
+      dumpRowEls.set(e, tr);
     }
-  });
+    keep.add(e);
+    if (tr._i !== i) { tr._i = i; tr.style.transform = `translateY(${i * DUMP_ROW_H}px)`; }
+    // The time base moves when the ring wraps (see dumpStartTs above), so a kept row's time follows it.
+    if (tr._base !== dumpStartTs) { tr._base = dumpStartTs; tr.cells[0].textContent = relStr(e); }
+  }
+  dumpRowEls.forEach((tr, e) => { if (!keep.has(e)) { tr.remove(); dumpRowEls.delete(e); } });
 
   table.style.top = '0';
+}
+
+// One Traffic Dump row (position and relative time are set by renderDump, which owns both).
+function dumpBuildRow(e) {
+  const idHex  = '0x' + e.id.toString(16).toUpperCase().padStart(e.isExt ? 8 : 3, '0');
+  const typeLabel = e.isRtr ? 'RTR' : e.isExt ? 'EXT' : 'STD';
+  const typeClass = e.isRtr ? 'rtr' : e.isExt ? 'ext' : 'std';
+  const dirBadge  = e.isFwd
+    ? ' <span class="td-type fw">FW</span>'
+    : e.isTx
+      ? ' <span class="td-type tx">TX</span>'
+      : ' <span class="td-type rx">RX</span>';
+  const tr = document.createElement('tr');
+  const fk = frameKey(e);
+  const dumpColor = frameColors.get(fk) || '';
+  const isNewDump = notchSnapshot !== null && !notchSnapshot.has(fk);
+  tr.style.cssText = `position:absolute;width:100%;cursor:pointer;border-left:3px solid ${dumpColor || 'transparent'}`;
+  if (isNewDump) tr.classList.add('new-id');
+  tr.title = 'Click to inspect';
+  tr.dataset.frameKey = fk;
+  tr.innerHTML = `
+    <td style="color:var(--text3)"></td>
+    <td style="color:${dumpColor || 'var(--amber)'};font-weight:500;font-family:var(--mono)">${idHex}</td>
+    <td><span class="td-type ${typeClass}">${typeLabel}</span>${dirBadge}</td>
+    <td style="color:var(--text2);text-align:center">${e.dlc}</td>
+    <td class="td-data">${formatDumpData(e, fk)}</td>
+    <td style="color:var(--text3);font-family:var(--sans);font-size:11px;font-style:italic;padding:3px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${escHtml(frameNotes.get(frameKey(e)) || '')}</td>
+  `;
+  tr.addEventListener('click', () => inspectFrame(e));
+  return tr;
 }
 
 // ── Frame Inspector ───────────────────────────────────────────────────────────
@@ -2501,6 +2544,7 @@ function clearInspector() {
 
 function clearFrames() {
   frames.clear();
+  framesCapped = false;
   changedIds.clear();
   if (notching) {
     clearInterval(notchTicker); notchTicker = null;
@@ -2584,7 +2628,7 @@ function notchFinish(snapshot) {
   updateFilterOutBtn();
   log(`Notch complete - ${noisyCount} noisy byte(s) across ${notchedBytes.size} ID(s)`, 'ok');
   rerenderTable();
-  dumpRowElsDirty = true; dumpLastHead = -1; renderDump();
+  dumpRowElsDirty = true; dumpLastHead = -1; dumpFilterDirty = true; renderDump();
 }
 
 function notchClick() {
@@ -2602,7 +2646,7 @@ function notchClick() {
     updateFilterOutBtn();
     log('Notch cleared', 'warn');
     rerenderTable();
-    dumpRowElsDirty = true; dumpLastHead = -1; renderDump();
+    dumpRowElsDirty = true; dumpLastHead = -1; dumpFilterDirty = true; renderDump();
     return;
   }
 
@@ -2625,6 +2669,7 @@ function notchClick() {
       lastSeen: f.lastSeen
     });
   });
+  dumpFilterDirty = true;   // "Only unseen" reads notchSnapshot
 
   // Countdown
   let elapsed = 0;
@@ -2742,7 +2787,8 @@ let demoTimers = [];
 let demoCounters = {};
 // Only one "base traffic" generator runs at a time. Starts on the traffic for the
 // active tab (RAMN by default); switching to the J1939/N2K, CHAdeMO, CANopen, or DroneCAN
-// tab in demo mode prompts to change it. Returning to RAMN requires a page reload.
+// tab in demo mode prompts to change it, and the vehicle on the Carlito link changes it with
+// no prompt (demoOnTelemetry) - back to RAMN included, with no reload.
 // 'ramn' | 'j1939' | 'nmea2000' | 'iso11783' (drive demoInjectN2k) | 'chademo' | 'canopen' | 'dronecan'.
 let demoBaseTraffic = 'ramn';
 
@@ -2788,8 +2834,7 @@ function demoTick(id) {
   // Build a synthetic parsed frame and inject it
   const frame = { id, isExt: false, isRtr: false, dlc: 8, data };
   ingestFrame(frame);
-  totalFrames++;
-  frameRateBuffer.push(Date.now());
+  countRxFrame();
 }
 
 // Demo: inject J1939 / NMEA 2000 / ISOBUS frames for the active J1939-tab proto mode
@@ -2798,8 +2843,7 @@ function demoInjectN2k() {
   if (!window.j1939DemoFrames) return;
   for (const fr of window.j1939DemoFrames()) {
     ingestFrame(fr);
-    totalFrames++;
-    frameRateBuffer.push(Date.now());
+    countRxFrame();
   }
 }
 
@@ -2874,7 +2918,7 @@ window.demoBaseTrafficLabel = () => demoTrafficLabel(demoBaseTraffic);
 function demoMaybeSwitch(kind, label) {
   if (!demoMode) return true;
   if (demoBaseTraffic === kind) return true;
-  if (!confirm(`Switch demo traffic to ${label}?\n\nThis replaces the current demo traffic. You will need to reload the page to return to the default RAMN traffic.`))
+  if (!confirm(`Switch demo traffic to ${label}?\n\nThis replaces the current demo traffic. To return to the default RAMN traffic, drive a car in Carlito or reload the page.`))
     return false;
   if (confirm('Clear the frame buffer first?\n\nThis removes the previous demo traffic from the ID List, Traffic Dump, and decoder logs.'))
     clearFrames();
@@ -2882,6 +2926,41 @@ function demoMaybeSwitch(kind, label) {
   return true;
 }
 window.demoMaybeSwitch = demoMaybeSwitch;
+
+// ── Demo traffic follows the Carlito vehicle ───────────────────────────────────
+// The machine on the link picks the base traffic, through carlito-registry.js's carlitoIsFamily
+// (the one detection rule), and which traffic is that machine's comes off vehicle-panel.js's
+// table (the one bus -> machine table). A car has no car-only signal to detect, so a live link
+// that is none of those machines is RAMN - the traffic the car, plane and train are all driven with.
+function demoVehicleTraffic(t) {
+  if (!t) return null;
+  const table = window.vehiclePanelProtoTable ? window.vehiclePanelProtoTable() : [];
+  const hit = table.find(([, fam]) => window.carlitoIsFamily && window.carlitoIsFamily(fam, t));
+  return hit ? { fam: hit[1], kind: hit[0] } : { fam: null, kind: 'ramn' };
+}
+// No prompt and no frame clearing: following the vehicle is what the user asked of the game.
+function demoFollow(v) {
+  if (v.kind === demoBaseTraffic) return;
+  demoSetBaseTraffic(v.kind);
+  log(`Demo traffic follows Carlito: ${demoTrafficLabel(v.kind)}${v.fam ? ' for the ' + v.fam : ''}`);
+}
+// Acts only on a CHANGE of the vehicle's traffic, so a tab the user switched to afterwards keeps
+// its traffic. `null` (the link gone) leaves the traffic alone, and makes the next link's first
+// payload count as a change - for this and for the J1939 tab's once-per-link mode selection
+// (switchViewTab), so it resets both trackers whether or not the demo is running.
+let demoFollowKind = null, j1939TabFollowKind = null;
+function demoOnTelemetry(t) {
+  if (!t) { demoFollowKind = null; j1939TabFollowKind = null; return; }
+  if (!demoMode) return;
+  const v = demoVehicleTraffic(t);
+  if (v.kind === demoFollowKind) return;
+  demoFollowKind = v.kind;
+  demoFollow(v);
+}
+// vehicle-panel.js is deferred, so it exists only once this classic script has run.
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.vehiclePanelSubscribe) window.vehiclePanelSubscribe(demoOnTelemetry);
+});
 
 // Simulate a "Service Not Supported" (NRC 0x11) ISO-TP response in demo mode.
 // Injects a fake SF from rxId after a short random delay to mimic ECU latency.
@@ -3038,8 +3117,7 @@ function demoInjectIsoTp(respPayload, respId, cfg) {
   frames.forEach((data, i) => {
     setTimeout(() => {
       ingestFrame({ id: respId, isExt: cfg.isExt, isRtr: false, dlc: data.length, data });
-      totalFrames++;
-      frameRateBuffer.push(Date.now());
+      countRxFrame();
     }, base + i * 12); // CFs staggered 12 ms apart, in order
   });
 }
@@ -3240,6 +3318,17 @@ function isotpArmTimer() {
   }, ISOTP_TIMEOUT);
 }
 
+// A CAN write in a send / CF flush failed: end the transaction with an error. Left alone it sits on
+// "waiting…" with no timer armed, and every RX frame keeps paying for isotpIngestFrame's slow path.
+// `epoch` is the isotpEpoch the send started under - a later transaction is not this failure's to end.
+function isotpTxFailed(e, epoch) {
+  log(`ISO-TP send failed: ${e && e.message}`, 'err');
+  if (epoch !== isotpEpoch) return;
+  const el = isotpPendingEl;
+  isotpCancelAll(); isotpPendingEl = null;
+  if (el) isotpMarkError(el, `send failed: ${e && e.message}`);
+}
+
 function isotpCancelAll() {
   if (isotpTimer) { clearTimeout(isotpTimer); isotpTimer = null; }
   isotpRxState  = null;
@@ -3351,7 +3440,8 @@ function isotpIngestFrame(frame) {
       // Honor the ECU's FC BlockSize / STmin (undefined on a short FC → flush falls back to cfg).
       const fcBs = pci.bs != null ? pci.bs : undefined;
       const fcStminMs = pci.stmin != null ? isotpStminToMs(pci.stmin) : undefined;
-      isotpFlushCFs(cfg, fcBs, fcStminMs).catch(e => log(`ISO-TP CF flush failed: ${e.message}`, 'err'));  // async, fire-and-forget
+      const epoch = isotpEpoch;
+      isotpFlushCFs(cfg, fcBs, fcStminMs).catch(e => isotpTxFailed(e, epoch));  // async, fire-and-forget
     } else if (pci.fs === 1 && isotpTxQueue.length > 0) { // Wait - ECU asks us to pause; hold CFs and re-arm N_Bs to await the next FC
       isotpArmTimer();
     } else if (pci.fs === 2) { // Overflow - ECU can't buffer our message; abort rather than time out
@@ -3490,6 +3580,126 @@ function isotpFuncAppendResponse(wrap, rid, payload, opts) {
 // UDS_PALETTE) read those tables at eval time, which is why diag-parse.js loads first.
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
+// Keyed table rows, for tables that refresh several times a second (J1939, the stacked protocol
+// logs, DroneCAN). Rebuilding a table with innerHTML makes new <tr>s every time, which restarts the
+// hover fade (flicker), splits a click whose mousedown and mouseup land on different nodes, and
+// wipes any text selection. These reuse one <tr> per key and write a cell only when its HTML changed.
+let keyedHeldEl = null;   // element under a held pointer button; rows don't move/appear/vanish under it
+document.addEventListener('pointerdown', e => { keyedHeldEl = e.target; }, true);
+document.addEventListener('pointerup', () => { keyedHeldEl = null; }, true);
+document.addEventListener('pointercancel', () => { keyedHeldEl = null; }, true);
+window.addEventListener('blur', () => { keyedHeldEl = null; });   // pointerup can land in another window or an iframe
+
+// innerHTML, written only when the string differs from the last one written here.
+function setHtmlIfChanged(el, html) {
+  if (el._html === html) return false;
+  el.innerHTML = html;
+  el._html = html;
+  return true;
+}
+
+// cell spec: an HTML string, or { html, lead?, cls?, style?, title?, span? }. `lead` is HTML for a
+// leading element kept apart from `html` (e.g. a ⊞ link before a ticking "2.1s ago"), so the
+// timestamp can change every tick without replacing the link under the pointer.
+function keyedCell(td, spec) {
+  const s = (spec !== null && typeof spec === 'object') ? spec : { html: spec };
+  const html = s.html == null ? '' : String(s.html);
+  if (s.lead != null) {
+    if (!td._lead) {
+      td.textContent = ''; td._html = undefined;
+      td._lead = td.appendChild(document.createElement('span'));
+      td.appendChild(document.createTextNode(' '));
+      td._body = td.appendChild(document.createElement('span'));
+    }
+    setHtmlIfChanged(td._lead, String(s.lead));
+    setHtmlIfChanged(td._body, html);
+  } else {
+    if (td._lead) { td._lead = td._body = null; td._html = undefined; }
+    setHtmlIfChanged(td, html);
+  }
+  const span = s.span || 1;
+  if (td.colSpan !== span) td.colSpan = span;
+  const cls = s.cls || '';
+  if (td.className !== cls) td.className = cls;
+  const st = s.style || '';
+  if (td._style !== st) { td.style.cssText = st; td._style = st; }
+  const ti = s.title || '';
+  if (td.title !== ti) td.title = ti;
+}
+
+// Reconcile tbody's rows with items. rowOf(item, i) -> { cls?, style?, title?, data?: {k: v}, cells: [cell spec] }.
+// Rows are created/removed only for keys that appear/vanish and moved only when out of place. While a
+// pointer button is held inside the table, existing rows still update in place but nothing is
+// inserted, removed or moved (so a click cannot be split); returns false then, and the caller's next
+// render (they all tick at least 1×/s) catches up.
+function renderKeyedRows(tbody, items, keyOf, rowOf) {
+  const rows = tbody._keyed || (tbody._keyed = new Map());
+  const table = tbody.closest('table') || tbody;
+  const hold = !!(keyedHeldEl && table.contains(keyedHeldEl));
+  const seen = new Set();
+  const keys = items.map((it, i) => {
+    let k = String(keyOf(it, i));
+    if (seen.has(k)) { let n = 2; while (seen.has(k + '#' + n)) n++; k += '#' + n; }   // duplicate keys stay distinct
+    seen.add(k);
+    return k;
+  });
+  if (!hold) for (const [k, tr] of rows) if (!seen.has(k)) { tr.remove(); rows.delete(k); }
+  let pos = 0;
+  for (let i = 0; i < items.length; i++) {
+    let tr = rows.get(keys[i]);
+    if (!tr) {
+      if (hold) continue;
+      tr = document.createElement('tr');
+      rows.set(keys[i], tr);
+    }
+    const spec = rowOf(items[i], i);
+    const cls = spec.cls || '';
+    if (tr.className !== cls) tr.className = cls;
+    const st = spec.style || '';
+    if (tr._style !== st) { tr.style.cssText = st; tr._style = st; }
+    const ti = spec.title || '';
+    if (tr.title !== ti) tr.title = ti;
+    if (spec.data) for (const d in spec.data) { const v = String(spec.data[d]); if (tr.dataset[d] !== v) tr.dataset[d] = v; }
+    const cells = spec.cells;
+    while (tr.cells.length < cells.length) tr.insertCell();
+    while (tr.cells.length > cells.length) tr.deleteCell(-1);
+    for (let c = 0; c < cells.length; c++) keyedCell(tr.cells[c], cells[c]);
+    if (!hold) {
+      if (tbody.children[pos] !== tr) tbody.insertBefore(tr, tbody.children[pos] || null);
+      pos++;
+    }
+  }
+  return !hold;
+}
+
+// A container that shows either cfg.emptyHtml or one table: the <table><thead><tbody> shell is built
+// once and its rows reconciled with renderKeyedRows. cfg: { tableClass, theadHtml?, emptyHtml? }.
+function renderKeyedTable(el, cfg, items, keyOf, rowOf) {
+  if (!items.length) { el._keyedTbody = null; setHtmlIfChanged(el, cfg.emptyHtml || ''); return null; }
+  let tb = el._keyedTbody;
+  if (!tb || !el.contains(tb)) {
+    el.innerHTML = el._html = `<table class="${cfg.tableClass || ''}"><thead>${cfg.theadHtml || ''}</thead><tbody></tbody></table>`;
+    tb = el._keyedTbody = el.querySelector('tbody');
+  }
+  renderKeyedRows(tb, items, keyOf, rowOf);
+  return tb;
+}
+window.setHtmlIfChanged = setHtmlIfChanged;
+window.renderKeyedRows  = renderKeyedRows;
+window.renderKeyedTable = renderKeyedTable;
+
+// One delegated listener for every "see CAN traffic" ⊞ link (data-seecan="<ts>"), so generated rows
+// carry no inline handler. A link with an EMPTY data-seecan takes the ts from its row's
+// data-seecan-ts: a coalesced log row's ts moves with every merged frame, and keeping it off the
+// link's markup is what keeps the link the same node.
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('[data-seecan]');
+  if (!a) return;
+  e.preventDefault();
+  const row = a.closest('[data-seecan-ts]');
+  isotpSeeCanTraffic(+(a.dataset.seecan || (row && row.dataset.seecanTs)));
+});
+
 function isotpTs() {
   const n = new Date();
   return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}.${String(n.getMilliseconds()).padStart(3,'0')}`;
@@ -3527,7 +3737,7 @@ function isotpAppendEntry(payload) {
       `<span style="color:var(--amber);font-weight:700;font-size:11px;min-width:22px;flex-shrink:0">TX</span>` +
       `<span style="color:var(--text);letter-spacing:0.05em;word-break:break-all;font-size:12px">${escHtml(hex)}</span>` +
       `<span style="color:var(--text3);font-size:10px;margin-left:auto;white-space:nowrap;padding-left:12px">${isotpTs()}</span>` +
-      `<button onclick="isotpSeeCanTraffic(${sendTs})"` +
+      `<button type="button" data-seecan="${sendTs}"` +
         ` style="font-size:10px;color:var(--blue);background:none;border:none;cursor:pointer;white-space:nowrap;padding-left:8px;flex-shrink:0"` +
         ` title="Jump to this exchange in the Traffic Dump (pauses auto-scroll)">⊞ See CAN Traffic</button>` +
       `<a class="isotp-explainer-btn" href="${isotpExplainerUrl(hex, '')}" target="_blank"` +
@@ -3642,7 +3852,7 @@ function isotpDecodeStmin(hexStr) {
   const v = Math.max(0, Math.min(0xFF, parseInt(hexStr, 16) || 0));
   if (v <= 0x7F) return { raw: v, ms: v,        label: v + ' ms' };
   if (v >= 0xF1 && v <= 0xF9) { const us = (v - 0xF0) * 100; return { raw: v, ms: us / 1000, label: us + ' µs' }; }
-  return { raw: v, ms: 0, label: 'reserved (→ 0)' };
+  return { raw: v, ms: 127, label: 'reserved (→ 127 ms)' };   // ISO 15765-2: a sender uses 127 ms (= isotpStminToMs)
 }
 
 function isotpValidateHex2(id) {
@@ -3774,12 +3984,14 @@ async function isotpSend() {
   }
 
   const frames = isotpBuildFrames(payload, cfg);
+  const epoch  = isotpEpoch;
+  try { await isotpTxCan(frames[0], cfg); }
+  catch (e) { isotpTxFailed(e, epoch); return; }
+  if (epoch !== isotpEpoch) return;   // cancelled or replaced during the write (another send, a disconnect)
   if (frames.length === 1) {
-    await isotpTxCan(frames[0], cfg);
     isotpArmTimer();
   } else {
-    // Multi-frame request: send FF, wait for FC, then send CFs
-    await isotpTxCan(frames[0], cfg);
+    // Multi-frame request: FF sent above, wait for FC, then send CFs
     isotpTxQueue  = frames.slice(1);
     isotpCfBlkCnt = 0;
     isotpArmTimer(); // waiting for FC from ECU
@@ -4136,7 +4348,7 @@ function obdRequest(payload, opts) {
   obdCaptureCb = opts.onDone || null;
   isotpPendingEl = opts.log ? isotpAppendEntry(payload) : document.createElement('div');
   const frames = isotpBuildFrames(payload, cfg);
-  isotpTxCan(frames[0], cfg).catch(e => log(`ISO-TP send failed: ${e.message}`, 'err'));  // async, fire-and-forget
+  isotpTxCan(frames[0], cfg).catch(e => log(`ISO-TP send failed: ${e.message}`, 'err'));  // async, fire-and-forget; the timer below ends it (an immediate error would make the watch pump retry every tick)
   if (frames.length > 1) { isotpTxQueue = frames.slice(1); isotpCfBlkCnt = 0; }
   isotpArmTimer();
   if (demoMode && !paused) demoIsoTpRespond(payload, cfg);
@@ -4427,20 +4639,55 @@ function defaultWorkspaceData() {
   };
 }
 
-// Coerce a (possibly hand-edited / malformed) imported workspace blob to the expected shape so
-// applySettings can't throw partway through - e.g. a string `tx` would blow up `(d.tx||[]).map`
-// *after* pins/colours/notes were already cleared, leaving a half-applied state. Wrong-typed
-// array/object fields fall back to their defaults; scalars rely on applySettings' own ?? fallbacks.
+// One TX row as it may be loaded: a shared workspace file is untrusted, and these fields are
+// interpolated into renderTxRows' markup, so each is cut down to what the row can hold.
+function normalizeTxEntry(m) {
+  m = (m && typeof m === 'object') ? m : {};
+  const ext = !!m.ext;
+  const int = (v, lo, hi, fb) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fb; };
+  return {
+    enabled: false, ext, rtr: !!m.rtr,
+    id: String(m.id ?? '').replace(/[^0-9A-Fa-f]/g, '').slice(0, ext ? 8 : 3) || '0',
+    dlc: int(m.dlc, 0, 8, 8),
+    // Filtered and length-capped but NOT re-split: cutting an over-long field down to 8 bytes
+    // would turn a payload txValidateData rejects into one it accepts, and send what nobody typed.
+    data: String(m.data ?? '').replace(/[^0-9A-Fa-f ]/g, '').trim().slice(0, 64),
+    period: int(m.period, 10, 60000, 100),
+    note: typeof m.note === 'string' ? m.note.slice(0, 120) : '',
+  };
+}
+
+const WS_COLOR_RE = /^#[0-9a-f]{3,8}$/i;     // colours land in style="color:..." unescaped
+const WS_FRAME_KEY_RE = /^[SE]:\d{1,10}$/;   // frameKey()'s shape
+
+// Coerce a (possibly hand-edited / malformed / hostile) workspace blob to the expected shape, into
+// a NEW object, so applySettings can neither throw partway through (a string `tx` would blow up
+// after pins/colours/notes were already cleared) nor put an imported value into markup. Every load
+// path goes through here: import, the startup restore, and applySettings itself. Wrong-typed
+// array/object fields fall back to their defaults; scalars that only reach a control's .value rely
+// on applySettings' own ?? fallbacks; fuzz is validated by fuzzApply, which owns its shape.
 function sanitizeWorkspaceData(d) {
   const def = defaultWorkspaceData();
-  const out = Object.assign({}, def, (d && typeof d === 'object') ? d : {});
-  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-  for (const k of ['pins', 'colors', 'notes', 'tx', 'graphSignals'])
-    if (!Array.isArray(out[k])) out[k] = def[k];
+  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  const src = isObj(d) ? d : {};
+  const out = Object.assign({}, def, src);
+  const arr = v => Array.isArray(v) ? v : [];
+  const isKey = k => typeof k === 'string' && WS_FRAME_KEY_RE.test(k);
+  const pairs = (v, okVal) => arr(v).filter(p => Array.isArray(p) && isKey(p[0]) && okVal(p[1])).map(p => [p[0], p[1]]);
+  out.pins   = arr(src.pins).filter(isKey);
+  out.colors = pairs(src.colors, c => typeof c === 'string' && WS_COLOR_RE.test(c));
+  out.notes  = pairs(src.notes, n => typeof n === 'string');
+  out.tx     = Array.isArray(src.tx) ? src.tx.map(normalizeTxEntry) : def.tx;
+  out.graphSignals = arr(src.graphSignals).filter(g => isObj(g) && isKey(g.frameKey)).map(g => ({
+    frameKey: g.frameKey, byteIndex: Math.min(7, Math.max(0, g.byteIndex | 0)),
+    width: g.width, endian: g.endian, signed: !!g.signed,
+    name: typeof g.name === 'string' && g.name ? g.name.slice(0, 80) : undefined,
+  }));
   for (const k of ['filter', 'notch', 'isotp', 'xcp', 'canopen', 'dronecan'])
-    if (!isObj(out[k])) out[k] = def[k];
-  if (out.fuzz !== null && !isObj(out.fuzz)) out.fuzz = null;
-  if (!Array.isArray(out.isotp.obdWatch)) out.isotp.obdWatch = [];
+    out[k] = isObj(src[k]) ? Object.assign({}, src[k]) : def[k];
+  out.fuzz = isObj(src.fuzz) ? src.fuzz : null;
+  out.socketUrl = (typeof src.socketUrl === 'string' && sanitizeSocketTunnelUrlForSave(src.socketUrl)) || def.socketUrl;
+  out.isotp.obdWatch = arr(out.isotp.obdWatch).filter(p => Number.isInteger(p));
   return out;
 }
 
@@ -4501,7 +4748,9 @@ function updateNotchLabels() {
 // Write a settings snapshot back into in-memory state + the DOM, then refresh views.
 // TX rows are always restored DISABLED - never auto-transmit on load/switch.
 function applySettings(d) {
-  d = d || defaultWorkspaceData();
+  // Sanitised BEFORE anything is cleared, so a blob that cannot be read leaves state untouched.
+  try { d = sanitizeWorkspaceData(d || defaultWorkspaceData()); }
+  catch (e) { log('Workspace settings could not be read: ' + e.message, 'err'); return false; }
   _restoring = true;
   // Guard every restore step: a throw here (bad imported workspace, misbehaving module
   // *Apply hook) must NOT leave _restoring stuck true, or scheduleSave() early-returns
@@ -4543,9 +4792,8 @@ function applySettings(d) {
   _el('listenOnly').checked = !!d.listenOnly;
   _el('autoOpen').checked   = d.autoOpen !== false;
 
-  txMessages.forEach(m => { if (m.timer) { clearInterval(m.timer); m.timer = null; } });
-  txMessages = (d.tx || []).map(m => ({ seq: txSeq++, enabled: false, ext: !!m.ext, rtr: !!m.rtr,
-    id: m.id, dlc: m.dlc, data: m.data, period: m.period, timer: null, note: m.note || '' }));
+  txMessages.forEach(m => { m.enabled = false; txCancel(m); });
+  txMessages = d.tx.map(m => Object.assign({}, m, { seq: txSeq++, timer: null }));   // normalised by the sanitise above
   renderTxRows();
 
   const it = d.isotp || {};
@@ -4661,7 +4909,7 @@ function renderWsSelect() {
   const sel = _el('wsSelect');
   if (!sel) return;
   sel.innerHTML = workspaces.map(w =>
-    `<option value="${w.id}"${w.id === activeWsId ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
+    `<option value="${escHtml(w.id)}"${w.id === activeWsId ? ' selected' : ''}>${escHtml(w.name)}</option>`).join('');
   updateWsDeleteLabel();
 }
 
@@ -4773,10 +5021,22 @@ function importWorkspace(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
+      // Parsed and sanitised in full before anything is pushed or activated: a file that fails
+      // either step leaves the current workspace exactly as it was.
       const obj = JSON.parse(reader.result);
+      if (!obj || typeof obj !== 'object') throw new Error('not a workspace file');
       const ws = { id: uid(), name: String(obj.name || 'Imported'),
                    createdAt: Date.now(), updatedAt: Date.now(),
                    data: sanitizeWorkspaceData(obj.data) };
+      // A shared file must not quietly point the socket adapter at someone else's server, which
+      // would see every frame sent and could feed back invented traffic. Loopback is kept;
+      // anything else is dropped and named, so a trusted LAN tunnel is one paste away.
+      let sockHost = '';
+      try { sockHost = new URL(ws.data.socketUrl.replace(/^socket:/i, 'ws:')).hostname; } catch (_) {}
+      if (!/^(127(\.\d{1,3}){3}|localhost|\[::1\])$/.test(sockHost)) {
+        log(`Import: socket tunnel URL ${ws.data.socketUrl} was not kept - re-enter it if you trust it`, 'warn');
+        ws.data.socketUrl = defaultWorkspaceData().socketUrl;
+      }
       workspaces.push(ws);
       activeWsId = ws.id;
       stopAllTx();
@@ -4916,11 +5176,23 @@ updateAdapterSettingsUi();
 let _prefs = {};
 try { _prefs = JSON.parse(localStorage.getItem('slcanPrefs') || '{}'); } catch(_) {}
 
-let _wsStore = null;
-try { _wsStore = JSON.parse(localStorage.getItem('slcanWorkspaces') || 'null'); } catch(_) {}
+let _wsStore = null, _wsRaw = null;
+try { _wsRaw = localStorage.getItem('slcanWorkspaces'); _wsStore = JSON.parse(_wsRaw || 'null'); } catch(_) {}
+// A store that is not what saveWorkspaces writes must not stop the app starting: keep the entries
+// that are workspaces, sanitise their data, and park the raw string if anything was dropped.
+const _wsAll = (_wsStore && Array.isArray(_wsStore.list)) ? _wsStore.list : [];
+const _wsList = _wsAll
+  .filter(w => w && typeof w === 'object' && typeof w.id === 'string' && typeof w.name === 'string')
+  .map(w => Object.assign({}, w, { data: sanitizeWorkspaceData(w.data) }));
+if (_wsRaw && (_wsList.length < _wsAll.length || !_wsList.length)) {
+  try { localStorage.setItem('slcanWorkspaces.corrupt', _wsRaw); } catch(_) {}
+  log(_wsList.length
+    ? `${_wsAll.length - _wsList.length} saved workspace(s) were unreadable and were dropped (raw copy kept in localStorage 'slcanWorkspaces.corrupt')`
+    : `Saved workspaces were unreadable - starting a fresh Default workspace (raw copy kept in localStorage 'slcanWorkspaces.corrupt')`, 'warn');
+}
 
-if (_wsStore && Array.isArray(_wsStore.list) && _wsStore.list.length) {
-  workspaces = _wsStore.list;
+if (_wsList.length) {
+  workspaces = _wsList;
   activeWsId = (_wsStore.activeId && workspaces.some(w => w.id === _wsStore.activeId))
     ? _wsStore.activeId : workspaces[0].id;
 } else {
@@ -4978,8 +5250,12 @@ saveGlobalPrefs();
 
 // Delegated click on ID list - survives innerHTML rerenders; ignore pin button clicks
 document.getElementById('frameBody').addEventListener('click', e => {
-  if (e.target.closest('[data-pin]')) return;
   const row = e.target.closest('tr');
+  if (e.target.closest('[data-pin]')) {
+    e.stopPropagation();   // a pin click is not an "outside click" for the Notch panel
+    if (row && row.dataset.key) togglePin(row.dataset.key);
+    return;
+  }
   if (!row || !row.dataset.key) return;
   const f = frames.get(row.dataset.key);
   if (f) inspectFrame(f);

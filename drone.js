@@ -13,7 +13,7 @@
 // and something on this side has to replace them. `arm` and `climb` had no uplink source at
 // all, which is why the aircraft could not take off.
 //
-// OWNERSHIP. Every drone "in" signal is owned by dronecan.js's dcCtl - this file is a view over
+// OWNERSHIP. Every drone "in" signal is owned by dronecan-core.js's dcCtl - this file is a view over
 // it through window.dronecanCtl / dronecanSetCtl, so the DroneCAN tab and this panel are two
 // windows onto one set of switches rather than two sets. The exception is the SHARED axes
 // (accel / brake / steer / key), which carlito.js sources from RAMN state for every vehicle:
@@ -21,13 +21,12 @@
 // handed straight back when it is not.
 //
 // INTEGRATION POINTS - the only changes required in the other files:
-//   index.html         <script src="drone.js" defer>  (after ramn.js + dronecan.js, before
-//                      carlito.js) + #droneBtn, shipped style="display:none"
+//   index.html         <script src="drone.js" defer>  (after ramn.js + dronecan.js) + #droneBtn, shipped style="display:none"
 //   sloppycan.js       _buttonsWrap() id list; switchViewTab('dronecan') →
 //                      window.vehiclePanelRequestForProto('dronecan')
-//   vehicle-panel.js   fan-out, link detection, RAMN handoff, deep link, button visibility
+//   vehicle-panel.js   fan-out, link detection, RAMN handoff, deep link, button visibility, both
+//                      windows' chrome (vehiclePanelWindow) and the contract readers
 //   carlito.js         window.carlitoUplinkOverrides
-//   ramn.js            makeFloating's closeSel option (this close button is not .ramn-close)
 //   carlito-bridge.js  window.droneIsOpen = () => true;   (that page has no dashboards)
 // Live-only: no persistence of window position/state.
 
@@ -37,35 +36,6 @@
   // ── Inject CSS ──────────────────────────────────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `
-/* Deliberately .ramn-window's own corner: these windows REPLACE the RAMN pair rather than sit
-   beside it (see handoffRamn), so they take its place on screen too. */
-.drone-window {
-  position:fixed; z-index:900; top:72px; left:90px; width:320px;
-  background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
-  box-shadow:0 8px 24px #0006; font-family:var(--sans); color:var(--text);
-  display:none; flex-direction:column; overflow:hidden;
-}
-.drone-window.open { display:flex; }
-.drone-header {
-  display:flex; align-items:center; gap:8px; cursor:move; user-select:none;
-  padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
-  font-size:12px; font-weight:600; letter-spacing:.02em;
-}
-.drone-header .drone-dot { width:8px; height:8px; border-radius:50%; background:var(--cyan); flex-shrink:0; }
-.drone-header .drone-dot.ctrl { background:var(--amber); }
-.drone-header .drone-title { flex:1; }
-.drone-close {
-  background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px;
-  line-height:1; padding:2px 6px; border-radius:5px;
-}
-.drone-close:hover { background:var(--bg); color:var(--text); }
-.drone-scaleouter { overflow:hidden; }
-.drone-body { width:320px; transform-origin:top left; padding:12px 14px 14px; box-sizing:border-box; }
-.drone-resize {
-  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
-  background:linear-gradient(135deg,transparent 50%,var(--border2) 50%,var(--border2) 60%,transparent 60%,transparent 75%,var(--border2) 75%,var(--border2) 85%,transparent 85%);
-}
-
 /* Sections, shared by both windows */
 .drone-sec { margin-bottom:10px; }
 .drone-sec-lbl {
@@ -173,18 +143,7 @@
   // Ranges, warn thresholds and enum labels are the CONTRACT's and are never retyped here: a bar
   // that turns red at its own signal's `warn` is the same number the game's cluster uses, and a
   // mode label that comes off the table cannot drift from the mode the game resolved.
-  const CONTRACT = window.CARLITO_CONTRACT || { signals: [] };
-  const SIGS = CONTRACT.signals || [];
-  const sigDef = (name, dir) => SIGS.find(s => s.name === name && s.dir === dir);
-  function rangeOf(name) {
-    const s = sigDef(name, 'out');
-    return (s && Array.isArray(s.range) && s.range.length === 2) ? s.range : [0, 1];
-  }
-  function isWarn(name, v) {
-    const s = sigDef(name, 'out');
-    if (!s || !Number.isFinite(Number(s.warn)) || !Number.isFinite(v)) return false;
-    return s.warn_side === 'low' ? v <= s.warn : v >= s.warn;
-  }
+  const { sigDef, rangeOf, isWarn, inst, num, fmt, whole } = window.vehiclePanelUtil;
   const enumLabel = (name, dir, v) =>
     window.dronecanEnumLabel ? window.dronecanEnumLabel(name, dir, v) : String(v);
   const enumKeys = (name, dir) => (window.dronecanEnumKeys ? window.dronecanEnumKeys(name, dir) : []);
@@ -195,13 +154,6 @@
   const isDroneTelemetry = (t) => !!(window.vehiclePanelIsFamily && window.vehiclePanelIsFamily('drone', t));
 
   // ── Small helpers ───────────────────────────────────────────────────────────
-  // An INSTANCED contract signal (count > 1) arrives as an ARRAY, so `+t.sig || 0` - which
-  // Number()s an array into NaN and falls through to a plausible 0 - is exactly the wrong shape.
-  // Read the elements by index and coerce each one, carlito.js's `inst` rule.
-  const inst = (v, i) => { const n = Number(Array.isArray(v) ? v[i] : undefined); return Number.isFinite(n) ? n : NaN; };
-  const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : NaN; };
-  const fmt = (v, d, unit) => Number.isFinite(v) ? (v.toFixed(d) + (unit || '')) : '–';
-  const whole = (v) => Number.isFinite(v) ? String(Math.round(v)) : '–';
   const signed = (v) => (v >= 0 ? '+' : '') + Math.round(v);
   const esc = (s) => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -256,7 +208,6 @@
   let tel = null;               // last telemetry pushed (null = link gone)
   let droneLive = false;
   let autoOpened = false;       // the pair was opened BY the telemetry, not by hand
-  let dashScale = () => {}, ctrlScale = () => {};
   let rafPending = false;
   let el = {};
   let ctrlKey = KEY_POWERED;    // the pack starts plugged in - a quad on the bench is powered
@@ -274,8 +225,7 @@
   const setCtl = (p) => { if (window.dronecanSetCtl) window.dronecanSetCtl(p); syncCtrlUI(); };
 
   // ── Uplink overrides: the shared axes, while this panel is flying ───────────
-  // Assigned at eval time because carlito.js snapshots the registry when IT evaluates, and it
-  // loads after us. EVERY ONE RETURNS undefined WHEN THE PANEL IS NOT FLYING, which is what
+  // Assigned at eval time, onto carlito-registry.js's shared object. EVERY ONE RETURNS undefined WHEN THE PANEL IS NOT FLYING, which is what
   // hands accel/brake/steer/key back to the RAMN controls - see carlito.js's UPLINK_OVERRIDES
   // header. `key` is claimed too: an aircraft whose power switch is on a car's dashboard is one
   // the pilot cannot power up.
@@ -303,17 +253,12 @@
   }
 
   // ── Dashboard window DOM ────────────────────────────────────────────────────
-  const dashWin = document.createElement('div');
-  dashWin.className = 'drone-window';
-  dashWin.id = 'droneWindow';
-  dashWin.innerHTML = `
-  <div class="drone-header" id="dnHeader" title="The drone's telemetry, read off the game's own publish at ~20 Hz. Opens by itself when a drone appears on the Carlito link and takes the RAMN dashboard's place while it is up, because a car's cluster describes nothing about a quadcopter. Drag to move, grip the bottom-right corner to resize.">
-    <span class="drone-dot"></span>
-    <span class="drone-title">Drone dashboard</span>
-    <button class="drone-close" id="dnCloseBtn" title="Close (Esc)">&#10005;</button>
-  </div>
-  <div class="drone-scaleouter" id="dnScaleOuter">
-   <div class="drone-body" id="dnBody">
+  // vehicle-panel.js builds both windows (chrome, makeFloating); the pair logic below is this file's.
+  const dash = window.vehiclePanelWindow({
+    winId: 'droneWindow', cssPrefix: 'drone', title: 'Drone dashboard', baseW: BASE_W,
+    dot: 'var(--cyan)', pad: '12px 14px 14px',
+    headerTip: "The drone's telemetry, read off the game's own publish at ~20 Hz. Opens by itself when a drone appears on the Carlito link and takes the RAMN dashboard's place while it is up, because a car's cluster describes nothing about a quadcopter. Drag to move, grip the bottom-right corner to resize.",
+    bodyHtml: `
     <div class="drone-chips">
       <div class="drone-chip" id="dnChipArm" title="contract arming_state - what the flight controller says about the ARM REQUEST. DISARMED means nobody asked, BLOCKED means it was asked and refused (and the red line below names the check), ARMED means the motors are live. An unpowered aircraft reads DISARMED rather than claiming a judgement nothing made."><span class="cap">Arming</span><span class="val" id="dnArm">&ndash;</span></div>
       <div class="drone-chip" id="dnChipMode" title="contract mode_actual - the mode the FC is actually IN, against the one you asked for on the control panel. The two disagreeing is the reading: LOITER and RTL without a 3D fix fall back to ALT HOLD, a fence breach commands RTL, and an RTL on its landing leg reads LAND."><span class="cap">Mode (actual)</span><span class="val" id="dnMode">&ndash;</span></div>
@@ -366,24 +311,16 @@
     <div class="drone-rule"></div>
     <div class="drone-sec-lbl" title="The eight DroneCAN nodes, in the contract's node_health order. Colour is the node's own health (green OK, amber WARNING, red CRITICAL); a struck-through cell is one YOU took off the bus. Killing an ESC costs the mixer a motor and is not compensated for; killing GNSS or AHRS refuses arming."><span>Bus</span><span class="v">click = fail / restore</span></div>
     <div class="drone-nodes" id="dnNodes"></div>
-   </div>
-  </div>
-  <div class="drone-resize" id="dnResize"></div>
-`;
+`,
+  });
+  const dashWin = dash.win;
 
   // ── Control window DOM ──────────────────────────────────────────────────────
-  const ctrlWin = document.createElement('div');
-  ctrlWin.className = 'drone-window';
-  ctrlWin.id = 'droneCtrlWindow';
-  ctrlWin.style.left = '430px';
-  ctrlWin.innerHTML = `
-  <div class="drone-header" id="dncHeader" title="The sticks and switches that fly the drone. While this window is open it CLAIMS accel / brake / steer / key from the RAMN controls, and hands them straight back the moment you close it. The game's own ARM, MODE, HOOK and climb pads are hidden while sloppyCAN has the link - these replace them.">
-    <span class="drone-dot ctrl"></span>
-    <span class="drone-title">Drone control</span>
-    <button class="drone-close" id="dncCloseBtn" title="Close (Esc)">&#10005;</button>
-  </div>
-  <div class="drone-scaleouter" id="dncScaleOuter">
-   <div class="drone-body" id="dncBody">
+  const ctrl = window.vehiclePanelWindow({
+    winId: 'droneCtrlWindow', cssPrefix: 'drone', title: 'Drone control', baseW: BASE_W, left: 430,
+    dot: 'var(--amber)', pad: '12px 14px 14px',
+    headerTip: "The sticks and switches that fly the drone. While this window is open it CLAIMS accel / brake / steer / key from the RAMN controls, and hands them straight back the moment you close it. The game's own ARM, MODE, HOOK and climb pads are hidden while sloppyCAN has the link - these replace them.",
+    bodyHtml: `
     <div class="drone-sec">
       <div class="drone-arm" id="dncArmBtn" title="contract arm (key T) - a LATCHED SWITCH, not a press, and a REQUEST rather than a state. The craft arms on this switch's RISING EDGE and only with every pre-arm check passing; it REFUSES a disarm while airborne, and disarms itself a few seconds after landing - after which the switch has to be CYCLED before it will arm again, exactly as on a real aircraft. What the aircraft did with it is the Arming chip on the dashboard.">ARM</div>
       <div class="drone-armnote" id="dncArmNote"></div>
@@ -430,10 +367,9 @@
       Pitch and yaw spring back; the climb stick does not, like a real transmitter &mdash; and the
       FC refuses to arm until it is centred.
     </div>
-   </div>
-  </div>
-  <div class="drone-resize" id="dncResize"></div>
-`;
+`,
+  });
+  const ctrlWin = ctrl.win;
 
   // ── Telemetry hook (pushed by carlito.js) ───────────────────────────────────
   // Open the pair the first time a drone appears, close it when the drone goes away - a vehicle
@@ -454,12 +390,12 @@
   // ── Window open / close ─────────────────────────────────────────────────────
   function setDashOpen(open) {
     dashWin.classList.toggle('open', open);
-    if (open) { dashScale(dashWin.offsetWidth || BASE_W); markDirty(); }
+    if (open) { dash.rescale(); markDirty(); }
     afterOpenChange();
   }
   function setCtrlOpen(open) {
     ctrlWin.classList.toggle('open', open);
-    if (open) { syncCtrlUI(); ctrlScale(ctrlWin.offsetWidth || BASE_W); }
+    if (open) { syncCtrlUI(); ctrl.rescale(); }
     // A stick nobody can reach is centred. THE ARM SWITCH IS NOT TOUCHED - it is a latch, and
     // closing a window is not a pilot lowering it, so an aircraft in the air stays armed.
     else { releaseSticks(); }
@@ -499,7 +435,7 @@
     rafPending = true;
     requestAnimationFrame(() => {
       rafPending = false;
-      if (dashOpen()) renderDash();
+      if (dashOpen()) { renderDash(); dash.refit(); }
       // The arm note reads the LIVE arming state, so it has to follow the telemetry. The rest of
       // the control UI is written on events only - a render tick that reassigned a range input's
       // .value would fight the pointer dragging it - EXCEPT when dcCtl changed behind our back,
@@ -524,17 +460,12 @@
   const BARS = ['soc', 'pack_temp', 'pack_current', 'home_dist'];
   const READS = ['alt', 'agl', 'baro', 'vs', 'sats', 'hdop', 'pitch', 'roll', 'rpm', 'hook', 'pay', 'gmb'];
 
-  // The refusal block is the one thing in this window that changes its HEIGHT, and makeFloating
-  // fixes the scale wrapper's height in pixels when the window opens - so showing or hiding it
-  // has to re-apply the scale, or the window keeps the taller layout's dead space underneath.
-  let whyShown = false;
+  // The refusal block is the one thing in this window that changes its HEIGHT; markDirty's
+  // dash.refit() re-applies makeFloating's scale when it does.
   function setWhy(html) {
     const show = html !== null;
     if (show) el.why.innerHTML = html;
     el.why.classList.toggle('hidden', !show);
-    if (show === whyShown) return;
-    whyShown = show;
-    dashScale(dashWin.offsetWidth || BASE_W);
   }
 
   function renderDash() {
@@ -722,8 +653,6 @@
 
   // ── Wire ────────────────────────────────────────────────────────────────────
   (function wire() {
-    document.body.appendChild(dashWin);
-    document.body.appendChild(ctrlWin);
 
     // Mode positions and labels come off the CONTRACT's enum table, never retyped - the rule the
     // DroneCAN tab's own selector follows. The help text is keyed by LABEL rather than by index,
@@ -736,7 +665,7 @@
       return `<button data-val="${k}"${help ? ` title="${esc(help)}"` : ''}>${esc(label)}</button>`;
     }).join('');
 
-    // Bus cells: the roster is dronecan.js's, copied out rather than retyped - a node id has one
+    // Bus cells: the roster is dronecan-core.js's, copied out rather than retyped - a node id has one
     // home, and this is node_health's bit order.
     const nodes = dashWin.querySelector('#dnNodes');
     nodes.innerHTML = ROSTER.map((r, i) =>
@@ -784,30 +713,13 @@
       if (s && Array.isArray(s.range) && s.range.length === 2) { node.min = String(s.range[0]); node.max = String(s.range[1]); }
     }
 
-    q(dashWin, 'dnCloseBtn').addEventListener('click', () => { autoOpened = false; setDashOpen(false); });
-    q(ctrlWin, 'dncCloseBtn').addEventListener('click', () => { autoOpened = false; setCtrlOpen(false); });
+    dash.closeBtn.addEventListener('click', () => { autoOpened = false; setDashOpen(false); });
+    ctrl.closeBtn.addEventListener('click', () => { autoOpened = false; setCtrlOpen(false); });
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape' || e._scEscHandled) return;   // shared flag: another window may already have claimed this press
       if (ctrlOpen()) { e._scEscHandled = true; autoOpened = false; setCtrlOpen(false); }
       else if (dashOpen()) { e._scEscHandled = true; autoOpened = false; setDashOpen(false); }
     });
-
-    const floating = window.makeFloating;
-    if (floating) {
-      dashScale = floating({
-        win: dashWin, header: q(dashWin, 'dnHeader'), grip: q(dashWin, 'dnResize'),
-        outer: q(dashWin, 'dnScaleOuter'), body: q(dashWin, 'dnBody'),
-        baseW: BASE_W, closeSel: '.drone-close',
-      });
-      ctrlScale = floating({
-        win: ctrlWin, header: q(ctrlWin, 'dncHeader'), grip: q(ctrlWin, 'dncResize'),
-        outer: q(ctrlWin, 'dncScaleOuter'), body: q(ctrlWin, 'dncBody'),
-        baseW: BASE_W, closeSel: '.drone-close',
-      });
-    } else {
-      console.warn('Drone panel: makeFloating is missing - load ramn.js before drone.js. The ' +
-        'windows still open, but cannot be dragged or resized.');
-    }
 
     // ── Sticks ──
     // Pitch and yaw SPRING BACK on release and the climb stick does not, which is what a

@@ -93,6 +93,10 @@ an unrelated malicious page reaching this relay is not a toy risk. Hence:
     127.0.0.1:<port>, [::1]:<port> for any port (or those hosts with no
     port at all). --allow-origin scheme://host[:port] (repeatable) adds
     more exact origins.
+  - Any localhost port is allowed BY DESIGN, so a locally served sloppyCAN
+    works on whatever port you picked. The flip side: a page from any OTHER
+    local dev server you run can join the relay too, and once sloppyCAN is
+    connected its lines reach the bus like a script's would.
   - Origin: null (file:// pages, but ALSO any sandboxed iframe from any
     site) is rejected unless --allow-file-origin is passed.
   - A MISSING Origin header is allowed - real browsers always send Origin on
@@ -102,9 +106,14 @@ an unrelated malicious page reaching this relay is not a toy risk. Hence:
   - The Host header's hostname must be localhost/127.0.0.1/[::1] (or the
     literal --host value), to block DNS-rebinding attacks that would
     otherwise dress up as a same-origin request.
-  - The TCP port drops a connection whose first line is an HTTP request line:
-    a web page can fetch()/POST to any localhost port, and the body lines of
-    that request would otherwise be forwarded as frames.
+  - The TCP port drops a connection that opens like HTTP: a web page can
+    fetch()/POST to any localhost port, and the body lines of that request
+    would otherwise be forwarded as frames. The test runs on the RAW opening
+    lines, before the printable/length filter (which would otherwise discard
+    a long request line and let a header pass as "line 0"): the first line
+    is rejected if it looks like a request line in any case ("patch / HTTP/1.1")
+    or is longer than MAX_LINE_LEN, and any of the first 5 lines is rejected
+    if it looks like a header ("Name: value" - a cansend line never has ": ").
 """
 
 import argparse
@@ -121,7 +130,9 @@ WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_LINE_LEN = 128
 MAX_WS_MESSAGE = 1 * 1024 * 1024  # 1 MB
 WRITE_BUFFER_LIMIT = 1 * 1024 * 1024  # 1 MB backpressure cutoff
-_HTTP_REQUEST_RE = re.compile(r"^[A-Z]+ \S+ HTTP/\d")   # "POST / HTTP/1.1"
+_HTTP_REQUEST_RE = re.compile(rb"^\S+ \S+ HTTP/\d", re.IGNORECASE)  # "POST / HTTP/1.1"
+_HTTP_HEADER_RE = re.compile(rb"^[!-9;-~]+:\s")                        # "Host: x"
+_HTTP_SNIFF_LINES = 5
 
 log = logging.getLogger("sloppycan_relay")
 
@@ -146,6 +157,16 @@ def _printable_ascii_lines(chunk: bytes):
             continue
         out.append(raw.decode("ascii"))
     return out
+
+
+def _looks_like_http(raw: bytes, index: int) -> bool:
+    """Whether raw (unfiltered) line `index` of a TCP connection looks like
+    part of an HTTP request. Only called for the first _HTTP_SNIFF_LINES."""
+    if raw.endswith(b"\r"):
+        raw = raw[:-1]
+    if index == 0 and (len(raw) > MAX_LINE_LEN or _HTTP_REQUEST_RE.match(raw)):
+        return True
+    return bool(_HTTP_HEADER_RE.match(raw))
 
 
 # ── client bookkeeping / broadcast ──────────────────────────────────────
@@ -224,7 +245,7 @@ async def handle_tcp(reader, writer, hub):
     log.info("connect tcp %s", peer)
     try:
         buf = b""
-        checked = False
+        sniffed = 0   # raw opening lines checked for HTTP so far (up to _HTTP_SNIFF_LINES)
         while True:
             chunk = await reader.read(65536)
             if not chunk:
@@ -236,19 +257,25 @@ async def handle_tcp(reader, writer, hub):
             else:
                 idx = buf.rfind(b"\n")
                 if idx == -1:
+                    if sniffed == 0 and len(buf) > MAX_LINE_LEN:
+                        # a first line no script sends - see _looks_like_http
+                        log.warning("reject tcp %s (overlong first line - not a script)", peer)
+                        break
                     if len(buf) > MAX_LINE_LEN * 4:
                         # no newline for way too long - drop and resync
                         log.warning("tcp %s: overlong unterminated data, resyncing", peer)
                         buf = b""
                     continue
                 complete, buf = buf[: idx + 1], buf[idx + 1 :]
-            lines = _printable_ascii_lines(complete)
-            if lines and not checked:
-                checked = True
-                if _HTTP_REQUEST_RE.match(lines[0]):
-                    # A web page's fetch()/form POST: its body lines would otherwise reach the bus.
+            # A web page's fetch()/form POST: its body lines would otherwise reach the bus. Checked
+            # on the RAW lines, before _printable_ascii_lines drops the long or odd ones.
+            if sniffed < _HTTP_SNIFF_LINES:
+                raw_lines = complete.split(b"\n")[:-1][: _HTTP_SNIFF_LINES - sniffed]
+                if any(_looks_like_http(r, sniffed + i) for i, r in enumerate(raw_lines)):
                     log.warning("reject tcp %s (an HTTP request - a web page, not a script)", peer)
                     break
+                sniffed += len(raw_lines)
+            lines = _printable_ascii_lines(complete)
             hub.broadcast(lines, client)
     except ConnectionError:   # reset / aborted (Windows) / broken pipe
         pass

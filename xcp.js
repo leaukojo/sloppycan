@@ -20,7 +20,10 @@
 //   sloppycan.js  persistence: defaultWorkspaceData/collectSettings/applySettings 'xcp' key
 //   index.html    view-tabs button + #xcpWrap content + <script src="xcp.js" defer>
 //
-// Active TX goes only through window.fuzzTxFrame (no transport code here).
+// Active TX goes only through window.fuzzTxFrame (no transport code here). Unlike CANopen's SDO
+// write, XCP's active writes (SET_MTA / DOWNLOAD) are not confirm()-gated: they rely on
+// xcpReady() (open bus, not listen-only) alone. An intentional asymmetry; revisit if XCP write
+// is exposed more prominently.
 // ── Inject CSS ────────────────────────────────────────────────────────────────
 (function () {
   const s = document.createElement('style');
@@ -569,14 +572,14 @@ function xcpRenderSession() {
   const el = document.getElementById('xcp-sessioninfo');
   if (!el) return;
   if (!XCP.connected) {
-    el.innerHTML = '<div class="xcp-empty">Not connected.<br>' +
+    window.setHtmlIfChanged(el, '<div class="xcp-empty">Not connected.<br>' +
       'Set the CRO/DTO IDs above, then click <b>Connect</b>.<br>' +
-      'With <b>Demo</b> mode on, a simulated XCP slave answers - no hardware needed.</div>';
+      'With <b>Demo</b> mode on, a simulated XCP slave answers - no hardware needed.</div>');
     return;
   }
   const res = XCP_RESOURCE.map(r => `<span class="xcp-chip${(XCP.resource & (1 << r.bit)) ? ' on' : ''}">${r.label}</span>`).join('');
   const show = v => (v == null ? '-' : v);
-  el.innerHTML = `
+  window.setHtmlIfChanged(el, `
     <div style="margin-bottom:4px"><span class="xcp-state conn">Connected</span></div>
     <div class="xcp-tiles">
       ${xcpTile('MAX_CTO', show(XCP.maxCto))}
@@ -589,7 +592,7 @@ function xcpRenderSession() {
       ${xcpTile('Protection', XCP.protection == null ? '-' : xcpH(XCP.protection))}
     </div>
     <div class="xcp-chips-title">Slave resources <span style="color:var(--text3);font-weight:400">(CONNECT byte 1)</span></div>
-    <div>${res}</div>`;
+    <div>${res}</div>`);
 }
 
 function xcpOnShow() {
@@ -612,17 +615,17 @@ const xcpTab = window.makeStackedLogTab({
   renderTop: xcpRenderSession,
   // Coalesce a fast DAQ stream into one updating row so it can't flood the DOM.
   coalesce: (prev, e) => e.isDaq && prev.isDaq && prev.id === e.id && (e.ts - prev.ts) < XCP_DAQ_COALESCE_MS,
-  rowHtml: (e) => {
+  row: (e) => {
     const dirLbl = e.dir === 'cro' ? '▲ CRO' : '▼ DTO';
     const cnt = e.count && e.count > 1 ? ` <span style="color:var(--text3)">×${e.count}</span>` : '';
-    return `<tr>
-        <td class="xc-ts"><a href="#" onclick="isotpSeeCanTraffic(${e.ts});return false" title="See this frame in the Traffic Dump" class="xc-seecan">⊞</a> ${xcpRelTs(e.ts)}</td>
-        <td class="xc-dir ${e.dir}">${dirLbl}</td>
-        <td class="xc-id">${xcpH(e.id, e.id > 0x7FF ? 8 : 3)}</td>
-        <td class="xc-type ${e.cls}">${e.type}</td>
-        <td class="xc-raw">${e.data.length ? xcpHexBytes(e.data) : '-'}</td>
-        <td class="xc-dec">${e.summary || ''}${cnt}</td>
-      </tr>`;
+    return { data: { seecanTs: e.ts }, cells: [
+      { cls: 'xc-ts', lead: '<a href="#" data-seecan="" title="See this frame in the Traffic Dump" class="xc-seecan">⊞</a>', html: xcpRelTs(e.ts) },
+      { cls: `xc-dir ${e.dir}`, html: dirLbl },
+      { cls: 'xc-id', html: xcpH(e.id, e.id > 0x7FF ? 8 : 3) },
+      { cls: `xc-type ${e.cls}`, html: e.type },
+      { cls: 'xc-raw', html: e.data.length ? xcpHexBytes(e.data) : '-' },
+      { cls: 'xc-dec', html: `${e.summary || ''}${cnt}` },
+    ] };
   },
 });
 

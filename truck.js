@@ -4,9 +4,12 @@
 // keeps driving. Claims no uplink signal and owns none: its Commands section is a view over the
 // modules that do - isobus.js (pto), cleanopen.js (body_cmd), j1939-flavor.js (retarder).
 //
-// A STARTING POINT: currently the RAMN cluster verbatim, off window.ramnGetState(). The
-// signals that belong here are air_primary / air_secondary / retarder_state / axle_load /
-// body_state / trailer_*, and they arrive in the payload this file is already handed.
+// TELEMETRY ONLY, like boat.js: every instrument is the game's own publish, never
+// window.ramnGetState() (what sloppyCAN COMMANDS - and blank under J1939 traffic, which is exactly
+// when a truck is on the link). It shows the engine block, the air reservoirs against their
+// low-pressure warn, the retarder and brake temperature, the drive-axle load, the trailer (ISO
+// 11992) and the refuse body (CiA 422), and the status bits a truck sets. Ranges, warn levels and
+// enum labels all come off the contract through vehiclePanelUtil.
 //
 // Integration: index.html (script after vehicle-panel.js; #truckBtn ships style="display:none",
 // vehicle-panel.js shows it) · sloppycan.js (_buttonsWrap id list). Live-only.
@@ -16,74 +19,7 @@
 
   const style = document.createElement('style');
   style.textContent = `
-.truck-window {
-  position:fixed; z-index:900; top:72px; left:90px; width:300px;
-  background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
-  box-shadow:0 8px 24px #0006; font-family:var(--sans); color:var(--text);
-  display:none; flex-direction:column; overflow:hidden;
-}
-.truck-window.open { display:flex; }
-.truck-header {
-  display:flex; align-items:center; gap:8px; cursor:move; user-select:none;
-  padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
-  font-size:12px; font-weight:600; letter-spacing:.02em;
-}
-.truck-header .truck-dot { width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0; }
-.truck-header .truck-title { flex:1; }
-.truck-close {
-  background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px;
-  line-height:1; padding:2px 6px; border-radius:5px;
-}
-.truck-close:hover { background:var(--bg); color:var(--text); }
-.truck-scaleouter { overflow:hidden; }
-.truck-body { width:300px; transform-origin:top left; padding:14px 14px 16px; box-sizing:border-box; }
-
-/* Top row: steering wheel + gear */
-.truck-top { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
-.truck-wheel { width:80px; height:80px; color:var(--text2); flex-shrink:0; transition:transform .08s linear; }
-.truck-gearbox { flex:1; text-align:center; }
-.truck-gearcap { font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--text3); margin-bottom:4px; }
-.truck-gearbadge {
-  display:inline-flex; align-items:center; justify-content:center; min-width:56px;
-  padding:5px 14px; border:1px solid var(--border2); border-radius:9px; background:var(--bg);
-}
-.truck-gear { font-family:var(--mono); font-size:38px; font-weight:500; line-height:1; color:var(--text); }
-.truck-gear.rev { color:var(--amber); }
-.truck-joy { font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--text3); margin-top:6px; min-height:12px; }
-.truck-joy.active { color:var(--blue); }
-
-/* Pedal + steer bars */
-.truck-bar-row { margin-bottom:9px; }
-.truck-bar-head { display:flex; justify-content:space-between; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:3px; }
-.truck-bar-head .v { font-family:var(--mono); color:var(--text); letter-spacing:0; }
-.truck-bar { height:9px; background:var(--bg); border:1px solid var(--border); border-radius:5px; overflow:hidden; }
-.truck-bar > i { display:block; height:100%; width:0%; border-radius:4px; transition:width .08s linear; }
-.truck-bar.brake > i { background:var(--red); }
-.truck-bar.accel > i { background:var(--green); }
-/* Steering: centre-origin bar */
-.truck-steer { position:relative; height:9px; background:var(--bg); border:1px solid var(--border); border-radius:5px; }
-.truck-steer::before { content:''; position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--border2); }
-.truck-steer > i { position:absolute; top:0; bottom:0; left:50%; width:0%; background:var(--blue); border-radius:3px; transition:all .08s linear; }
-
-/* Tell-tale grid */
-.truck-tells {
-  display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:14px;
-  border-top:1px solid var(--border); padding-top:12px;
-}
-.truck-tell {
-  display:flex; flex-direction:column; align-items:center; gap:3px;
-  padding:6px 2px; border-radius:8px; background:var(--bg); color:var(--text3);
-  transition:color .1s, background .1s;
-}
-.truck-tell svg { width:22px; height:22px; }
-.truck-tell .lbl { font-size:8px; text-transform:uppercase; letter-spacing:.05em; text-align:center; line-height:1.2; }
-.truck-tell.on.green { color:var(--green); background:var(--green-dim); }
-.truck-tell.on.blue  { color:var(--blue);  background:var(--blue-dim); }
-.truck-tell.on.amber { color:var(--amber); background:var(--amber-dim); }
-.truck-tell.on.red   { color:var(--red);   background:var(--red-dim); }
-
 /* Commands: views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js) */
-.truck-ctl { margin-top:12px; border-top:1px solid var(--border); padding-top:10px; }
 .truck-ctl-cap { display:flex; justify-content:space-between; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--text3); margin-bottom:8px; }
 .truck-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
 .truck-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); }
@@ -96,124 +32,133 @@
 }
 .truck-ctl-row button.on { color:var(--green); border-color:var(--green); background:var(--green-dim); }
 .truck-ctl .bus { outline:1px solid var(--amber); outline-offset:1px; }
-
-.truck-resize {
-  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
-  background:linear-gradient(135deg,transparent 50%,var(--border2) 50%,var(--border2) 60%,transparent 60%,transparent 75%,var(--border2) 75%,var(--border2) 85%,transparent 85%);
-}
+.truck-gap { margin-top:7px; }
+.truck-inhib { display:flex; align-items:center; justify-content:center; }
 `;
   document.head.appendChild(style);
 
-  const BASE_W = 300;
-  const PANEL_ID = 'truck';
-  const FAMILY = 'truck';
-  const VARIANT = 'semi';            // VehicleCatalog.VARIANTS id, not the family
-  const LABEL = 'truck';
+  const { enumLabel, num, fmt, whole, setTell, setBar } = window.vehiclePanelUtil;
 
-  // ── Window DOM ──────────────────────────────────────────────────────────────
-  const win = document.createElement('div');
-  win.className = 'truck-window';
-  win.id = 'truckWindow';
-  win.innerHTML = `
-  <div class="truck-header" id="truckHeader" title="The truck's cluster. Opens by itself when a truck appears on the Carlito link and takes the RAMN dashboard's place while it is up; the RAMN Control Panel stays, because a truck is driven with the same pedals and gearbox. Drag to move, grip the bottom-right corner to resize.">
-    <span class="truck-dot"></span>
-    <span class="truck-title">Truck dashboard</span>
-    <button class="truck-close" id="truckCloseBtn" title="Close (Esc)">&#10005;</button>
-  </div>
-  <div class="truck-scaleouter" id="truckScaleOuter">
-   <div class="truck-body" id="truckBody">
-    <div class="truck-top">
-      <svg class="truck-wheel" id="truckWheel" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round">
-        <circle cx="50" cy="50" r="44"/>
-        <circle cx="50" cy="50" r="10" fill="currentColor" stroke="none"/>
-        <path d="M50 50 H94 M50 50 H6 M50 50 V94"/>
-      </svg>
-      <div class="truck-gearbox">
-        <div class="truck-gearcap">Gear</div>
-        <div class="truck-gearbadge"><span class="truck-gear" id="truckGear">&ndash;</span></div>
-        <div class="truck-joy" id="truckJoy"></div>
-      </div>
+  // contract `status`, whose bit layout is FROZEN (its desc): the bits a truck sets.
+  const ST = { ign: 0, moving: 2, park: 5, lights: 6, brkLamp: 8, escOff: 9, yaw: 10, roll: 11 };
+
+  // ── Panel body ──────────────────────────────────────────────────────────────
+  const BODY = `
+    <div class="vp-chips">
+      <div class="vp-chip" id="truckChipGear" title="contract gear - the gear actually ENGAGED, off the contract's enum (N, P, R, D1-D24). Its gear_ratio is the Ratio readout below."><span class="cap">Gear</span><span class="val" id="truckGear">&ndash;</span></div>
+      <div class="vp-chip" title="contract kmh - road speed."><span class="cap">Road speed</span><span class="val" id="truckKmh">&ndash;</span></div>
     </div>
 
-    <div class="truck-bar-row">
-      <div class="truck-bar-head"><span>Brake</span><span class="v" id="truckBrakeV">0%</span></div>
-      <div class="truck-bar brake"><i id="truckBrakeBar"></i></div>
+    <div class="vp-rule"></div>
+    <div class="vp-sec-lbl" title="The engine block. Every bar carries the contract's own range and warn threshold - the same numbers the game's own cluster colours on."><span>Engine</span></div>
+    <div class="vp-bars n2">
+      <div class="vp-bar-row" title="contract rpm - engine speed, red past the contract's warn.">
+        <div class="vp-bar-head"><span>RPM</span><span class="v" id="truckRpmV">&ndash;</span></div>
+        <div class="vp-bar" id="truckRpmBar"><i></i></div>
+      </div>
+      <div class="vp-bar-row" title="contract engine_load - percent load at the current speed (J1939 SPN 92).">
+        <div class="vp-bar-head"><span>Load</span><span class="v" id="truckLoadV">&ndash;</span></div>
+        <div class="vp-bar" id="truckLoadBar"><i></i></div>
+      </div>
     </div>
-    <div class="truck-bar-row">
-      <div class="truck-bar-head"><span>Accel</span><span class="v" id="truckAccelV">0%</span></div>
-      <div class="truck-bar accel"><i id="truckAccelBar"></i></div>
+    <div class="vp-bars n3 truck-gap">
+      <div class="vp-bar-row" title="contract fuel - tank level, red at the contract's low-fuel warn.">
+        <div class="vp-bar-head"><span>Fuel</span><span class="v" id="truckFuelV">&ndash;</span></div>
+        <div class="vp-bar" id="truckFuelBar"><i></i></div>
+      </div>
+      <div class="vp-bar-row" title="contract coolant - coolant temperature, red past the contract's overheat warn.">
+        <div class="vp-bar-head"><span>Coolant</span><span class="v" id="truckCoolV">&ndash;</span></div>
+        <div class="vp-bar" id="truckCoolBar"><i></i></div>
+      </div>
+      <div class="vp-bar-row" title="contract battery - terminal voltage, red below the contract's low warn.">
+        <div class="vp-bar-head"><span>Battery</span><span class="v" id="truckBattV">&ndash;</span></div>
+        <div class="vp-bar" id="truckBattBar"><i></i></div>
+      </div>
     </div>
-    <div class="truck-bar-row">
-      <div class="truck-bar-head"><span>Steer</span><span class="v" id="truckSteerV">C 0%</span></div>
-      <div class="truck-steer"><i id="truckSteerBar"></i></div>
+    <div class="vp-reads truck-gap">
+      <div class="vp-read" title="contract fuel_rate in L/h. Range-less by contract, so it gets a number and not a bar."><span class="cap">Burn L/h</span><span class="val" id="truckBurn">&ndash;</span></div>
+      <div class="vp-read" title="contract gear_ratio - the gearbox's input speed over its output (J1939 SPN 526), read out of the sim. 0 in N or P, which reads as no ratio here."><span class="cap">Ratio</span><span class="val" id="truckRatio">&ndash;</span></div>
+      <div class="vp-read" title="contract engine_hours - the hour meter (J1939 SPN 247, on request)."><span class="cap">Hours</span><span class="val" id="truckHours">&ndash;</span></div>
     </div>
 
-    <div class="truck-tells">
-      <div class="truck-tell" id="truckTellTurnL" data-color="green">
-        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="15,4 5,12 15,20"/></svg>
-        <span class="lbl">Left</span>
+    <div class="vp-rule"></div>
+    <div class="vp-sec-lbl" title="The air brakes and the endurance brake. The two air circuits turn red AT their contract warn, a LOW-side threshold: the low-pressure warning, which sits above the point where the spring brakes apply."><span>Brakes</span></div>
+    <div class="vp-bars n2">
+      <div class="vp-bar-row" title="contract air_primary - service brake air pressure, circuit 1 (J1939 SPN 1087).">
+        <div class="vp-bar-head"><span>Air 1</span><span class="v" id="truckAir1V">&ndash;</span></div>
+        <div class="vp-bar" id="truckAir1Bar"><i></i></div>
       </div>
-      <div class="truck-tell" id="truckTellTurnR" data-color="green">
-        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="9,4 19,12 9,20"/></svg>
-        <span class="lbl">Right</span>
+      <div class="vp-bar-row" title="contract air_secondary - service brake air pressure, circuit 2 (J1939 SPN 1088).">
+        <div class="vp-bar-head"><span>Air 2</span><span class="v" id="truckAir2V">&ndash;</span></div>
+        <div class="vp-bar" id="truckAir2Bar"><i></i></div>
       </div>
-      <div class="truck-tell" id="truckTellClear" data-color="blue">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="10.5" y="7" width="3" height="10" rx="1.5" fill="currentColor" stroke="none"/>
-          <path d="M8 8 L4 6.5M8 12 H4M8 16 L4 17.5"/>
-          <path d="M16 8 L20 6.5M16 12 H20M16 16 L20 17.5"/>
-        </svg>
-        <span class="lbl">Clearance</span>
+      <div class="vp-bar-row" title="contract retarder_state - retarder torque as actually APPLIED, a magnitude (J1939 SPN 520 is the same number negated).">
+        <div class="vp-bar-head"><span>Retarder</span><span class="v" id="truckRetV">&ndash;</span></div>
+        <div class="vp-bar" id="truckRetBar"><i></i></div>
       </div>
-      <div class="truck-tell" id="truckTellLow" data-color="blue">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M3 6c5.5 0 5.5 12 0 12 a6 6 0 0 0 0-12z" fill="currentColor" stroke="none"/>
-          <path d="M14 8 l6 1M14 12 l6 1M14 16 l6 1"/>
-        </svg>
-        <span class="lbl">Low beam</span>
+      <div class="vp-bar-row" title="contract brake_temp - service brake temperature, red past the contract's fade warn.">
+        <div class="vp-bar-head"><span>Brake temp</span><span class="v" id="truckBtV">&ndash;</span></div>
+        <div class="vp-bar" id="truckBtBar"><i></i></div>
       </div>
-      <div class="truck-tell" id="truckTellHigh" data-color="blue">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M3 6c5.5 0 5.5 12 0 12 a6 6 0 0 0 0-12z" fill="currentColor" stroke="none"/>
-          <path d="M14 8 h6M14 12 h6M14 16 h6"/>
-        </svg>
-        <span class="lbl">High</span>
+    </div>
+    <div class="vp-bar-row truck-gap" title="contract axle_load - drive-axle load (J1939 SPN 582, PGN 65258 on request), red past the contract's warn.">
+      <div class="vp-bar-head"><span>Drive axle</span><span class="v" id="truckAxleV">&ndash;</span></div>
+      <div class="vp-bar" id="truckAxleBar"><i></i></div>
+    </div>
+
+    <div class="vp-rule"></div>
+    <div class="vp-sec-lbl" title="contract trailer_connected - a trailer on the ISO 11992 data pair. Bobtail, every trailer signal reads a real 0 / false, so the group is greyed rather than blanked."><span>Trailer</span><span class="v" id="truckTrlr">&ndash;</span></div>
+    <div id="truckTrlrGrp">
+      <div class="vp-bars n2">
+        <div class="vp-bar-row" title="contract trailer_axle_load - the towed unit's axle load, read out of the sim the same way as the tractor's. Red past the contract's warn.">
+          <div class="vp-bar-head"><span>Axle</span><span class="v" id="truckTAxleV">&ndash;</span></div>
+          <div class="vp-bar" id="truckTAxleBar"><i></i></div>
+        </div>
+        <div class="vp-bar-row" title="contract trailer_brake_demand - the braking demand SENT to the trailer (ISO 11992-2 EBS11). Not the retarder, which a trailer's service brakes may not compensate.">
+          <div class="vp-bar-head"><span>Brake demand</span><span class="v" id="truckTBrkV">&ndash;</span></div>
+          <div class="vp-bar" id="truckTBrkBar"><i></i></div>
+        </div>
       </div>
-      <div class="truck-tell" id="truckTellKey" data-color="green">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="8" cy="8" r="4"/><path d="M11 11 l8 8M16 16 l2-2M18 18 l2-2"/>
-        </svg>
-        <span class="lbl" id="truckKeyLbl">Off</span>
-      </div>
-      <div class="truck-tell" id="truckTellHand" data-color="red">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="9"/><path d="M7 12 h10" stroke-linecap="round"/>
-          <text x="12" y="10" font-size="7" text-anchor="middle" fill="currentColor" stroke="none">P</text>
-        </svg>
-        <span class="lbl">Brake</span>
-      </div>
-      <div class="truck-tell" id="truckTellHorn" data-color="amber">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 9 h4 l6-4 v14 l-6-4 H3 z"/>
-          <path d="M17 8 a5 5 0 0 1 0 8" fill="none" stroke="currentColor" stroke-width="2"/>
-        </svg>
-        <span class="lbl">Horn</span>
-      </div>
-      <div class="truck-tell" id="truckTellBatt" data-color="red">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="8" width="18" height="10" rx="1.5"/>
-          <path d="M7 6 v2M7 5 h3M16 6 v2M14.5 7 h3"/>
-        </svg>
-        <span class="lbl">Batt</span>
-      </div>
-      <div class="truck-tell" id="truckTellChk" data-color="amber">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
-          <path d="M4 11 V9 h2 V7 h3 l2-2 h3 v2 h2 l2 2 v2 h-1 v5 h-2 v-2 h-8 v2 H6 v-5 z"/>
-        </svg>
-        <span class="lbl">Check</span>
+      <div class="vp-tells truck-gap">
+        <div class="vp-tell" id="truckTellTAbs" data-color="amber" title="contract trailer_abs - the trailer's own anti-lock holding a wheel back (ISO 11992-2 EBS22).">ABS</div>
+        <div class="vp-tell" id="truckTellTVdc" data-color="red" title="contract trailer_vdc - the trailer's own roll-over control braking (ISO 11992-2 EBS21). The one stability signal still able to light with the tractor's ESC off.">VDC</div>
       </div>
     </div>
 
+    <div id="truckBodySec">
+      <div class="vp-rule"></div>
+      <div class="vp-sec-lbl" title="contract body_bus - the refuse body's CiA 422 network powered and the gateway answering. It runs off the PTO, so it is down with the PTO out - and a truck with no body reads the same, since the game publishes the body's signals on every truck. While it is down cleanopen.js sends nothing, and the group is greyed."><span>Refuse body</span><span class="v" id="truckBodyBus">&ndash;</span></div>
+      <div id="truckBodyGrp">
+        <div class="vp-chips">
+          <div class="vp-chip" id="truckChipBody" title="contract body_state - the arm's state, off the contract's enum. Amber while it is not stowed."><span class="cap">State</span><span class="val" id="truckBodyState">&ndash;</span></div>
+          <div class="vp-tell truck-inhib" id="truckTellInhib" data-color="amber" title="contract body_inhibit - the chassis-side interlock (road speed, PTO, parking brake) refusing every body command. Suppressed while the body network is down, the game's own rule: a body with no network cannot be refused a command.">Inhibit</div>
+        </div>
+        <div class="vp-bars n2 truck-gap">
+          <div class="vp-bar-row" title="contract body_pos - the arm's position, read back off the rig.">
+            <div class="vp-bar-head"><span>Arm</span><span class="v" id="truckArmV">&ndash;</span></div>
+            <div class="vp-bar" id="truckArmBar"><i></i></div>
+          </div>
+          <div class="vp-bar-row" title="contract hopper_load - how full the hopper is.">
+            <div class="vp-bar-head"><span>Hopper</span><span class="v" id="truckHopV">&ndash;</span></div>
+            <div class="vp-bar" id="truckHopBar"><i></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vp-rule"></div>
+    <div class="vp-tells">
+      <div class="vp-tell" id="truckTellIgn" data-color="green" title="contract status bit 0 - ignition.">Ign</div>
+      <div class="vp-tell" id="truckTellPark" data-color="red" title="contract status bit 5 - handbrake.">Park</div>
+      <div class="vp-tell" id="truckTellLights" data-color="blue" title="contract status bit 6 - headlights at LOW or brighter.">Lights</div>
+      <div class="vp-tell" id="truckTellBrk" data-color="red" title="contract status bit 8 - brake-light request from roll stability's own braking (J1939 VDC1 SPN 1815 on a truck).">Brk lamp</div>
+      <div class="vp-tell" id="truckTellYaw" data-color="amber" title="contract status bit 10 - the yaw controller braking (J1939 VDC1 YC, SPNs 1817/1819).">Yaw ctl</div>
+      <div class="vp-tell" id="truckTellRoll" data-color="amber" title="contract status bit 11 - roll stability braking (J1939 VDC1 ROP, SPNs 1816/1818).">Roll ctl</div>
+      <div class="vp-tell" id="truckTellEsc" data-color="amber" title="contract status bit 9 - a fitted stability control switched off (esc_off; VDC1 SPN 1814).">ESC off</div>
+      <div class="vp-tell" id="truckTellMove" data-color="green" title="contract status bit 2 - moving.">Moving</div>
+    </div>
+
+    <div class="vp-rule"></div>
     <div class="truck-ctl" title="The truck's commands, sent to Carlito over the uplink. Each is owned by the module for its bus, and the PTO and body command are also read off the bus: while a frame is holding one it is ringed amber, and touching the control takes it back. The trailer lamps are injected from the J1939 tab, beside the DM1 lamps.">
       <div class="truck-ctl-cap"><span>Commands</span><span class="bus-key">amber = held by the bus</span></div>
       <div class="truck-ctl-row">
@@ -227,104 +172,85 @@
         <span class="lbl">Retarder</span><input type="range" id="truckCtlRet" min="0" max="100" value="0"><span class="v" id="truckCtlRetV">0%</span>
       </div>
     </div>
-   </div>
-  </div>
-  <div class="truck-resize" id="truckResize"></div>
 `;
 
-  // ── State ───────────────────────────────────────────────────────────────────
-  let tel = null;               // last telemetry pushed (null = link gone)
-  let live = false;             // a truck is on the link
-  let autoOpened = false;       // opened BY the telemetry, not by hand
-  let scale = () => {};
-  let rafPending = false;
+  // ── The panel ───────────────────────────────────────────────────────────────
   let el = {};
-
-  const isOpen = () => win.classList.contains('open');
-
-  const JOY = { 1: '', 2: 'Up', 3: 'Down', 4: 'Right', 5: 'Left', 6: 'Press' };
-  const KEYPOS = { 1: 'Off', 2: 'Acc', 3: 'Ign' };
-  const BLANK = { brake: 0, accel: 0, steer: 0, gear: null, joy: 1, horn: false, key: 1,
-                  turnL: false, turnR: false, handbrake: false, battery: false, checkEngine: false,
-                  clearance: false, lowbeam: false, highbeam: false, brakeRaw: 0 };
-  const state = () => (window.ramnGetState ? window.ramnGetState() : BLANK);
-
-  // ── Follow the link ─────────────────────────────────────────────────────────
-  // Only an AUTOMATIC open is undone by the automatic close.
-  window.vehiclePanelSubscribe(function (t) {
-    tel = t;
-    const now = !!(window.vehiclePanelIsFamily && window.vehiclePanelIsFamily(FAMILY, t));
-    if (now !== live) {
-      live = now;
-      if (live && !isOpen()) { autoOpened = true; setOpen(true); }
-      else if (!live && autoOpened) { autoOpened = false; setOpen(false); }
-    }
-    markDirty();
+  const panel = window.makeVehiclePanel({
+    id: 'truck', family: 'truck', label: 'truck',
+    variant: 'semi',                  // VehicleCatalog.VARIANTS id, not the family
+    btn: 'truckBtn', takes: 'dash', follow: true,
+    cssPrefix: 'truck', title: 'Truck dashboard', baseW: 320,
+    headerTip: "The truck's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a truck appears on the Carlito link and takes the RAMN dashboard's place while it is up; the RAMN Control Panel stays, because a truck is driven with the same pedals and gearbox. Drag to move, grip the bottom-right corner to resize.",
+    bodyHtml: BODY,
+    render: (t) => render(t || {}),
   });
-
-  // ── Window open / close ─────────────────────────────────────────────────────
-  function setOpen(open) {
-    if (isOpen() === open) return;
-    win.classList.toggle('open', open);
-    if (open) { scale(win.offsetWidth || BASE_W); markDirty(); }
-    const b = document.getElementById('truckBtn');
-    if (b) b.classList.toggle('active', open);
-    if (window.vehiclePanelClaim) window.vehiclePanelClaim(PANEL_ID, open, 'dash');
-  }
-  function truckToggle() {
-    autoOpened = false;             // touched by hand: the telemetry hook stops closing it
-    setOpen(!isOpen());
-  }
+  const markDirty = panel.markDirty;
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  // On the telemetry push (~20 Hz), not per ingested frame: this window follows the link.
-  function markDirty() {
-    if (rafPending || !isOpen()) return;
-    rafPending = true;
-    requestAnimationFrame(() => { rafPending = false; render(); });
-  }
+  // `t` is {} with no truck on the link: the resting panel, not the last one's readings frozen.
+  function render(t) {
+    const gear = num(t.gear);
+    el.gear.textContent = enumLabel('gear', gear);
+    el.chipGear.classList.toggle('on', gear === 255);          // R, the contract's 0xFF
+    el.kmh.textContent = whole(num(t.kmh), ' km/h');
 
-  function setTell(node, on) {
-    // Idempotent: re-toggling every tick fights the transition and flickers on the ON→OFF edge.
-    if (node.classList.contains('on') === on) return;
-    node.classList.toggle('on', on);
-    node.classList.toggle(node.dataset.color, on);
-  }
+    // ── Engine ──
+    setBar(el.rpmBar, el.rpmV, 'rpm', num(t.rpm), 0);
+    setBar(el.loadBar, el.loadV, 'engine_load', num(t.engine_load), 0, '%');
+    setBar(el.fuelBar, el.fuelV, 'fuel', num(t.fuel), 0, '%');
+    setBar(el.coolBar, el.coolV, 'coolant', num(t.coolant), 0, '°C');
+    setBar(el.battBar, el.battV, 'battery', num(t.battery), 1, ' V');
+    el.burn.textContent = fmt(num(t.fuel_rate), 1);
+    const ratio = num(t.gear_ratio);
+    el.ratio.textContent = ratio > 0 ? ratio.toFixed(2) : (Number.isFinite(ratio) ? 'none' : '–');
+    el.hours.textContent = fmt(num(t.engine_hours), 1);
 
-  function render() {
-    if (!isOpen()) return;
-    // No truck on the link → the resting cluster, not the last one's readings frozen.
-    const st = (live && tel) ? state() : BLANK;
+    // ── Brakes ──
+    setBar(el.air1Bar, el.air1V, 'air_primary', num(t.air_primary), 1, ' bar');
+    setBar(el.air2Bar, el.air2V, 'air_secondary', num(t.air_secondary), 1, ' bar');
+    setBar(el.rtdBar, el.rtdV, 'retarder_state', num(t.retarder_state), 0, '%');
+    setBar(el.btBar, el.btV, 'brake_temp', num(t.brake_temp), 0, '°C');
+    setBar(el.axleBar, el.axleV, 'axle_load', num(t.axle_load), 0, ' kg');
 
-    el.wheel.style.transform = `rotate(${(st.steer / 100 * 150).toFixed(1)}deg)`;
+    // ── Trailer ──
+    const trlr = t.trailer_connected;
+    el.trlr.textContent = trlr === undefined ? '–' : (trlr ? 'connected' : 'bobtail');
+    el.trlr.classList.toggle('on', !!trlr);
+    el.trlrGrp.classList.toggle('vp-dim', trlr !== undefined && !trlr);
+    setBar(el.tAxleBar, el.tAxleV, 'trailer_axle_load', num(t.trailer_axle_load), 0, ' kg');
+    setBar(el.tBrkBar, el.tBrkV, 'trailer_brake_demand', num(t.trailer_brake_demand), 0, '%');
+    setTell(el.tAbs, t.trailer_abs);
+    setTell(el.tVdc, t.trailer_vdc);
 
-    el.brakeBar.style.width = Math.max(0, Math.min(100, st.brake)) + '%';
-    el.brakeV.textContent = Math.round(st.brake) + '%';
-    el.accelBar.style.width = Math.max(0, Math.min(100, st.accel)) + '%';
-    el.accelV.textContent = Math.round(st.accel) + '%';
+    // ── Refuse body ── (hidden only for a payload that carries none of it, e.g. an older game)
+    const hasBody = ['body_state', 'body_pos', 'body_inhibit', 'body_bus', 'hopper_load'].some(k => k in t);
+    el.bodySec.classList.toggle('vp-hidden', !hasBody);
+    if (hasBody) {
+      const bus = t.body_bus;
+      el.bodyBus.textContent = bus === undefined ? '–' : (bus ? 'bus up' : 'network down');
+      el.bodyBus.classList.toggle('on', !!bus);
+      el.bodyGrp.classList.toggle('vp-dim', bus !== undefined && !bus);
+      const bs = num(t.body_state);
+      el.bodyState.textContent = enumLabel('body_state', bs);
+      el.chipBody.classList.toggle('on', Number.isFinite(bs) && bs !== 0);
+      setTell(el.inhib, t.body_inhibit && bus !== false);
+      setBar(el.armBar, el.armV, 'body_pos', num(t.body_pos), 0, '%');
+      setBar(el.hopBar, el.hopV, 'hopper_load', num(t.hopper_load), 0, '%');
+    }
 
-    const sclamp = Math.max(-100, Math.min(100, st.steer));
-    el.steerBar.style.width = Math.abs(sclamp) / 2 + '%';
-    el.steerBar.style.left = sclamp >= 0 ? '50%' : (50 - Math.abs(sclamp) / 2) + '%';
-    const dir = Math.abs(sclamp) < 2 ? 'C' : (sclamp < 0 ? 'L' : 'R');
-    el.steerV.textContent = dir + ' ' + Math.round(Math.abs(sclamp)) + '%';
+    // ── Tell-tales ──
+    const st = num(t.status) | 0;
+    const bit = (b) => !!(st & (1 << b));
+    setTell(el.tIgn, bit(ST.ign));
+    setTell(el.tPark, bit(ST.park));
+    setTell(el.tLights, bit(ST.lights));
+    setTell(el.tBrk, bit(ST.brkLamp));
+    setTell(el.tYaw, bit(ST.yaw));
+    setTell(el.tRoll, bit(ST.roll));
+    setTell(el.tEsc, bit(ST.escOff));
+    setTell(el.tMove, bit(ST.moving));
 
-    el.gear.textContent = st.gear == null ? '–' : st.gear;
-    el.gear.classList.toggle('rev', st.gear === 'R');
-    el.joy.textContent = JOY[st.joy] || '';
-    el.joy.classList.toggle('active', !!JOY[st.joy]);
-
-    setTell(el.turnL, st.turnL);
-    setTell(el.turnR, st.turnR);
-    setTell(el.clear, st.clearance);
-    setTell(el.low, st.lowbeam);
-    setTell(el.high, st.highbeam);
-    setTell(el.key, st.key >= 2);
-    el.keyLbl.textContent = KEYPOS[st.key] || 'Off';
-    setTell(el.hand, st.handbrake || st.brakeRaw > 10);
-    setTell(el.horn, st.horn);
-    setTell(el.batt, st.battery);
-    setTell(el.chk, st.checkEngine);
     renderCtl();
   }
 
@@ -332,8 +258,8 @@
   // A view over the modules that own the truck's commands: the PTO is isobus.js's (shared with
   // the tractor), the body command cleanopen.js's, the retarder j1939-flavor.js's. The first two
   // are also read off the bus - a control a frame is holding right now is ringed amber, and
-  // touching it takes it back. Rendered with the cluster, on the telemetry push and after every
-  // click.
+  // touching it takes it back. Rendered with the instruments, on the telemetry push and after
+  // every click.
   const ctl = () => ({
     ib: window.isobusCtl ? window.isobusCtl() : null,
     co: window.cleanopenCtl ? window.cleanopenCtl() : null,
@@ -358,22 +284,29 @@
 
   // ── Wire ────────────────────────────────────────────────────────────────────
   (function wire() {
-    document.body.appendChild(win);
-    const q = (id) => win.querySelector('#' + id);
+    const q = panel.q;
     el = {
-      wheel: q('truckWheel'), gear: q('truckGear'), joy: q('truckJoy'),
-      brakeBar: q('truckBrakeBar'), brakeV: q('truckBrakeV'),
-      accelBar: q('truckAccelBar'), accelV: q('truckAccelV'),
-      steerBar: q('truckSteerBar'), steerV: q('truckSteerV'),
-      turnL: q('truckTellTurnL'), turnR: q('truckTellTurnR'), clear: q('truckTellClear'),
-      low: q('truckTellLow'), high: q('truckTellHigh'), key: q('truckTellKey'),
-      keyLbl: q('truckKeyLbl'), hand: q('truckTellHand'), horn: q('truckTellHorn'),
-      batt: q('truckTellBatt'), chk: q('truckTellChk'),
+      chipGear: q('truckChipGear'), gear: q('truckGear'), kmh: q('truckKmh'),
+      rpmBar: q('truckRpmBar'), rpmV: q('truckRpmV'), loadBar: q('truckLoadBar'), loadV: q('truckLoadV'),
+      fuelBar: q('truckFuelBar'), fuelV: q('truckFuelV'), coolBar: q('truckCoolBar'), coolV: q('truckCoolV'),
+      battBar: q('truckBattBar'), battV: q('truckBattV'),
+      burn: q('truckBurn'), ratio: q('truckRatio'), hours: q('truckHours'),
+      air1Bar: q('truckAir1Bar'), air1V: q('truckAir1V'), air2Bar: q('truckAir2Bar'), air2V: q('truckAir2V'),
+      rtdBar: q('truckRetBar'), rtdV: q('truckRetV'), btBar: q('truckBtBar'), btV: q('truckBtV'),
+      axleBar: q('truckAxleBar'), axleV: q('truckAxleV'),
+      trlr: q('truckTrlr'), trlrGrp: q('truckTrlrGrp'),
+      tAxleBar: q('truckTAxleBar'), tAxleV: q('truckTAxleV'), tBrkBar: q('truckTBrkBar'), tBrkV: q('truckTBrkV'),
+      tAbs: q('truckTellTAbs'), tVdc: q('truckTellTVdc'),
+      bodySec: q('truckBodySec'), bodyBus: q('truckBodyBus'), bodyGrp: q('truckBodyGrp'),
+      chipBody: q('truckChipBody'), bodyState: q('truckBodyState'), inhib: q('truckTellInhib'),
+      armBar: q('truckArmBar'), armV: q('truckArmV'), hopBar: q('truckHopBar'), hopV: q('truckHopV'),
+      tIgn: q('truckTellIgn'), tPark: q('truckTellPark'), tLights: q('truckTellLights'), tBrk: q('truckTellBrk'),
+      tYaw: q('truckTellYaw'), tRoll: q('truckTellRoll'), tEsc: q('truckTellEsc'), tMove: q('truckTellMove'),
       pto: q('truckCtlPto'), body: q('truckCtlBody'), ret: q('truckCtlRet'), retV: q('truckCtlRetV'),
     };
 
     // The body command's positions come off the CONTRACT's enum rather than being typed here.
-    const bodySig = ((window.CARLITO_CONTRACT || {}).signals || []).find(s => s.name === 'body_cmd' && s.dir === 'in');
+    const bodySig = window.vehiclePanelUtil.sigDef('body_cmd', 'in');
     for (const [v, name] of Object.entries((bodySig && bodySig.enum) || {})) {
       const b = document.createElement('button');
       b.dataset.body = v;
@@ -383,31 +316,7 @@
     }
     el.pto.addEventListener('click', () => { const c = ctl().ib; setCtl('isobusSetCtl', { pto: c && c.pto ? 0 : 1 }); });
     el.ret.addEventListener('input', () => setCtl('j1939FlavorSetCtl', { retarder: +el.ret.value }));
-
-    q('truckCloseBtn').addEventListener('click', () => { autoOpened = false; setOpen(false); });
-    document.addEventListener('keydown', e => {
-      if (e.key !== 'Escape' || e._scEscHandled || !isOpen()) return;   // shared flag across windows
-      e._scEscHandled = true; autoOpened = false; setOpen(false);
-    });
-
-    if (window.makeFloating) {
-      scale = window.makeFloating({
-        win, header: q('truckHeader'), grip: q('truckResize'),
-        outer: q('truckScaleOuter'), body: q('truckBody'),
-        baseW: BASE_W, closeSel: '.truck-close',
-      });
-    } else {
-      console.warn('Truck panel: makeFloating is missing - load ramn.js before truck.js.');
-    }
-
-    if (window.vehiclePanelRegister) {
-      window.vehiclePanelRegister({
-        id: PANEL_ID, family: FAMILY, variant: VARIANT, label: LABEL,
-        btn: 'truckBtn', isOpen,
-        close: () => { autoOpened = false; setOpen(false); },
-      });
-    }
   })();
 
-  window.truckToggle = truckToggle;
+  window.truckToggle = panel.toggle;
 })();

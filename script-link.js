@@ -10,6 +10,11 @@
 //
 // Wire protocol: one frame per '\n'-terminated line, cansend grammar - `123#DEADBEEF` (3 hex id
 // digits = 11-bit, exactly 8 = 29-bit), `123#R` / `123#R4` remote. Unparseable lines are ignored.
+// No CAN FD, no timestamps. Scripts use TCP 29541; the relay's own docstring covers its security
+// (Origin allowlist, Host check, 127.0.0.1 bind, HTTP-looking TCP connections dropped).
+//
+// Deliberately NOT a tap in can-link.js: that would miss demo traffic, telemetry and our own TX,
+// and sendCommand is a no-op on gs_usb and in demo.
 //
 // Integration hooks in sloppycan.js (remove to revert):
 //   ingestFrameBody → scriptLinkFrame(frame)   every frame on the bus: RX, demo traffic, telemetry

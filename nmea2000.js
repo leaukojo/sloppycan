@@ -7,13 +7,12 @@
 // isobus.js precedent exactly.
 //
 // ── WHERE THE LAYOUT CAME FROM ───────────────────────────────────────────────
-// Every field this file WRITES was checked field-for-field against j1939.js's own NMEA2K_DB
+// Every field this file WRITES was checked field-for-field against j1939-tables.js's own NMEA2K_DB
 // (the primary source lives there, never here): the self-test round-trips every frame through
-// j1939DecodePGN. 128259 / 129026 / 128267 / 127489 / 127505 / 127488 / 130306 were already in
-// that dictionary. 127245 Rudder, 127237 Heading/Track Control and 130577 Direction Data were
-// added alongside this file, off ttlappalainen's NMEA2000 library (N2kMessages.cpp
-// SetN2kPGN127245 / SetN2kPGN127237 / SetN2kPGN130577) - the closest thing to a public
-// reference for a PGN NMEA's own documents keep behind a paywall.
+// j1939DecodePGN. 127245 Rudder, 127237 Heading/Track Control and 130577 Direction Data are
+// there off ttlappalainen's NMEA2000 library (N2kMessages.cpp SetN2kPGN127245 /
+// SetN2kPGN127237 / SetN2kPGN130577) - the closest thing to a public reference for a PGN
+// NMEA's own documents keep behind a paywall.
 //
 // ── THE COMMANDS, AND WHAT IS NOT HERE ───────────────────────────────────────
 // `nav_mode` and `heading_cmd` are contract dir="in" signals this file OWNS: boat-pilot.js's
@@ -34,12 +33,15 @@
 // families that do not speak NMEA 2000 at all (plane, drone, car, truck, tractor), so the PGN
 // citation is a naming reference, not a claim about which protocol owns the wire. They are the
 // base CAN map's job, and packing them here would fail checkCanCoverage's own logic for the
-// wrong reason - the signal would look covered twice, once honestly and once not.
+// wrong reason - the signal would look covered twice, once honestly and once not. The one
+// deliberate exception is declared rather than hidden: a BOAT also carries `heading` / `lat` /
+// `lon` in 127250 / 129025 (`mirrors` below - decision 1's reasoning, applied to the boat: an NMEA
+// 2000 view of a boat with no heading or position is the stranger result). Both layouts are
+// NMEA2K_DB's, round-tripped by the self-test like every other frame here.
 //
 // INTEGRATION POINTS - the only changes required in the main files:
-//   index.html            <script src="nmea2000.js" defer> after carlito_contract.js and
-//                         BEFORE carlito.js (the packer must be registered by the time
-//                         carlito.js evaluates its coverage check)
+//   index.html            <script src="nmea2000.js" defer> after carlito-registry.js and
+//                         j1939-pack.js
 //   carlito-bridge.html   same script tag. That page loads neither sloppycan.js nor j1939.js,
 //                         so every cross-module read here is typeof-guarded.
 //
@@ -50,59 +52,27 @@
   'use strict';
 
   // ── Shared angle constant, aliased with a fallback ────────────────────────────
-  // j1939.js declares N2K_ANG (0.0001 rad/bit, in degrees) as a top-level `const`, which a
-  // later classic <script> can read by name - but carlito-bridge.html does not load j1939.js at
+  // j1939-tables.js declares N2K_ANG (0.0001 rad/bit, in degrees) as a top-level `const`, which a
+  // later classic <script> can read by name - but carlito-bridge.html does not load j1939-tables.js at
   // all, so the alias keeps its own copy rather than throwing there.
   const NF_ANG = (typeof N2K_ANG !== 'undefined') ? N2K_ANG : 0.0001 * (180 / Math.PI);
 
   // ── Wire primitives ─────────────────────────────────────────────────────────
-  // Local copies for the load-order reason in the header: carlito-bridge.html does not load
-  // j1939.js. Every PGN below is a PDU2 broadcast (all are >= 126720, so PF is always >= 0xF0),
-  // so unlike isobus.js's ibId this never carries a destination.
-  function nfId(pgn, prio, sa) {
-    const dp = (pgn >>> 16) & 1;
-    const pf = (pgn >>> 8) & 0xFF;
-    const ps = pgn & 0xFF;
-    return ((((prio & 7) << 26) >>> 0) | (dp << 24) | (pf << 16) | (ps << 8) | (sa & 0xFF)) >>> 0;
-  }
-
-  // A frame/payload starts as all-ones bytes and fields are written INTO it - in NMEA 2000 an
-  // all-ones field IS "not available" (n2kDecodeField's own sentinel), so a byte this module
-  // never touches states "no source for this" rather than claiming a zero.
-  function nfBlank(n) { return new Array(n).fill(0xFF); }
-
-  // A scaled field, little-endian, in n2kDecodeField's own {bo,bl,scale,offset} vocabulary so
-  // the two are exact inverses (b/n here are BYTE index/count, not bit - every field this file
-  // writes is byte-aligned). Non-finite input writes nothing and the all-ones default stands.
-  // Unsigned fields clamp below the top TWO reserved codes (all-ones "N/A", next "out of
-  // range"), matching n2kDecodeField's unsigned branch; signed fields clamp below the top two
-  // POSITIVE codes for the same reason, matching its signed branch, and negatives are carried
-  // across the bytes as two's complement.
-  function nfPut(d, b, n, val, f, o, signed) {
-    const v = Number(val);
-    if (!Number.isFinite(v)) return;
-    const bits = 8 * n;
-    let raw = Math.round((v - (o || 0)) / f);
-    if (signed) {
-      const maxPos = Math.pow(2, bits - 1) - 1;
-      raw = Math.max(-Math.pow(2, bits - 1), Math.min(maxPos - 2, raw));
-      if (raw < 0) raw += Math.pow(2, bits);
-    } else {
-      const max = Math.pow(2, bits) - 1;
-      raw = Math.max(0, Math.min(max - 2, raw));
-    }
-    for (let i = 0; i < n; i++) { d[b + i] = raw % 256; raw = Math.floor(raw / 256); }
-  }
-  // A bit-level field, `bit` the 0-based LSB position within byte `b` - matches
-  // n2kDecodeField's own bo/bl extraction (bo & 7 is the same bit position). Every field this
-  // file writes at bit level fits inside a single byte, so unlike isobus.js's ibBits there is no
-  // cross-byte case to handle.
-  function nfBits(d, b, bit, nbits, val) {
-    const mask = (((1 << nbits) - 1) << bit) & 0xFF;
-    d[b] = ((d[b] & ~mask) | ((val << bit) & mask)) & 0xFF;
-  }
-
-  function nfFrame(pgn, prio, sa, data) { return { id: nfId(pgn, prio, sa), isExt: true, data }; }
+  // j1939-pack.js (window.J1939Pack). Every PGN below is a PDU2 broadcast (all are >= 126720, so
+  // PF is always >= 0xF0), so no id here carries a destination. Every field is byte-aligned, and
+  // every bit-level one fits inside a single byte.
+  const jp = window.J1939Pack;
+  // NMEA 2000 reserves the top TWO codes of a field, not J1939's top-byte range, so every scaled
+  // field here goes through the 'n2k' rule - which this wrapper is the one place to state.
+  const NF_U = { rule: 'n2k' }, NF_S = { rule: 'n2k', signed: true };
+  // A SIGNED field's "not available" is its maximum positive value (little-endian FF .. 7F), not the
+  // all-ones blank, which a decoder reads as -1: so a signed field with no value gets it here, and
+  // every builder marks the signed fields it never writes with nfNaSigned.
+  const nfPut = (d, b, n, val, f, o, signed) => {
+    if (signed && !Number.isFinite(Number(val))) return nfNaSigned(d, b, n);
+    jp.put(d, b, n, val, f, o, signed ? NF_S : NF_U);
+  };
+  function nfNaSigned(d, b, n) { for (let i = 0; i < n - 1; i++) d[b + i] = 0xFF; d[b + n - 1] = 0x7F; }
 
   // ── Fast Packet framing ────────────────────────────────────────────────────
   // Same shape j1939.js's own NMEA demo already builds for 127489 (j1939DemoFrames): first
@@ -119,20 +89,20 @@
     let idx = 0;
     const f0 = [(seq << 5) | 0, total];
     for (let i = 0; i < 6; i++) f0.push(idx < total ? payload[idx++] : 0xFF);
-    frames.push(nfFrame(pgn, prio, sa, f0));
+    frames.push(jp.frame(jp.buildId(pgn, prio, sa), f0));
     for (let fc = 1; idx < total; fc++) {
       const fr = [(seq << 5) | fc];
       for (let i = 0; i < 7; i++) fr.push(idx < total ? payload[idx++] : 0xFF);
-      frames.push(nfFrame(pgn, prio, sa, fr));
+      frames.push(jp.frame(jp.buildId(pgn, prio, sa), fr));
     }
     return frames;
   }
 
   // ── Source addresses ────────────────────────────────────────────────────────
-  // THE ONE PLACE AN ADDRESS IS DECLARED (dronecan.js's / isobus.js's rule). NMEA 2000 has no
+  // THE ONE PLACE AN ADDRESS IS DECLARED (dronecan-core.js's / isobus.js's rule). NMEA 2000 has no
   // preferred-address table the way J1939 does (isobus.net's SourceAddress table) - a real
   // network claims arbitrary addresses via Address Claim - so these are this file's own choice,
-  // one per logical instrument, grouped by NMEA_DEVICE_CLASS (j1939.js): the engine block is
+  // one per logical instrument, grouped by NMEA_DEVICE_CLASS (j1939-tables.js): the engine block is
   // Propulsion (50), the helm/autopilot is Steering and Control (40), the nav computer is
   // Navigation (60), the tank sender is Instrumentation/General (80).
   const SA_ENGINE = 0;
@@ -149,7 +119,7 @@
   // declared-once conversion). Stated here rather than encoded silently.
   const RUDDER_MAX_DEG = 35;
 
-  const has = (t, k) => t && t[k] !== undefined && t[k] !== null;
+  const has = jp.has;
 
   // ── Message table ───────────────────────────────────────────────────────────
   const NF_MSGS = {
@@ -163,6 +133,10 @@
     FLUID:    { pgn: 127505, prio: 6, sa: SA_TANK },
     DIRDATA:  { pgn: 130577, prio: 3, sa: SA_NAV },
     HTC:      { pgn: 127237, prio: 2, sa: SA_HELM },
+    // The two mirrors, from the navigation address that already sends 129026 COG & SOG: one GNSS /
+    // compass source for the boat's whole position solution.
+    HEADING:  { pgn: 127250, prio: 2, sa: SA_NAV },
+    POSRAPID: { pgn: 129025, prio: 2, sa: SA_NAV },
   };
 
   // A bearing wraps into N2K's own 0..2*pi range rather than carrying a sign - Wind Angle,
@@ -173,76 +147,100 @@
 
   // ── Builders ────────────────────────────────────────────────────────────────
   function nfRudder(t) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     // Instance, Direction Order (byte 1) and the Angle Order (bytes 2-3, the COMMANDED angle a
     // real autopilot orders) all stay "not available": this file has only the applied position,
     // never a distinct order for it.
-    if (has(t, 'rudder_actual')) {
-      nfPut(d, 4, 2, Number(t.rudder_actual) / 100 * RUDDER_MAX_DEG, NF_ANG, 0, true);
-    }
-    return nfFrame(NF_MSGS.RUDDER.pgn, NF_MSGS.RUDDER.prio, NF_MSGS.RUDDER.sa, d);
+    nfNaSigned(d, 2, 2);
+    nfPut(d, 4, 2, has(t, 'rudder_actual') ? Number(t.rudder_actual) / 100 * RUDDER_MAX_DEG : NaN, NF_ANG, 0, true);
+    return jp.msgFrame(NF_MSGS.RUDDER, d);
   }
 
   function nfEngineRapid(t) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     // Engine Speed (bytes 1-2) and Boost Pressure (bytes 3-4) stay "not available": `rpm` is not
     // a boat contract signal and the boat has no boost pressure reading.
     if (has(t, 'trim')) nfPut(d, 5, 1, t.trim, 1, 0, true);
-    return nfFrame(NF_MSGS.ENGRAPID.pgn, NF_MSGS.ENGRAPID.prio, NF_MSGS.ENGRAPID.sa, d);
+    return jp.msgFrame(NF_MSGS.ENGRAPID, d);
   }
 
   // Shared by the apparent and true Wind Data frames - a real anemometer sends both as two
   // separate frames from the same address, one per Reference value, which is exactly this.
   function nfWindFrame(sa, angleDeg, speedMs, refCode) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     nfPut(d, 1, 2, speedMs, 0.01, 0, false);
     const a = Number(angleDeg);
     if (Number.isFinite(a)) nfPut(d, 3, 2, wrap360(a), NF_ANG, 0, false);
-    nfBits(d, 5, 0, 3, refCode);
-    return nfFrame(NF_MSGS.WIND.pgn, NF_MSGS.WIND.prio, sa, d);
+    jp.bits(d, 5, 0, 3, refCode);
+    return jp.frame(jp.buildId(NF_MSGS.WIND.pgn, NF_MSGS.WIND.prio, sa), d);
   }
 
   function nfSpeedWater(t) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     // Speed (Ground) (bytes 3-4) and Sensor Type (byte 5) stay "not available": `sog` already
     // has its own dedicated PGN (129026) and repeating it here would be the 'odo' problem.
     nfPut(d, 1, 2, t.stw, 0.01, 0, false);
-    return nfFrame(NF_MSGS.SPDWTR.pgn, NF_MSGS.SPDWTR.prio, NF_MSGS.SPDWTR.sa, d);
+    return jp.msgFrame(NF_MSGS.SPDWTR, d);
   }
 
   function nfCogSog(t) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     // COG Ref only gets written alongside a real COG - a course over ground from this sim is a
     // GPS-derived ground track, which is always true-referenced (0), never magnetic.
     const c = Number(t.cog);
     if (Number.isFinite(c)) {
-      nfBits(d, 1, 0, 2, 0);
+      jp.bits(d, 1, 0, 2, 0);
       nfPut(d, 2, 2, wrap360(c), NF_ANG, 0, false);
     }
     nfPut(d, 4, 2, t.sog, 0.01, 0, false);
-    return nfFrame(NF_MSGS.COGSOG.pgn, NF_MSGS.COGSOG.prio, NF_MSGS.COGSOG.sa, d);
+    return jp.msgFrame(NF_MSGS.COGSOG, d);
+  }
+
+  // 127250 Vessel Heading: SID (byte 1) stays "not available", Heading at bytes 2-3 (0.0001 rad,
+  // unsigned, so it wraps like COG), Deviation and Variation at 4-5 / 6-7 are SIGNED and so read
+  // "not available" as 0x7FFF, not the 0xFFFF blank (which a decoder takes for -1). Reference
+  // (8.1-8.2) is True: the game's compass is world north, and it models no magnetic field.
+  function nfHeading(t) {
+    const d = jp.blank(8);
+    const h = Number(t.heading);
+    if (Number.isFinite(h)) {
+      nfPut(d, 1, 2, wrap360(h), NF_ANG, 0, false);
+      jp.bits(d, 7, 0, 2, 0);
+    }
+    nfNaSigned(d, 3, 2); nfNaSigned(d, 5, 2);
+    return jp.msgFrame(NF_MSGS.HEADING, d);
+  }
+
+  // 129025 Position, Rapid Update: latitude then longitude, each a signed 32-bit 1e-7 degree. An
+  // absent one is the signed "not available" 0x7FFFFFFF, not the blank (which reads as -1e-7 deg).
+  function nfPosition(t) {
+    const d = jp.blank(8);
+    for (const [b, k] of [[0, 'lat'], [4, 'lon']]) nfPut(d, b, 4, has(t, k) ? t[k] : NaN, 1e-7, 0, true);
+    return jp.msgFrame(NF_MSGS.POSRAPID, d);
   }
 
   function nfWaterDepth(t) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     const depth = Number(t.depth);
     // depth === -1 is the contract's OWN sentinel for "no reading" (outside every terrain's
     // extent, or the hull out of the water). N2K's Depth field has no negative range at all, so
     // the honest wire statement for that case is "not available", not a clamped zero - the same
     // trap isobus.js's WBSD/GBSD direction bit avoids by gating on `status` being present at all.
     if (Number.isFinite(depth) && depth >= 0) nfPut(d, 1, 4, depth, 0.01, 0, false);
-    return nfFrame(NF_MSGS.DEPTH.pgn, NF_MSGS.DEPTH.prio, NF_MSGS.DEPTH.sa, d);
+    nfNaSigned(d, 5, 2);   // Offset (transducer to waterline / keel): no such reading here
+    return jp.msgFrame(NF_MSGS.DEPTH, d);
   }
 
   // The Fast Packet payload alone (no FP header), so the self-test can round-trip it through
   // j1939DecodePGN directly rather than through the chunked frames.
   function nfEngineDynamicPayload(t) {
-    const d = nfBlank(26);
+    const d = jp.blank(26);
     // Oil Temp, Coolant Temp, Alternator, Engine Hours, Coolant/Fuel Pressure, discrete status
     // and Engine Load/Torque all stay "not available": `coolant`/`engine_hours` are UNFLAVORED
     // (the base CAN map's job, see header) and this game has no other source for the rest.
     if (has(t, 'oil_press')) nfPut(d, 1, 2, t.oil_press, 0.1, 0, false);
-    if (has(t, 'fuel_rate')) nfPut(d, 9, 2, t.fuel_rate, 0.1, 0, true);
+    nfPut(d, 9, 2, has(t, 'fuel_rate') ? t.fuel_rate : NaN, 0.1, 0, true);
+    nfNaSigned(d, 7, 2); nfNaSigned(d, 24, 1); nfNaSigned(d, 25, 1);   // Alternator, Load, Torque
     return d;
   }
   function nfEngineDynamic(t) {
@@ -257,16 +255,16 @@
   // 'battery'/'pack_voltage' rule), so index 1 is sewage, not greywater.
   const NF_TANK_TYPE = [1, 5, 3];
   function nfFluidLevel(inst, levelPct) {
-    const d = nfBlank(8);
-    nfBits(d, 0, 0, 4, inst);
-    nfBits(d, 0, 4, 4, NF_TANK_TYPE[inst]);
+    const d = jp.blank(8);
+    jp.bits(d, 0, 0, 4, inst);
+    jp.bits(d, 0, 4, 4, NF_TANK_TYPE[inst]);
     nfPut(d, 1, 2, levelPct, 0.004, 0, true);
     // Capacity (bytes 3-6) stays "not available": no tank in this game has a modeled litre size.
-    return nfFrame(NF_MSGS.FLUID.pgn, NF_MSGS.FLUID.prio, SA_TANK, d);
+    return jp.frame(jp.buildId(NF_MSGS.FLUID.pgn, NF_MSGS.FLUID.prio, SA_TANK), d);
   }
 
   function nfDirectionDataPayload(t) {
-    const d = nfBlank(14);
+    const d = jp.blank(14);
     // Data Mode, COG Reference, SID, COG, SOG, Heading and Speed Through Water all stay "not
     // available": COG/SOG/STW/Heading each already have their own dedicated PGN with their own
     // SA above, and repeating them here is the same 'odo' problem nfSpeedWater avoids.
@@ -281,16 +279,18 @@
   }
 
   function nfHeadingTrackControlPayload(t) {
-    const d = nfBlank(21);
+    const d = jp.blank(21);
     // The four limit-exceeded/override flags, Turn Mode, Heading Reference, Commanded Rudder
     // Direction/Angle, Track, both limits, both turn orders, Off-Track Limit and Vessel Heading
     // all stay "not available" - see the header note on this PGN. `nav_mode_actual` HEADING HOLD
     // maps to Heading Control Standalone (3) rather than Heading Control (4): this pilot has no
     // network of its own to be "Heading Control" over, and the contract says so outright ("no
     // routes and no cross-track error").
-    if (has(t, 'nav_mode_actual')) nfBits(d, 1, 0, 3, Number(t.nav_mode_actual) ? 3 : 0);
+    if (has(t, 'nav_mode_actual')) jp.bits(d, 1, 0, 3, Number(t.nav_mode_actual) ? 3 : 0);
     const hts = Number(t.heading_target);
     if (Number.isFinite(hts)) nfPut(d, 5, 2, wrap360(hts), NF_ANG, 0, false);
+    // The signed ones among them: Commanded Rudder Angle, Radius / Rate of Turn Order, Off-Track Limit.
+    nfNaSigned(d, 3, 2); nfNaSigned(d, 13, 2); nfNaSigned(d, 15, 2); nfNaSigned(d, 17, 2);
     return d;
   }
   function nfHeadingTrackControl(t) {
@@ -310,7 +310,12 @@
     const now = Date.now();
 
     if (has(t, 'rudder_actual')) nfBoatAt = now;   // a boat is on the link (the rudder order's gate)
+    // The mirrors are the boat's alone (carlito-registry.js's shared rule): every vehicle publishes
+    // heading and position, and only the boat has an NMEA 2000 network to put them on.
+    const mirror = !!window.carlitoIsFamily && window.carlitoIsFamily('boat', t);
     if (slow) {                                                          // ~100 ms
+      if (mirror && has(t, 'heading')) out.push(nfHeading(t));
+      if (mirror && (has(t, 'lat') || has(t, 'lon'))) out.push(nfPosition(t));
       if (has(t, 'rudder_actual')) out.push(nfRudder(t));
       if (has(t, 'trim')) out.push(nfEngineRapid(t));
       if (has(t, 'awa') || has(t, 'aws')) out.push(nfWindFrame(SA_NAV, t.awa, t.aws, 2));
@@ -360,6 +365,12 @@
     signals: ['rudder_actual', 'trim', 'awa', 'aws', 'twd', 'tws', 'stw', 'sog', 'cog',
               'current_set', 'current_drift', 'depth', 'fuel_rate', 'oil_press', 'tank_level',
               'nav_mode_actual', 'heading_target'],
+    // CAN_MAP's signals, carried AGAIN in their NMEA 2000 groups for a boat (0x524 / 0x525 keep them).
+    mirrors: {
+      heading: '127250 Vessel Heading, boat only',
+      lat:     '129025 Position, Rapid Update, boat only',
+      lon:     '129025 Position, Rapid Update, boat only',
+    },
     pack: nfPack,
   });
 
@@ -434,18 +445,17 @@
   // The demo's order frame for a steer percentage (-100 port .. +100 starboard), from the
   // steering control head. Direction Order follows the sign.
   function nfRudderOrderFrame(pct) {
-    const d = nfBlank(8);
+    const d = jp.blank(8);
     const p = Math.max(-100, Math.min(100, Number(pct) || 0));
-    nfBits(d, 1, 0, 3, p > 0 ? 1 : p < 0 ? 2 : 0);
+    jp.bits(d, 1, 0, 3, p > 0 ? 1 : p < 0 ? 2 : 0);
     nfPut(d, 2, 2, p / 100 * RUDDER_MAX_DEG, NF_ANG, 0, true);
-    return nfFrame(NF_MSGS.RUDDER.pgn, NF_MSGS.RUDDER.prio, SA_STEER_HEAD, d);
+    nfNaSigned(d, 4, 2);   // Position: an order, not a measurement
+    return jp.frame(jp.buildId(NF_MSGS.RUDDER.pgn, NF_MSGS.RUDDER.prio, SA_STEER_HEAD), d);
   }
 
   function nfDecodeCommand(frame) {
     if (!frame.isExt || frame.isRtr || !frame.data || !frame.data.length) return;
-    const id = frame.id >>> 0;
-    const pgn = (((id >>> 24) & 1) << 16) | (((id >>> 16) & 0xFF) << 8) | ((id >>> 8) & 0xFF);
-    const sa = id & 0xFF;
+    const { pgn, sa } = jp.parseId(frame.id);
     if (pgn === NF_MSGS.RUDDER.pgn) {
       if (sa === NF_MSGS.RUDDER.sa || frame.data.length < 4) return;
       let raw = (frame.data[2] & 0xFF) | ((frame.data[3] & 0xFF) << 8);
@@ -489,7 +499,18 @@
   // additionally round-tripped through ITS decoder in NMEA 2000 mode, so this module's encoder
   // is checked by an independent implementation rather than by its own arithmetic - the
   // isobus.js/j1939-flavor.js pattern.
+  // HERMETIC: the state the checks touch is snapshotted here and put back in a `finally`, so a
+  // check that throws cannot leave a test value driving the game.
   function nmea2000SelfTest() {
+    const pilot = Object.assign({}, nfPilot), order = Object.assign({}, nfRudderOrder), boat = nfBoatAt;
+    const fp = new Map(nfFpRx);
+    try { return nfSelfTestChecks(); }
+    finally {
+      Object.assign(nfPilot, pilot); Object.assign(nfRudderOrder, order); nfBoatAt = boat;
+      nfFpRx.clear(); for (const [k, v] of fp) nfFpRx.set(k, v);
+    }
+  }
+  function nfSelfTestChecks() {
     const failures = [];
     const eq = (what, got, want) => {
       const g = JSON.stringify(got), w = JSON.stringify(want);
@@ -497,18 +518,21 @@
     };
     const hex = (d) => d.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
 
-    // 1. Id build is a PDU2 broadcast and parses back to the PGN/SA that went in.
+    // 1. Id build is a PDU2 broadcast and parses back to the PGN/SA that went in. The literal is
+    //    the independent check: j1939ParseId is J1939Pack.parseId, buildId's own inverse.
+    eq('Rudder id', jp.buildId(127245, 2, SA_HELM).toString(16).toUpperCase(), '9F10D01');
     if (typeof j1939ParseId === 'function') {
-      eq('Rudder id parses back', j1939ParseId(nfId(127245, 2, SA_HELM)),
+      eq('Rudder id parses back', j1939ParseId(jp.buildId(127245, 2, SA_HELM)),
         { priority: 2, dp: (127245 >>> 16) & 1, pf: (127245 >>> 8) & 0xFF, pgn: 127245, da: 0xFF, sa: SA_HELM });
     }
 
     // 2. Sentinels: depth's own -1 must leave the Depth field "not available", never a clamped
     //    zero - N2K's Depth field cannot represent a negative reading at all.
+    //    (Bytes 6-7 are the signed Offset, whose "not available" is 0x7FFF: FF 7F.)
     eq('no depth signal leaves the field not-available', hex(nfWaterDepth({}).data),
-      'FF FF FF FF FF FF FF FF');
+      'FF FF FF FF FF FF 7F FF');
     eq('the -1 sentinel leaves the field not-available too, not a clamped zero',
-      hex(nfWaterDepth({ depth: -1 }).data), 'FF FF FF FF FF FF FF FF');
+      hex(nfWaterDepth({ depth: -1 }).data), 'FF FF FF FF FF FF 7F FF');
     eq('a real depth is written', nfWaterDepth({ depth: 2.5 }).data.slice(1, 5), [250, 0, 0, 0]);
 
     // 3. Trim is a plain signed byte; a negative value round-trips through two's complement
@@ -516,16 +540,25 @@
     eq('trim -40 %', hex(nfEngineRapid({ trim: -40 }).data), 'FF FF FF FF FF D8 FF FF');
 
     // 4. A signal the game did not publish leaves the byte at 0xFF, not a written zero.
+    //    Angle Order and Position are signed: "not available" is 0x7FFF (FF 7F), never the blank.
     eq('no rudder_actual leaves Position not-available', hex(nfRudder({}).data),
-      'FF FF FF FF FF FF FF FF');
+      'FF FF FF 7F FF 7F FF FF');
+    //    The mirrors. 90 deg = 1.5708 rad -> 15708 = 0x3D5C; Deviation / Variation 0x7FFF; True.
+    //    48.8566 deg -> 488566000 = 0x1D1EECF0; -2.3522 deg -> -23522000 = 0xFE991530.
+    eq('Vessel Heading 90 deg true', hex(nfHeading({ heading: 90 }).data), 'FF 5C 3D FF 7F FF 7F FC');
+    eq('Position 48.8566 / -2.3522', hex(nfPosition({ lat: 48.8566, lon: -2.3522 }).data),
+      'F0 EC 1E 1D 30 15 99 FE');
+    eq('Position with no lon leaves it 0x7FFFFFFF', hex(nfPosition({ lat: 48.8566 }).data),
+      'F0 EC 1E 1D FF FF FF 7F');
+    const mirrored = (t) => nfPack(t, true).map(f => jp.parseId(f.id).pgn).filter(p => p === 127250 || p === 129025);
+    eq('a boat carries both mirrors', mirrored({ rudder_actual: 0, heading: 90, lat: 1, lon: 2 }), [127250, 129025]);
+    eq('a car carries neither', mirrored({ heading: 90, lat: 1, lon: 2 }), []);
 
-    // 5. Round-trip every frame through j1939.js's own decoder, in NMEA 2000 mode. This is the
+    // 5. Round-trip every frame through j1939.js's own decoder, in its NMEA 2000 database. This is the
     //    real check on every scale/offset above.
-    if (typeof j1939DecodePGN === 'function' && typeof j1939ProtoMode !== 'undefined') {
-      const savedMode = j1939ProtoMode;
-      j1939ProtoMode = 'nmea2000';
+    if (typeof j1939DecodePGN === 'function') {
       const rt = (label, pgn, data, want) => {
-        const got = j1939DecodePGN(pgn, data);
+        const got = j1939DecodePGN(pgn, data, NMEA2K_DB);   // explicitly, never the tab's active mode
         if (!got.length) { failures.push(label + ': no decoder entry for PGN ' + pgn); return; }
         for (const name of Object.keys(want)) {
           const f = got.find(x => x.name === name);
@@ -534,7 +567,7 @@
         }
       };
       rt('Rudder', 127245, nfRudder({ rudder_actual: 100 }).data,
-        { 'Position': RUDDER_MAX_DEG.toFixed(1) + ' °' });
+        { 'Position': RUDDER_MAX_DEG.toFixed(1) + ' °', 'Angle Order': 'N/A' });
       rt('Engine Rapid', 127488, nfEngineRapid({ trim: 25 }).data, { 'Tilt/Trim': '25 %' });
       rt('Wind (apparent, wraps port-side negative)', 130306, nfWindFrame(SA_NAV, -60, 5, 2).data,
         { 'Wind Speed': '5.00 m/s', 'Wind Angle': '300.0 °', 'Reference': 'Apparent' });
@@ -543,9 +576,11 @@
       rt('Speed Water Ref', 128259, nfSpeedWater({ stw: 3.5 }).data, { 'Speed (Water)': '3.50 m/s' });
       rt('COG & SOG', 129026, nfCogSog({ cog: 45, sog: 2 }).data,
         { 'COG': '45.0 °', 'SOG': '2.00 m/s', 'COG Ref': 'True' });
-      rt('Water Depth', 128267, nfWaterDepth({ depth: 4.2 }).data, { 'Depth': '4.20 m' });
+      rt('Water Depth', 128267, nfWaterDepth({ depth: 4.2 }).data, { 'Depth': '4.20 m', 'Offset': 'N/A' });
       rt('Engine Dynamic', 127489, nfEngineDynamicPayload({ oil_press: 350, fuel_rate: -12 }),
-        { 'Oil Pressure': '350.0 kPa', 'Fuel Rate': '-12.0 L/h' });
+        { 'Oil Pressure': '350.0 kPa', 'Fuel Rate': '-12.0 L/h',
+          'Alternator': 'N/A', 'Engine Load': 'N/A', 'Engine Torque': 'N/A' });
+      rt('Engine Dynamic, no fuel rate', 127489, nfEngineDynamicPayload({ oil_press: 350 }), { 'Fuel Rate': 'N/A' });
       rt('Fluid Level (fresh water)', 127505, nfFluidLevel(0, 62).data,
         { 'Level': '62.0 %', 'Type': 'Water' });
       rt('Fluid Level (waste)', 127505, nfFluidLevel(1, 80).data,
@@ -554,10 +589,15 @@
         { 'Set': '200.0 °', 'Drift': '0.40 m/s' });
       rt('Heading/Track Control', 127237,
         nfHeadingTrackControlPayload({ nav_mode_actual: 1, heading_target: 90 }),
-        { 'Steering Mode': 'Heading Control Standalone', 'Heading-To-Steer (Course)': '90.0 °' });
-      j1939ProtoMode = savedMode;
+        { 'Steering Mode': 'Heading Control Standalone', 'Heading-To-Steer (Course)': '90.0 °',
+          'Commanded Rudder Angle': 'N/A', 'Radius of Turn Order': 'N/A', 'Rate of Turn Order': 'N/A',
+          'Off-Track Limit': 'N/A' });
+      rt('Vessel Heading', 127250, nfHeading({ heading: 270 }).data,
+        { 'Heading': '270.0 °', 'Deviation': 'N/A', 'Variation': 'N/A', 'Reference': 'True' });
+      rt('Position, Rapid Update', 129025, nfPosition({ lat: 48.8566, lon: -2.3522 }).data,
+        { 'Latitude': '48.856600 °', 'Longitude': '-2.352200 °' });
     } else {
-      failures.push('j1939.js is not loaded on this page (or exposes no mutable protocol mode), ' +
+      failures.push('j1939.js is not loaded on this page, ' +
         'so the round-trip decode was not checked - expected on carlito-bridge.html, a failure ' +
         'anywhere else');
     }
@@ -566,7 +606,6 @@
     //    file's own helm address is its own echo and is skipped, an unavailable Heading-To-Steer
     //    leaves the heading alone, and a transfer with a missing frame is dropped whole. Built with
     //    this file's own Fast Packet encoder, so the reassembler is checked against it.
-    const savedPilot = Object.assign({}, nfPilot);
     nfPilot.navMode = 0; nfPilot.headingCmd = null;
     const feed = (sa, t) => {
       for (const fr of nfFastPacket(127237, 2, sa, nfHeadingTrackControlPayload(t))) nfDecodeCommand(fr);
@@ -581,15 +620,13 @@
     const fps = nfFastPacket(127237, 2, 9, nfHeadingTrackControlPayload({ nav_mode_actual: 1, heading_target: 200 }));
     nfDecodeCommand(fps[0]); nfDecodeCommand(fps[2]);
     eq('a frame out of sequence drops the transfer', [nfPilot.navMode, nfPilot.headingCmd], [0, 90]);
-    Object.assign(nfPilot, savedPilot);
 
     // 7. The rudder order: 17.5 deg starboard (50 %) from the control head reads back as 50 %,
     //    only while a boat is on the link; the helm's own 127245 is skipped; a stale order declines.
-    const savedOrder = Object.assign({}, nfRudderOrder), savedBoat = nfBoatAt;
     nfRudderOrder.bus = undefined;
     const ord = nfRudderOrderFrame(50);
     //    17.5 deg = 0.30543 rad -> 3054 = 0x0BEE; Direction Order 1 = starboard.
-    eq('rudder order frame', hex(ord.data), 'FF F9 EE 0B FF FF FF FF');
+    eq('rudder order frame', hex(ord.data), 'FF F9 EE 0B FF 7F FF FF');
     nfDecodeCommand(ord);
     nfBoatAt = 0;
     eq('no boat on the link, no rudder', nfRudderLive(), undefined);
@@ -601,7 +638,6 @@
     eq('its own helm 127245 is not an order', Math.round(nfRudderLive()), -100);
     nfRudderOrder.at = Date.now() - NF_RUDDER_TTL_MS - 1;
     eq('a withdrawn order declines', nfRudderLive(), undefined);
-    Object.assign(nfRudderOrder, savedOrder); nfBoatAt = savedBoat;
 
     if (failures.length) console.error('NMEA 2000 flavor self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
     else console.log('NMEA 2000 flavor self-test: all checks passed.');
