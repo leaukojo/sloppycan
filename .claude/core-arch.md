@@ -10,11 +10,12 @@ module, and all classic scripts share one global lexical scope.
 
 `can-link.js` (its header lists the host contract) owns the connection state and the transport
 primitives: `openGsUsb` / `openWebUSBCDC`, gs_usb bit timing + mode, `gsUsbPump` / `usbSerialPump` /
-`readLoop`, `processBuffer` / `parseSLCAN`, `gsUsbPackFrame`, `sendCommand`. `sloppycan.js` keeps the
-host side: `connectSerial` / `disconnectSerial`, `busOpen`, `hwConnectWarning`,
+`readLoop`, `processBuffer` / `parseSLCAN`, the two frame encoders every TX path uses
+(`gsUsbPackFrame` / `slcanEncode`, both taking an explicit DLC), `sendCommand`. `sloppycan.js` keeps
+the host side: `connectSerial` / `disconnectSerial`, `busOpen`, `hwConnectWarning`,
 `requireBusForCarlito`, `resetConnectionState`, `updateBusPauseBtn`, and the TX-scheduler glue
-(`txTransmitRaw` / `txBuildSlcan` / `gsUsbBuildFrame` / `txDataBytes`). `carlito-bridge.js` supplies
-the same host globals as shims.
+(`txTransmitRaw`, which takes a byte frame, / `txDataBytes`). `carlito-bridge.js` supplies the same
+host globals as shims.
 
 ## `sloppycan.js` sections
 
@@ -118,7 +119,7 @@ parse (`raw(unparsed): …`) or on the BEL error.
   `CAN_SFF_MASK`/`CAN_EFF_MASK` consts; exposed as `window.clampIdInput`): strips non-hex, caps width
   to 3/8 hex, clamps to `0x7FF`/`0x1FFFFFFF`, toggles `.invalid` when empty. Already wired into the TX
   row (`txSyncField`), ISO-TP IDs (`isotpIdInput`), fuzz (`fuzzCfgChange`), XCP (`xcpCfgChange`).
-  CANopen COB-IDs use `coClampCob` (allows empty = "auto"). `txBuildSlcan` zero-pads to fixed width.
+  CANopen COB-IDs use `coClampCob` (allows empty = "auto"). `slcanEncode` zero-pads to fixed width.
 - **Connection-failure UX:** inline `#connectError` under the Connect button via
   `showConnectError`/`clearConnectError` (cleared at connect start + on disconnect), **plus** the
   bottom-right toast. The message also hints the adapter may be open in another app/tab.

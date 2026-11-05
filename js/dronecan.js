@@ -963,8 +963,7 @@ function dronecanOnShow() {
   for (const [id, name] of [['dcGimbalPitch', 'gimbal_pitch'], ['dcGimbalYaw', 'gimbal_yaw']]) {
     const el = document.getElementById(id);
     if (!el) continue;
-    const sig = (window.CARLITO_CONTRACT ? window.CARLITO_CONTRACT.signals : [])
-      .find(x => x.name === name && x.dir === 'in');
+    const sig = window.carlitoSig && window.carlitoSig(name, 'in');
     if (sig && Array.isArray(sig.range) && sig.range.length === 2) {
       el.min = String(sig.range[0]);
       el.max = String(sig.range[1]);
@@ -1166,7 +1165,8 @@ function dcRenderTop() {
   // Keyed like the mode rows: prearm_fail bits toggle while the sticks move.
   let armRows = [];
   if (dcArm) {
-    const state = DC_ARM_STATE[dcArm.state] || 'DISARMED';
+    // The contract's arming_state enum, read rather than retyped (dcEnumLabel).
+    const state = dcEnumLabel('arming_state', 'out', dcArm.state);
     const cls = dcArm.state === 2 ? 'ok' : dcArm.state === 1 ? 'warn' : 'off';
     const bits = [];
     for (let i = 0; i < 16; i++) {

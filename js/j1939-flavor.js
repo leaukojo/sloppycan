@@ -56,7 +56,9 @@
 //                        sensor SPNs)
 //   j1939.js             the VW entry on J1939_REQ_SERVERS that answers a request for
 //                        axle_load, and its demo sends j1939DriveFrames; window.j1939DemoDrive
-//                        is the demand merged into the game's EEC2 / VDC2 / CCVS
+//                        is the demand merged into the game's EEC2 / VDC2 / CCVS. Its base
+//                        traffic builds EEC1 / ET1 / CCVS / VEP1 / DD through
+//                        window.j1939FlavorFrames and paces them by window.j1939FlavorMsgs' `ms`
 //   isobus.js            sends its EEC2 through window.j1939Eec2Frame
 //   carlito-registry.js  window.carlitoIsFamily, the mirrors' truck-or-tractor gate
 //   carlito.js           window.carlitoUplinkDecoders + carlitoUplinkOverrides (DRIVER DEMAND)
@@ -94,8 +96,9 @@
   const SA_CLUSTER = 0x17;
 
   // ── Message table ───────────────────────────────────────────────────────────
-  // Data, not call sites. `ms` is the standard's own transmission repetition rate, recorded so
-  // the gate in jfPack can be checked against it - no cadence in this file is invented.
+  // Data, not call sites. `ms` is the standard's own transmission repetition rate - no cadence in
+  // this file is invented. j1939.js's demo traffic gates on it; jfPack's ticks below are chosen
+  // to match it, as far as the bridge's ~50 ms message rate allows.
   // VW HAS NO ENTRY HERE ON PURPOSE: its rate is literally "On request", so it is not a message
   // this packer sends at all. It lives on J1939_REQ_SERVERS in j1939.js - see `onRequest` below.
   const JF_MSGS = {
@@ -397,14 +400,7 @@
   const PGN_EEC2 = 61443, PGN_EBC1 = 61441, PGN_VDC2 = 61449, PGN_TC1 = 256, PGN_CCVS = 65265;
   const GEAR_R_BYTE = 0xFF;        // the contract's reverse byte
   const GEAR_P_BYTE = 0xFE;        // the contract's park byte (v48)
-  // The tallest drive byte: the top of the contract's `gear` enum (its '1-N' key), read at call
-  // time; 6, RAMN's own range, with no contract loaded.
-  function jfTopGear() {
-    const c = window.CARLITO_CONTRACT;
-    const sig = c && c.signals && c.signals.find(s => s.name === 'gear' && s.dir === 'in');
-    const key = sig && sig.enum && Object.keys(sig.enum).find(k => /^1-\d+$/.test(k));
-    return key ? +key.split('-')[1] : 6;
-  }
+  // The tallest drive byte is carlito-registry.js's window.carlitoGearTop(), read at call time.
   const jfDrive = {
     accel:     { bus: undefined, at: 0 },
     brake:     { bus: undefined, at: 0 },
@@ -426,7 +422,7 @@
     if (g === 'R' || g === GEAR_R_BYTE) return 125 - 1;
     if (g === 'P' || g === GEAR_P_BYTE) return 0xFB;
     const n = Math.round(Number(g)) || 0;
-    return 125 + Math.max(0, Math.min(jfTopGear(), n));
+    return 125 + Math.max(0, Math.min(window.carlitoGearTop(), n));
   }
   // A gear is the operating range, -64..64 (raw 61..189). Everything else is a parameter-specific
   // code, and only Forward Drive and Park have a contract meaning; Hold, the shift requests and
@@ -438,7 +434,7 @@
     const g = raw - 125;
     if (g < -64 || g > 64) return undefined;
     if (g < 0) return GEAR_R_BYTE;
-    return Math.min(jfTopGear(), g);
+    return Math.min(window.carlitoGearTop(), g);
   }
 
   // The four frames the demo sends for a control state { accel, brake, steer, gear } (RAMN panel
@@ -513,6 +509,10 @@
   window.j1939DriveFrames = j1939DriveFrames;
   window.j1939CcvsPatch = j1939CcvsPatch;
   window.j1939Eec2Frame = jfEec2;   // ← isobus.js, which decides when EEC2 goes out
+  // ← j1939.js's demo traffic, which builds the same five groups through these builders (one
+  // encoder per wire format) and paces them by JF_MSGS's rates.
+  window.j1939FlavorMsgs = JF_MSGS;
+  window.j1939FlavorFrames = { EEC1: jfEec1, ET1: jfEt1, CCVS: jfCcvs, VEP1: jfVep1, DD: jfDd };
 
   // ── Self-test ───────────────────────────────────────────────────────────────
   // Run from the console: window.j1939FlavorSelfTest(). Covers the things that are easy to get
@@ -688,7 +688,7 @@
     tcRaw(0xFD); eq('Hold refreshes nothing', live('gear'), GEAR_P_BYTE);
     eq('P encodes as Park', j1939DriveFrames({ gear: 'P' })[3].data[2], 0xFB);
     //    The whole drive range rides SPN 525, D12 and the contract's top gear alike; past it clamps.
-    const top = jfTopGear();
+    const top = window.carlitoGearTop();
     eq('D12 encodes as 137', j1939DriveFrames({ gear: 12 })[3].data[2], 137);
     eq('the top gear encodes', j1939DriveFrames({ gear: top })[3].data[2], 125 + top);
     eq('past the top gear clamps', j1939DriveFrames({ gear: top + 1 })[3].data[2], 125 + top);

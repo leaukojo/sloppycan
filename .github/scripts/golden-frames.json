@@ -1238,7 +1238,107 @@
     "65253 HOURS": "72600000FFFFFFFF",
     "65258 VW": "10384AFFFFFFFFFF",
     "60928 ACL": null
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0578041E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1020301"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0078FEAC0A8C"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "1D1EECF00166EAD0"
+    },
+    {
+     "id": "526",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0012D644"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "058100"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "4658F4"
+    },
+    {
+     "id": "52C",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 2,
+     "data": "2C20"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0578041E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1020301"
+    }
+   ]
   },
   "tractor": {
    "packers": {
@@ -2229,7 +2329,107 @@
     "65253 HOURS": "99510100FFFFFFFF",
     "65258 VW": "100032FFFFFFFFFF",
     "60928 ACL": "0100000000000CA0"
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "076C061E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1080A01"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0078FEAC0A8C"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "1D1EECF00166EAD0"
+    },
+    {
+     "id": "526",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0012D644"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "000900"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "375CF4"
+    },
+    {
+     "id": "52C",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 2,
+     "data": "29A0"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "076C061E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1080A01"
+    }
+   ]
   },
   "boat": {
    "packers": {
@@ -3012,7 +3212,121 @@
     "65253 HOURS": "14190000FFFFFFFF",
     "65258 VW": null,
     "60928 ACL": null
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0078FEAC0A8C"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "1D1EECF00166EAD0"
+    },
+    {
+     "id": "526",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0012D644"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "000100"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "504BF4"
+    },
+    {
+     "id": "529",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0096FED4"
+    },
+    {
+     "id": "52B",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFFF7FFF19"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "529",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0096FED4"
+    }
+   ]
   },
   "drone": {
    "packers": {
@@ -5757,7 +6071,135 @@
     "65253 HOURS": null,
     "65258 VW": null,
     "60928 ACL": null
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0078FEAC0A8C"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "1D1EECF00166EAD0"
+    },
+    {
+     "id": "526",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0012D644"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "000100"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "FFFFF4"
+    },
+    {
+     "id": "529",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FE700258"
+    },
+    {
+     "id": "52A",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0064FFCE001E"
+    },
+    {
+     "id": "52B",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "01A400787F"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "529",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FE700258"
+    },
+    {
+     "id": "52A",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0064FFCE001E"
+    }
+   ]
   },
   "train": {
    "packers": {
@@ -6143,7 +6585,121 @@
     "65253 HOURS": null,
     "65258 VW": null,
     "60928 ACL": null
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0078FEAC0A8C"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "1D1EECF00166EAD0"
+    },
+    {
+     "id": "526",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0012D644"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "000100"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "FFFFF4"
+    },
+    {
+     "id": "52D",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "5EEC1905FEA0"
+    },
+    {
+     "id": "52E",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "01E5020100"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "52D",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "5EEC1905FEA0"
+    }
+   ]
   },
   "plane": {
    "packers": {
@@ -6433,7 +6989,135 @@
     "65253 HOURS": null,
     "65258 VW": null,
     "60928 ACL": null
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "0078FEAC0A8C"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "1D1EECF00166EAD0"
+    },
+    {
+     "id": "526",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "0012D644"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "000100"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "FFFFF4"
+    },
+    {
+     "id": "529",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "012CFCE0"
+    },
+    {
+     "id": "52A",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "003200140014"
+    },
+    {
+     "id": "52B",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "09C400FA7F"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "04E201C2"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFFFD1E"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "00320028FFEC"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "FFF1FFFFFF"
+    },
+    {
+     "id": "529",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "012CFCE0"
+    },
+    {
+     "id": "52A",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "003200140014"
+    }
+   ]
   },
   "extremes": {
    "packers": {
@@ -9276,7 +9960,93 @@
     "65253 HOURS": "00000000FFFFFFFF",
     "65258 VW": "100000FFFFFFFFFF",
     "60928 ACL": "010000000000CEA0"
-   }
+   },
+   "canMap": [
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "F060FFFE"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFF6380"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "7FFE80007FFE"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "012CC80000"
+    },
+    {
+     "id": "524",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "7FFF7FFF1C20"
+    },
+    {
+     "id": "525",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 8,
+     "data": "C46536007FFFFFFE"
+    },
+    {
+     "id": "527",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "FFFFFE"
+    },
+    {
+     "id": "528",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 3,
+     "data": "00FF00"
+    },
+    {
+     "id": "520",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "F060FFFE"
+    },
+    {
+     "id": "521",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 4,
+     "data": "FFFF6380"
+    },
+    {
+     "id": "522",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 6,
+     "data": "7FFE80007FFE"
+    },
+    {
+     "id": "523",
+     "isExt": false,
+     "isRtr": false,
+     "dlc": 5,
+     "data": "012CC80000"
+    }
+   ]
   }
  },
  "encoders": {
@@ -9511,7 +10281,7 @@
    "j1939": [
     [
      {
-      "id": "18F00400",
+      "id": "0CF00400",
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
@@ -9583,18 +10353,11 @@
     ],
     [
      {
-      "id": "18F00400",
+      "id": "0CF00400",
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
       "data": "F08898E420FFFFFF"
-     },
-     {
-      "id": "18FEEE00",
-      "isExt": true,
-      "isRtr": false,
-      "dlc": 8,
-      "data": "865A602DFFFFFFFF"
      },
      {
       "id": "18FEF100",
@@ -9630,36 +10393,15 @@
       "isRtr": false,
       "dlc": 8,
       "data": "FFFF7EFFFFFFFFFF"
-     },
-     {
-      "id": "18FEF700",
-      "isExt": true,
-      "isRtr": false,
-      "dlc": 8,
-      "data": "FFFF14010301FFFF"
-     },
-     {
-      "id": "18FEFC17",
-      "isExt": true,
-      "isRtr": false,
-      "dlc": 8,
-      "data": "FF8AFFFFFFFFFFFF"
      }
     ],
     [
      {
-      "id": "18F00400",
+      "id": "0CF00400",
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
       "data": "F0899A4F22FFFFFF"
-     },
-     {
-      "id": "18FEEE00",
-      "isExt": true,
-      "isRtr": false,
-      "dlc": 8,
-      "data": "865A602DFFFFFFFF"
      },
      {
       "id": "18FEF100",
@@ -9695,20 +10437,6 @@
       "isRtr": false,
       "dlc": 8,
       "data": "FFFF7EFFFFFFFFFF"
-     },
-     {
-      "id": "18FEF700",
-      "isExt": true,
-      "isRtr": false,
-      "dlc": 8,
-      "data": "FFFF14010201FFFF"
-     },
-     {
-      "id": "18FEFC17",
-      "isExt": true,
-      "isRtr": false,
-      "dlc": 8,
-      "data": "FF8AFFFFFFFFFFFF"
      }
     ]
    ],

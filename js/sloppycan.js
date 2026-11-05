@@ -530,16 +530,6 @@ function txArm(msg) {
   msg.timer = setTimeout(tick, msg.period);
 }
 
-function txBuildSlcan(msg) {
-  const id     = msg.id.trim().toUpperCase().padStart(msg.ext ? 8 : 3, '0');
-  const prefix = msg.rtr ? (msg.ext ? 'R' : 'r') : (msg.ext ? 'T' : 't');
-  let frame = prefix + id + msg.dlc;
-  if (!msg.rtr) {
-    frame += txDataBytes(msg).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join('');
-  }
-  return frame;
-}
-
 // Throttled TX-error log: a persistently failing bus (adapter unplugged) would otherwise show only a
 // tiny status badge with nothing in the console. Throttle so a fast TX loop can't flood the log.
 let _lastTxErrLog = 0;
@@ -549,16 +539,17 @@ function logTxErr(e) {
 }
 
 // Raw wire-send only - no dump/frames-map recording. Shared by txSendOne and window.canForward.
-async function txTransmitRaw(msg) {
+// Takes a frame { id, isExt, isRtr, dlc, data: [bytes] }; the encoders are can-link.js's.
+async function txTransmitRaw(f) {
   if (connMode === 'gsusb') {
     // NOTE: unlike the SLCAN branch (serialized via sendCommand), this transferOut is NOT serialized.
     // Un-awaited bursts (e.g. canForward telemetry) can overlap on the OUT endpoint. Lower risk than
     // SLCAN (one URB per binary frame, no byte-interleave), but if gs_usb TX ever drops/reorders
-    // frames, route it through the same write-queue. See memory: slcan-write-serialization.
+    // frames, route it through the same write-queue.
     if (!usbSerDev) return;   // disconnect can null the device between scheduling and here
-    const r = await usbSerDev.transferOut(usbSerOut, gsUsbBuildFrame(msg));
+    const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(f.id, f.isExt, f.isRtr, f.dlc, f.data));
     if (r && r.status !== 'ok') log(`gs_usb TX ${r.status}`, 'err');
-  } else await sendCommand(txBuildSlcan(msg));
+  } else await sendCommand(slcanEncode(f.id, f.isExt, f.isRtr, f.dlc, f.data));
 }
 
 // The ID List costs ~45 µs per row per render (measured: 2,000 IDs ≈ 90 ms of every 100 ms tick,
@@ -602,14 +593,14 @@ async function txSendOne(msg) {
     return;
   }
   try {
-    await txTransmitRaw(msg);
     const id = parseInt(msg.id, 16);
     const dataBytes = txDataBytes(msg);
+    const mirror = { id, isExt: msg.ext, isRtr: msg.rtr, dlc: msg.dlc, data: dataBytes };
+    await txTransmitRaw(mirror);
     recordTxFrame(id, msg.ext, msg.rtr, msg.dlc, dataBytes);
     // Mirror the transmitted frame into the RAMN decoder and the Carlito uplink decoders, as an
     // RX frame would, so a frame sent by hand drives the game exactly as one on the wire does.
     // Carlito picks it up via ramnGetState / its uplink sources next tick.
-    const mirror = { id, isExt: msg.ext, isRtr: msg.rtr, dlc: msg.dlc, data: dataBytes };
     if (window.ramnIngestFrame) ramnIngestFrame(mirror);
     if (window.carlitoUplinkIngestFrame) carlitoUplinkIngestFrame(mirror);
     if (msg.enabled) {
@@ -739,11 +730,10 @@ window.fuzzTxFrame = (id, isExt, dlc, bytes) => window.withTxLock(async () => {
   if (!window.fuzzBusReady()) return false;
   try {
     if (connMode === 'gsusb') {
-      const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(id, isExt, false, bytes));
+      const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(id, isExt, false, dlc, bytes));
       if (r && r.status !== 'ok') log(`gs_usb TX ${r.status}`, 'err');
     } else if (!demoMode) {
-      const idHex = (id & (isExt ? CAN_EFF_MASK : CAN_SFF_MASK)).toString(16).toUpperCase().padStart(isExt ? 8 : 3, '0');
-      await sendCommand((isExt ? 'T' : 't') + idHex + dlc + bytes.map(b => b.toString(16).toUpperCase().padStart(2,'0')).join(''));
+      await sendCommand(slcanEncode(id, isExt, false, dlc, bytes));
     }
     const data = [...bytes];
     recordTxFrame(id, isExt, false, dlc, data);
@@ -1226,10 +1216,7 @@ function toggleTxSuspend() {
 // openWebUSBCDC (Android CDC-ACM open) → can-link.js (shared transport)
 
 // ── gs_usb transport ───────────────────────────────────────────────────────────
-// The gs_usb device primitives live in can-link.js; only the TX-scheduler glue is here.
-function gsUsbBuildFrame(msg) {
-  return gsUsbPackFrame(parseInt(msg.id, 16), msg.ext, msg.rtr, txDataBytes(msg));
-}
+// The gs_usb device primitives and the frame encoder live in can-link.js.
 
 // dispatchSerialText + usbSerialPump (Android WebUSB RX) → can-link.js (shared transport)
 
@@ -2777,8 +2764,9 @@ function updateFilterOutBtn() {
 })();
 
 // ── Demo Mode ────────────────────────────────────────────────────────────────
-// Simulates 9 CAN IDs at configurable rates without a real serial device.
-// Frame format: 2-byte payload (0x0000) + 2-byte counter (BE) + 4-byte CRC-32/ISO-HDLC (LE).
+// Simulates the 10 RAMN CAN IDs in DEMO_CONFIG without a real serial device.
+// Frame format: 2-byte payload (the RAMN Control Panel's, ramnCtrlPayload; 0x0000 without it)
+// + 2-byte counter (BE) + 4-byte CRC-32/ISO-HDLC (LE).
 // IDs 0x024/0x039/0x062 at 10ms; others at 100ms.
 // Demo mode is permanent for the session - reload the page to exit.
 // sendCommand() is a no-op in demo mode except when the Serial Terminal tab is active.
@@ -3233,13 +3221,10 @@ function isotpBuildFrames(payload, cfg) {
 async function isotpTxCan(data, cfg, txIdOverride) {
   const txId = txIdOverride ?? cfg.txId;
   if (connMode === 'gsusb') {
-    const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(txId, cfg.isExt, false, data));
+    const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(txId, cfg.isExt, false, data.length, data));
     if (r && r.status !== 'ok') log(`gs_usb TX ${r.status}`, 'err');
   } else {
-    const idHex = txId.toString(16).toUpperCase().padStart(cfg.isExt ? 8 : 3, '0');
-    const cmd   = (cfg.isExt ? 'T' : 't') + idHex + data.length +
-                  data.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join('');
-    await sendCommand(cmd);
+    await sendCommand(slcanEncode(txId, cfg.isExt, false, data.length, data));
   }
   // Record in the frames Map / dump log so the request shows up in the ID list with a TX badge.
   recordTxFrame(txId, cfg.isExt, false, data.length, [...data]);
@@ -5227,10 +5212,8 @@ window.canForward = function (frame) {
   // any late rejection on the returned promise (errors are already logged) to avoid unhandled rejections.
   // Returned so a caller that must keep its own frames in order (script-link.js) can await it.
   return txTransmitRaw({
-    id:  (frame.id >>> 0).toString(16).toUpperCase(),
-    ext: !!frame.isExt, rtr: !!frame.isRtr,
-    dlc: frame.dlc,
-    data: frame.data.map(b => (b & 0xFF).toString(16).padStart(2, '0')).join('')
+    id: frame.id >>> 0, isExt: !!frame.isExt, isRtr: !!frame.isRtr,
+    dlc: frame.dlc != null ? frame.dlc : frame.data.length, data: frame.data,
   }).catch(() => {});
 };
 window.fuzzScheduleSave  = scheduleSave; // let fuzz.js persist config changes

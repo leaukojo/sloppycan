@@ -23,6 +23,29 @@ window.carlitoFlavorPackers = window.carlitoFlavorPackers || [];
 // nack: false makes a null build() silence rather than a NACK (a control function that is not there).
 window.j1939RequestServers = window.j1939RequestServers || [];
 
+// ── A contract signal by (name, dir) ────────────────────────────────────────
+// The one lookup every module uses rather than walking CARLITO_CONTRACT.signals itself. Indexed on
+// the first call that finds the contract loaded, never at eval time (both pages load this file
+// before carlito_contract.js); null for a signal the contract lacks.
+window.carlitoSig = window.carlitoSig || (function () {
+  let index = null;
+  return (name, dir) => {
+    if (!index) {
+      const sigs = window.CARLITO_CONTRACT && window.CARLITO_CONTRACT.signals;
+      if (!sigs) return null;   // not indexed: the contract may simply not have loaded yet
+      index = new Map(sigs.map(s => [s.name + '|' + s.dir, s]));
+    }
+    return index.get(name + '|' + dir) || null;
+  };
+})();
+// The tallest drive byte: the top of the contract `gear` enum's '1-N' key, so a panel and a decoder
+// follow the bus rather than a literal. 6, RAMN's own MAX_GEAR_VALUE, with no contract loaded.
+window.carlitoGearTop = window.carlitoGearTop || (() => {
+  const sig = window.carlitoSig('gear', 'in');
+  const key = sig && sig.enum && Object.keys(sig.enum).find(k => /^1-\d+$/.test(k));
+  return key ? +key.split('-')[1] : 6;
+});
+
 // ── Which machine is on the link ────────────────────────────────────────────
 // An "out" signal the contract gives to exactly ONE family being present IS the vehicle; there is
 // no vehicle_type on the wire. A name shared with the car says nothing about who published it.

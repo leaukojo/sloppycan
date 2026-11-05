@@ -276,8 +276,7 @@
   function ibWarnDeviceClass(v) {
     if (ibWarnedClasses.has(v)) return;
     ibWarnedClasses.add(v);
-    const c = window.CARLITO_CONTRACT;
-    const s = c && c.signals && c.signals.find(x => x.name === 'implement_type' && x.dir === 'out');
+    const s = window.carlitoSig && window.carlitoSig('implement_type', 'out');
     if (s && s.enum && s.enum[v] == null) {
       console.warn('ISOBUS: implement_type ' + v + ' is not in the contract enum - claiming it ' +
         'as an ISO 11783 device class anyway, but one of the two has moved.');

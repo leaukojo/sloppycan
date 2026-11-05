@@ -299,7 +299,7 @@ win.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="8" cy="8" r="4"/><path d="M11 11 l8 8M16 16 l2-2M18 18 l2-2"/>
         </svg>
-        <span class="lbl" id="ramnKeyLbl">Off</span>
+        <span class="lbl" id="ramnKeyLbl"></span><!-- the contract's label, set by renderDashboard -->
       </div>
       <div class="ramn-tell" id="ramnTellHand" data-color="red">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -406,7 +406,7 @@ ctrlWin.innerHTML = `
 function blankState() {
   return {
     brake: 0, accel: 0, steer: 0,           // %, % , -100(L)..+100(R)
-    gear: null, joy: 1,                      // gear: 'P'|'R'|1..ramnTopGear()|null ; joy enum 1..6
+    gear: null, joy: 1,                      // gear: 'P'|'R'|1..window.carlitoGearTop()|null ; joy enum 1..6
     horn: false, lights: 1, key: 1,          // lights 1..4 (derived from 0x1BB), key 1..3
     turnL: false, turnR: false,              // from 0x1BB LED status (0x1A7 control too)
     handbrake: false, battery: false, checkEngine: false,
@@ -427,7 +427,7 @@ let dashScale = () => {}, ctrlScale = () => {};
 // Defaults give a sane resting car (centred wheel, lights/key off, first gear).
 const ramnCtrl = {
   brake: 0, accel: 0, steer: 0,   // steer -100(L)..+100(R)
-  gear: 1, joy: 1,                // gear 1..ramnTopGear(), 'R' or 'P'
+  gear: 1, joy: 1,                // gear 1..window.carlitoGearTop(), 'R' or 'P'
   horn: 0, lights: 1, key: 3,     // key defaults to Ignition so demo driving passes Carlito's engine gate
   turnL: 0, turnR: 0, handbrake: 0
 };
@@ -506,7 +506,7 @@ function ramnIngestFrame(frame) {
       break;
     }
     case 0x077:
-      st.gear = (d[0] === 0xFF) ? 'R' : (d[0] === 0xFE ? 'P' : (d[0] >= 1 && d[0] <= ramnTopGear() ? d[0] : null));
+      st.gear = (d[0] === 0xFF) ? 'R' : (d[0] === 0xFE ? 'P' : (d[0] >= 1 && d[0] <= window.carlitoGearTop() ? d[0] : null));
       st.joy  = d[1] || 1;
       ramnSeenFields.add('gear');
       break;
@@ -541,7 +541,13 @@ function ramnIngestFrame(frame) {
 
 // ── Render (rAF-throttled) ──────────────────────────────────────────────────────
 const JOY = { 1: '', 2: 'Up', 3: 'Down', 4: 'Right', 5: 'Left', 6: 'Press' };
-const KEYPOS = { 1: 'Off', 2: 'Acc', 3: 'Ign' };
+// The key position's label is the contract `key` enum's own (1 Lock, 2 On, 3 Ignition), never
+// retyped; a byte the enum does not name reads as position 1's, as the blank state does.
+function ramnKeyLabel(k) {
+  const sig = window.carlitoSig && window.carlitoSig('key', 'in');
+  const tbl = (sig && sig.enum) || {};
+  return tbl[k] || tbl[1] || '';
+}
 let el = {};
 
 function setTell(node, on, blink) {
@@ -586,7 +592,7 @@ function renderDashboard() {
   setTell(el.low, st.lowbeam, false);
   setTell(el.high, st.highbeam, false);
   setTell(el.key, st.key >= 2, false);
-  el.keyLbl.textContent = KEYPOS[st.key] || 'Off';
+  el.keyLbl.textContent = ramnKeyLabel(st.key);
   // Non-standard (per request): OR the brake pedal into the parking-brake indicator.
   // Firmware's real sidebrake is 0x1BB bit 0x04 / 0x1D3 - deliberately not used here.
   setTell(el.hand, st.handbrake || st.brakeRaw > 10, false);
@@ -648,21 +654,13 @@ function ramnDemoStarted() {
   if (win.classList.contains('open')) setCtrlOpen(true);
 }
 
-// The tallest drive byte: the top of the Carlito contract's `gear` enum (its '1-N' key), so the
-// panel and the decode follow the bus rather than a literal. Real RAMN sends up to its firmware's
-// MAX_GEAR_VALUE. Read at call time (this file loads before carlito_contract.js); 6, RAMN's own
-// range, with no contract.
-function ramnTopGear() {
-  const c = window.CARLITO_CONTRACT;
-  const sig = c && c.signals && c.signals.find(s => s.name === 'gear' && s.dir === 'in');
-  const key = sig && sig.enum && Object.keys(sig.enum).find(k => /^1-\d+$/.test(k));
-  return key ? +key.split('-')[1] : 6;
-}
+// The tallest drive byte is carlito-registry.js's window.carlitoGearTop() - the contract's, so the
+// panel and the decode follow the bus. Real RAMN sends up to its firmware's MAX_GEAR_VALUE.
 
 // ── Control UI sync (reflects ramnCtrl into the panel widgets) ─────────────────
 let cel = {};
 function syncCtrlUI() {
-  cel.gearTop.textContent = ramnTopGear();
+  cel.gearTop.textContent = window.carlitoGearTop();
   cel.brake.value = ramnCtrl.brake; cel.brakeV.textContent = Math.round(ramnCtrl.brake) + '%';
   cel.accel.value = ramnCtrl.accel; cel.accelV.textContent = Math.round(ramnCtrl.accel) + '%';
   cel.steer.value = ramnCtrl.steer;
@@ -790,10 +788,10 @@ function ramnSetTraffic(on) {
 
   // Gear is driven by the shift joystick (like real RAMN): ↑ up, ↓ down.
   // P sits below R, as on a lever; it is a Carlito extension (byte 0xFE), never sent by real RAMN.
-  // P, R, then D1 up to the contract's top gear (`ramnTopGear`).
+  // P, R, then D1 up to the contract's top gear (`window.carlitoGearTop`).
   function gearSeq() {
     const seq = ['P', 'R'];
-    for (let g = 1; g <= ramnTopGear(); g++) seq.push(g);
+    for (let g = 1; g <= window.carlitoGearTop(); g++) seq.push(g);
     return seq;
   }
   function gearShift(delta) {

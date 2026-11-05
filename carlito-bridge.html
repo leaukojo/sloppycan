@@ -91,10 +91,10 @@ body.zen .carlito-window .carlito-io { display: none !important; }
   <script src="js/can-link.js"></script>
   <!-- Bridge host: provides log/ingestFrame/connect/canForward etc. for can-link.js + carlito.js. -->
   <script src="js/carlito-bridge.js"></script>
+  <script src="js/carlito-registry.js" defer></script><!-- every Carlito registry + carlitoSig / carlitoGearTop, created empty; must precede every module that registers, ramn.js included -->
   <!-- RAMN decoder (ramnGetState / ramnIngestFrame) and the Carlito link, reused unchanged. -->
   <script src="js/ramn.js" defer></script>
   <script src="js/carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
-  <script src="js/carlito-registry.js" defer></script><!-- every Carlito registry, created empty; must precede every module that registers -->
   <script src="js/j1939-pack.js" defer></script><!-- the one J1939 / NMEA 2000 frame-packing helper (window.J1939Pack); must precede every packer -->
   <script src="js/dronecan-core.js" defer></script><!-- DroneCAN codec + carlito dronecan-flavor packer (the tab half, dronecan.js, is index.html only) -->
   <script src="js/isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer -->

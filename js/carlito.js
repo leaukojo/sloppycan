@@ -17,7 +17,7 @@
 //
 // INTEGRATION (sloppyCAN side, the only seams in core files):
 //   index.html  <script src="carlito.js" defer>  +  #carlitoBtn toolbar button
-//   ramn.js     exposes window.ramnGetState = () => ({ ...ramnState })//
+//   ramn.js     exposes window.ramnGetState = () => ({ ...ramnState })
 // The matching game-side bridge lives in the carlito repo (src/bridge/bridge.gd +
 // src/bridge/web/head_include.html); see carlito/CLAUDE.md.
 
@@ -125,7 +125,7 @@
       <button id="carlitoReload" title="Reload the game">Reload</button>
       <button id="carlitoKbd" title="Block physical keyboard from reaching the game (JS bridge still drives)">⌨ on</button>
       <button class="carlito-link on" id="carlitoUp" title="Uplink: send RAMN controls into the game (SloppyCAN → Carlito)">Up ●</button>
-      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52C (Carlito → SloppyCAN)">Down ●</button>
+      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52E and its protocol frames (Carlito → SloppyCAN)">Down ●</button>
       <span class="carlito-nodrive" id="carlitoNoDrive" title="The built uplink has no accel, brake or steer - the game falls back to its own keyboard (not during a challenge)">no driving controls</span>
       <button class="carlito-iocaret" id="carlitoIoCaret" title="Show/hide debug panel">▸ debug</button>
     </div>
@@ -171,7 +171,7 @@
         <div class="carlito-io-row" title="contract gear_ratio (J1939 SPN 526, sent in ETC2): the gearbox input over output speed on truck and tractor - the engaged gear's ratio, a CVT's live one (64.255 at active standstill); '-' where the vehicle declares none"><span>ratio</span><b id="ci_ratio">-</b></div>
         <div class="carlito-io-row"><span>coolant</span><b id="ci_coolant">-</b></div>
         <div class="carlito-io-row"><span>batt</span><b id="ci_batt">-</b></div>
-        <div class="carlito-io-row" style="opacity:.6"><span>CAN</span><b>520–528</b></div>
+        <div class="carlito-io-row" style="opacity:.6"><span>CAN</span><b>520–52E</b></div>
       </div>
     </div>
     <div class="carlito-framewrap" id="carlitoFrameWrap">
@@ -184,8 +184,8 @@
   // ── Which Carlito build to load ───────────────────────────────────────────────
   // Carlito ships two channels from one repo: `stable` (promoted, what anonymous visitors get)
   // and `dev` (latest push). Both URLs are HARDCODED here, absolute.
-  // SECURITY: GAME_ORIGIN derived below is the inbound trust gate for CAN injection (frames
-  // 0x520–0x52C). An attacker-supplied ?carlitoUrl=https://evil.example would otherwise make
+  // SECURITY: GAME_ORIGIN derived below is the inbound trust gate for CAN injection (the 0x52x
+  // block and every flavor packer's frames). An attacker-supplied ?carlitoUrl=https://evil.example would otherwise make
   // evil.example the trusted game and let it inject frames on a live bus. The rule that keeps that
   // shut is "the trusted cross-origin game is a constant in this file"; two constants satisfy it
   // exactly as one did, so this is a second entry, NOT a relaxation. The two channels are the same
@@ -231,7 +231,13 @@
   const el = {};
   const OUT_IDS = ['co_accel','co_brake','co_steer','co_hand','co_key','co_lights','co_gear','co_turn','co_horn','co_check','co_batt','co_brakelamp'];
   const IN_IDS = ['ci_kmh','ci_rpm','ci_gear','ci_throttle','ci_yaw','ci_acclong','ci_acclat','ci_steer','ci_slip','ci_ground','ci_head','ci_wind','ci_pos','ci_lat','ci_lon','ci_odo','ci_status','ci_impact','ci_fuel','ci_burn','ci_ratio','ci_coolant','ci_batt'];
-  const KEY_LBL = ['', 'Off', 'Acc', 'Ign'], LIGHT_LBL = ['', 'Off', 'Clr', 'Low', 'High'];
+  // The key and lights rows read the contract enums' own labels (key 2 is "On", not a retyped
+  // "Acc", which names a different switch position); '-' for a byte the enum does not name.
+  const inEnumLabel = (name, v) => {
+    const s = window.carlitoSig && window.carlitoSig(name, 'in');
+    const l = s && s.enum && s.enum[v];
+    return l != null ? l : '-';
+  };
 
   // ── Shared signal contract (window.CARLITO_CONTRACT, loaded before this file) ──
   // The contract (the carlito repo's contract/carlito_contract.json, synced here as carlito_contract.js)
@@ -523,8 +529,8 @@
     el.co_brake.textContent = Math.round(+st.brake || 0);
     el.co_steer.textContent = Math.round(+st.steer || 0);
     el.co_hand.textContent = st.handbrake ? 'ON' : 'off';
-    el.co_key.textContent = KEY_LBL[+st.key] || '-';
-    el.co_lights.textContent = LIGHT_LBL[+st.lights] || '-';
+    el.co_key.textContent = inEnumLabel('key', +st.key);
+    el.co_lights.textContent = inEnumLabel('lights', +st.lights);
     el.co_gear.textContent = (st.gear === 'R' || st.gear === 'P') ? st.gear : (+st.gear || 0);
     el.co_turn.textContent = st.turnL && st.turnR ? 'L+R' : st.turnL ? 'L' : st.turnR ? 'R' : '-';
     el.co_horn.textContent = st.horn ? 'ON' : 'off';
@@ -543,7 +549,7 @@
     el.ci_kmh.textContent = (+t.kmh || 0).toFixed(0) + ' km/h';
     el.ci_bar.style.width = Math.min(100, Math.abs(+t.speed || 0) / 40 * 100).toFixed(1) + '%';
     el.ci_rpm.textContent = (+t.rpm || 0);
-    el.ci_gear.textContent = (+t.gear === GEAR_R_BYTE) ? 'R' : (+t.gear === GEAR_P_BYTE) ? 'P' : (+t.gear || 0);   // 0=N, 1–6, 0xFE=P, 0xFF=R
+    el.ci_gear.textContent = (+t.gear === GEAR_R_BYTE) ? 'R' : (+t.gear === GEAR_P_BYTE) ? 'P' : (+t.gear || 0);   // 0=N, 1 up to the contract's top gear, 0xFE=P, 0xFF=R
     el.ci_throttle.textContent = (+t.throttle || 0) + '%';
     el.ci_yaw.textContent = (+t.yaw || 0).toFixed(2);
     el.ci_acclong.textContent = (+t.accLong || 0).toFixed(2);
@@ -574,17 +580,27 @@
 
   // ── Return channel: Carlito → sloppyCAN telemetry ──
   // Game postMessages {type:'carlitoOutput', values:{…}} ~every 50 ms. We render it and emit CAN
-  // frames 0x520–0x52C (big-endian) via window.canForward - ingested once for the dashboards and,
+  // frames 0x520–0x52E (big-endian) via window.canForward - ingested once for the dashboards and,
   // when a bus is open, transmitted on the wire and shown as a single "FW" dump entry (gateway model;
-  // plain RX when no bus). Throttled in the message handler: fast IDs ~10/s, slow IDs ~5/s.
-  // Big-endian fixed-point encoders. u16/i16 share byte ops (16-bit two's complement); the
-  // receiver picks the interpretation. All inputs are rounded and masked to width.
+  // plain RX when no bus). Paced in the message handler: fast IDs ~20/s, slow IDs ~10/s.
+  // Big-endian fixed-point encoders. A scaled value is rounded and SATURATED one count under its
+  // type's NA code (NA below), never masked: masking wrapped an out-of-range reading onto a
+  // plausible small one (an impact of 260 m/s^2 read 4) or onto NA itself. Signed types carry two's
+  // complement. `byte` / `word` are VERBATIM, for enums and bitfields, whose every value is a code
+  // (the gear byte's R is 0xFF) rather than a point on a scale.
+  // NaN saturates nowhere (Math.max / Math.min pass it through), so it is 0, as masking made it.
+  const sat = (v, lo, hi) => { v = Math.round(v); return Number.isNaN(v) ? 0 : Math.max(lo, Math.min(hi, v)); };
+  const bytes16 = v => [(v >> 8) & 0xFF, v & 0xFF];
+  const bytes32 = v => [(v >>> 24) & 0xFF, (v >>> 16) & 0xFF, (v >>> 8) & 0xFF, v & 0xFF];
   const enc = {
-    u16: v => { v = Math.round(v) & 0xFFFF; return [(v >> 8) & 0xFF, v & 0xFF]; },
-    i16: v => { v = Math.round(v) & 0xFFFF; return [(v >> 8) & 0xFF, v & 0xFF]; },
-    u32: v => { v = Math.round(v) >>> 0; return [(v >>> 24) & 0xFF, (v >>> 16) & 0xFF, (v >>> 8) & 0xFF, v & 0xFF]; },
-    i8:  v => [Math.round(v) & 0xFF],
-    u8:  v => [Math.round(v) & 0xFF],
+    u8:  v => [sat(v, 0, 0xFE)],
+    i8:  v => [sat(v, -0x80, 0x7E) & 0xFF],
+    u16: v => bytes16(sat(v, 0, 0xFFFE)),
+    i16: v => bytes16(sat(v, -0x8000, 0x7FFE) & 0xFFFF),
+    u32: v => bytes32(sat(v, 0, 0xFFFFFFFE) >>> 0),
+    i32: v => bytes32(sat(v, -0x80000000, 0x7FFFFFFE) >>> 0),
+    byte: v => [Math.round(v) & 0xFF],
+    word: v => bytes16(Math.round(v) & 0xFFFF),
   };
   // An INSTANCED contract signal (count > 1) arrives as an ARRAY, so `+t.sig || 0` - which
   // Number()s an array of two into NaN and then falls through to 0 - is exactly the wrong shape.
@@ -613,16 +629,16 @@
   };
   const CAN_MAP = [
     { id: 0x520, fast: true,  fields: [['speed', t => enc.i16((+t.speed || 0) * 100), NA.i16], ['kmh', t => enc.u16((+t.kmh || 0) * 10), NA.u16]] },
-    { id: 0x521, fast: true,  fields: [['rpm', t => enc.u16(+t.rpm || 0), NA.u16], ['gear', t => enc.u8(+t.gear || 0), NA.gear], ['throttle', t => enc.i8(+t.throttle || 0), NA.i8]] },
+    { id: 0x521, fast: true,  fields: [['rpm', t => enc.u16(+t.rpm || 0), NA.u16], ['gear', t => enc.byte(+t.gear || 0), NA.gear], ['throttle', t => enc.i8(+t.throttle || 0), NA.i8]] },
     { id: 0x522, fast: true,  fields: [['yaw', t => enc.i16((+t.yaw || 0) * 1000), NA.i16], ['accLong', t => enc.i16((+t.accLong || 0) * 100), NA.i16], ['accLat', t => enc.i16((+t.accLat || 0) * 100), NA.i16]] },
     // slip is TWO bytes since contract v30: front, then rear, in the contract's own zero-based
     // index order - so 0x523 is five bytes rather than four. One field entry rather than two,
     // because the coverage check keys on the contract SIGNAL name and there is still one signal.
     { id: 0x523, fast: true,  fields: [['steer', t => enc.i16(+t.steer || 0), NA.i16], ['slip', t => slipPair(t).flatMap(v => enc.u8(v * 100)), [...NA.u8, ...NA.u8]], ['ground', t => enc.u8(t.ground ? 1 : 0), NA.u8]] },
     { id: 0x524, fast: false, fields: [['posX', t => enc.i16(+t.posX || 0), NA.i16], ['posZ', t => enc.i16(+t.posZ || 0), NA.i16], ['heading', t => enc.u16((+t.heading || 0) * 10), NA.u16]] },
-    { id: 0x525, fast: false, fields: [['lat', t => enc.u32((+t.lat || 0) * 1e7), NA.i32], ['lon', t => enc.u32((+t.lon || 0) * 1e7), NA.i32]] },
+    { id: 0x525, fast: false, fields: [['lat', t => enc.i32((+t.lat || 0) * 1e7), NA.i32], ['lon', t => enc.i32((+t.lon || 0) * 1e7), NA.i32]] },
     { id: 0x526, fast: false, fields: [['odo', t => enc.u32((+t.odo || 0) * 1000), NA.u32]] },
-    { id: 0x527, fast: false, fields: [['status', t => enc.u16(+t.status || 0), NA.u16], ['impact', t => enc.u8(+t.impact || 0), NA.u8]] },
+    { id: 0x527, fast: false, fields: [['status', t => enc.word(+t.status || 0), NA.u16], ['impact', t => enc.u8(+t.impact || 0), NA.u8]] },
     { id: 0x528, fast: false, fields: [['fuel', t => enc.u8(+t.fuel || 0), NA.u8], ['coolant', t => enc.u8(+t.coolant || 0), NA.u8], ['battery', t => enc.u8((+t.battery || 0) * 10), NA.u8]] },
     // 0x520-0x528 is a frozen layout (anything already on the wire decodes against it), so the
     // vehicle-specific telemetry continues in new IDs rather than filling their spare bytes. Same rules as
@@ -705,7 +721,7 @@
   // A flavored contract signal is NOT packed here. The contract says so itself: a flavor
   // "borrows a protocol's signal names/semantics … without implementing its CAN frames -
   // frame layout stays on the sloppyCAN side", and that layout belongs to that protocol's
-  // module (dronecan.js today), not to this generic 0x520-0x52B telemetry block. A module
+  // module (dronecan.js today), not to this generic 0x520-0x52C telemetry block. A module
   // registers { flavor, signals, pack(t, slow) } on window.carlitoFlavorPackers - plus an
   // optional { unpackable: { signal: reason } } for what it declares it will never pack, an
   // optional { onRequest: { signal: reason } } for what it declares is carried only when asked
@@ -951,8 +967,8 @@
     // old one (a claim, a latched command) is announced again.
     if (!lastTel || performance.now() - lastTelT >= TELEMETRY_STALE_MS) resetPackers();
     lastTel = d.values; lastTelT = performance.now();
-    // Forward at the game's native cadence: fast IDs (0x520–0x523, 0x529–0x52A) every message, slow/low-rate IDs
-    // (0x524–0x528, 0x52B–0x52C) every other message (the 50/100 ms fast:slow split). The bridge's drop-stale
+    // Forward at the game's native cadence: fast IDs (0x520–0x523, 0x529–0x52A, 0x52D) every message, slow/low-rate
+    // IDs (0x524–0x528, 0x52B–0x52C, 0x52E) every other message (the 50/100 ms fast:slow split). The bridge's drop-stale
     // backpressure self-paces to the link, so no artificial rate cap is needed.
     if (downOn && (anyWindow || win.classList.contains('open'))) {
       slowTick = !slowTick;
@@ -964,7 +980,7 @@
   // without the window open or an iframe existing. Not a new trust path - any script on this page
   // can already put frames on the bus through window.canForward. The payload goes STALE after
   // TELEMETRY_STALE_MS (600 ms) exactly like real telemetry (carlitoTelemetry() reads null), so a
-  // test that needs a LIVE link must re-inject every 50-100 ms. The 0x524-0x528 frames ride every
+  // test that needs a LIVE link must re-inject every 50-100 ms. The slow ids ride every
   // other call, as they ride every other game message. opts.challenge sets the envelope flag.
   // `null` is the link going away - what closing the window does - so a test can end its link
   // and the vehicle panels see it end, rather than waiting on a staleness nobody announces.

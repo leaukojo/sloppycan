@@ -43,8 +43,7 @@
   const CO_RPDO1_DEADLINE_MS = 500;            // the declared RPDO1 event timer
 
   const bodyEnum = () => {
-    const c = window.CARLITO_CONTRACT;
-    const s = c && c.signals && c.signals.find(x => x.name === 'body_cmd' && x.dir === 'in');
+    const s = window.carlitoSig && window.carlitoSig('body_cmd', 'in');
     return (s && s.enum) || {};
   };
 

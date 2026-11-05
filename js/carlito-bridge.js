@@ -200,15 +200,22 @@ function setConnectedUI(connected) {
 }
 
 // ── Carlito return channel: telemetry → wire, SERIALIZED + COALESCING ───────────
-// Downlink flow control: keep only the LATEST frame per ID (drop stale telemetry, never queue a
-// backlog) and send ONE transfer at a time, awaiting each. This self-paces to the link's real drain
+// Downlink flow control: keep only the LATEST telemetry per ID (drop stale telemetry, never queue a
+// backlog) and send ONE frame at a time, awaiting each. This self-paces to the link's real drain
 // rate - at 115200 baud SLCAN tops out ~500 frames/s and RAMN RX already uses most of it, so a
 // faster-emitting game can't build TX latency: we always ship the freshest values and drop
 // superseded ones. (The byte-level corruption this once worked around was an STM32L5 USB PMA
 // buffer-overlap bug in the RAMN firmware, since fixed - see RAMN_TOFIX.md; this stays as plain
 // backpressure.) gs_usb is covered too (only the SLCAN sendCommand path was serialized before).
-const txLatest = new Map();   // id → newest frame awaiting send
-let txDraining = false;
+//
+// THE UNIT IS EVERYTHING ONE ID CARRIED IN ONE TELEMETRY MESSAGE, never a single frame: a Fast
+// Packet or DroneCAN multi-frame transfer sends every frame under one id, and so do 127505's three
+// tank instances, so "latest frame per id" would send one frame of each. carlito.js forwards a
+// message's frames synchronously, so a batch is the frames that arrive before the next microtask.
+// A newer batch for an id replaces an unsent older one whole, and the drain starts on that
+// microtask, once the batch is complete.
+const txLatest = new Map();   // id → { batch, frames } awaiting send
+let txDraining = false, txBatch = 0, txBatchOpen = false;
 
 window.canForward = function (frame) {
   const txReady = busIsOpen && (port || usbSerDev) && !document.getElementById('listenOnly').checked;
@@ -217,9 +224,14 @@ window.canForward = function (frame) {
   // RX counter - making the bar's "RX n/s" look alive when the adapter was actually sending nothing.
   // rxCount now reflects ONLY real frames received from the bus (via parseSLCAN / gsUsbPump).
   if (!txReady) return;            // listen-only / no bus → forward nothing
-  if (txLatest.has(frame.id)) dropCount++;   // overwriting an un-sent frame = dropped stale telemetry
-  txLatest.set(frame.id, frame);
-  if (!txDraining) drainDownlink();
+  if (!txBatchOpen) {
+    txBatchOpen = true; txBatch++;
+    queueMicrotask(() => { txBatchOpen = false; if (!txDraining) drainDownlink(); });
+  }
+  const pend = txLatest.get(frame.id);
+  if (pend && pend.batch === txBatch) { pend.frames.push(frame); return; }
+  if (pend) dropCount += pend.frames.length;   // replacing un-sent frames = dropped stale telemetry
+  txLatest.set(frame.id, { batch: txBatch, frames: [frame] });
 };
 
 async function drainDownlink() {
@@ -227,17 +239,20 @@ async function drainDownlink() {
   try {
     while (txLatest.size && busIsOpen && (port || usbSerDev)) {
       const id = txLatest.keys().next().value;   // oldest pending id (Map keeps insertion order)
-      const frame = txLatest.get(id);
+      const { frames } = txLatest.get(id);
       txLatest.delete(id);
       try {
-        if (connMode === 'gsusb') {
-          if (!usbSerDev) break;
-          const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(frame.id, !!frame.isExt, !!frame.isRtr, frame.data));
-          if (r && r.status !== 'ok') { log('gs_usb TX ' + r.status, 'err'); continue; }
-        } else {
-          await sendCommand(buildSlcan(frame));   // already serialized in can-link.js
+        for (const frame of frames) {
+          if (connMode === 'gsusb') {
+            if (!usbSerDev) break;
+            const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(frame.id, !!frame.isExt, !!frame.isRtr, frameDlc(frame), frame.data));
+            // The rest of a transfer is useless to a receiver that missed this frame: drop the batch.
+            if (r && r.status !== 'ok') { log('gs_usb TX ' + r.status, 'err'); break; }
+          } else {
+            await sendCommand(slcanEncode(frame.id, !!frame.isExt, !!frame.isRtr, frameDlc(frame), frame.data));   // serialized in can-link.js
+          }
+          txCount++;
         }
-        txCount++;
       } catch (e) { break; }   // device closed / stalled mid-send - stop; a later frame restarts us
     }
   } finally {
@@ -246,15 +261,8 @@ async function drainDownlink() {
   }
 }
 
-// Minimal SLCAN encoder for an outbound frame (txBuildSlcan stays in sloppycan.js).
-function buildSlcan(frame) {
-  const id = frame.id >>> 0;
-  const idHex = id.toString(16).toUpperCase().padStart(frame.isExt ? 8 : 3, '0');
-  const dlc = frame.dlc != null ? frame.dlc : frame.data.length;
-  const type = frame.isExt ? (frame.isRtr ? 'R' : 'T') : (frame.isRtr ? 'r' : 't');
-  const dataHex = frame.isRtr ? '' : frame.data.map(b => (b & 0xFF).toString(16).toUpperCase().padStart(2, '0')).join('');
-  return type + idHex + (dlc & 0xF).toString(16).toUpperCase() + dataHex;
-}
+// A forwarded frame's DLC: its own, else its data length. The encoders are can-link.js's.
+function frameDlc(frame) { return frame.dlc != null ? frame.dlc : frame.data.length; }
 
 // ── Carlito glue + wiring (after ramn.js / carlito.js have run) ──────────────────
 document.addEventListener('DOMContentLoaded', () => {

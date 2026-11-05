@@ -1091,8 +1091,7 @@ const _dcContractNums = new Map();
 function dcContractNum(name, key, fallback) {
   const ck = name + '.' + key;
   if (_dcContractNums.has(ck)) return _dcContractNums.get(ck);
-  const c = window.CARLITO_CONTRACT;
-  const s = c && c.signals && c.signals.find(x => x.name === name && x.dir === 'out');
+  const s = window.carlitoSig && window.carlitoSig(name, 'out');
   let v = fallback;
   if (s) v = key === 'max' ? (Array.isArray(s.range) ? s.range[1] : fallback) : s[key];
   if (typeof v !== 'number' || !Number.isFinite(v)) v = fallback;
@@ -1105,8 +1104,7 @@ function dcEscCurrentMax() { return dcContractNum('esc_current', 'max', 80); }
 // for numbers, and what carlito.js already does with the gear byte. A retyped table is a copy that
 // goes wrong silently the day the contract adds a mode.
 function dcEnumTable(name, dir) {
-  const c = window.CARLITO_CONTRACT;
-  const s = c && c.signals && c.signals.find(x => x.name === name && x.dir === dir);
+  const s = window.carlitoSig && window.carlitoSig(name, dir);
   return (s && s.enum) || {};
 }
 // Numeric keys in order, so a selector's positions come off the contract too.
@@ -1280,8 +1278,7 @@ function dcPitchYawFromQuat(x, y, z, w) {
 function dcClampToRange(name, v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0;
-  const sig = (window.CARLITO_CONTRACT ? window.CARLITO_CONTRACT.signals : [])
-    .find(x => x.name === name && x.dir === 'in');
+  const sig = window.carlitoSig && window.carlitoSig(name, 'in');
   const r = sig && sig.range;
   return (Array.isArray(r) && r.length === 2)
     ? Math.max(r[0], Math.min(r[1], Math.round(n))) : Math.round(n);
@@ -1347,7 +1344,6 @@ function dcQuatFromPitchYaw(pitchDeg, yawDeg) {
 // The last arming picture the game sent, for the tab's pre-arm readout. It is deliberately
 // NOT on the wire - see the ArmingStatus block in dcBuildFrames.
 const DC_PREARM_BITS = ['ATTITUDE', 'BATTERY', 'ESC', 'AHRS', 'STICK', 'FAILSAFE', 'GPS'];
-const DC_ARM_STATE = { 0: 'DISARMED', 1: 'BLOCKED', 2: 'ARMED' };
 let dcArm = null;
 
 // The last flight-mode picture the game sent, for the tab's request/actual/failsafe readout.

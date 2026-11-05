@@ -26,7 +26,8 @@ Core (classic scripts, one shared global scope, loaded in this order):
 - `sloppycan.js` - the app (navigate by `// ── Section ──`); `index.html`, `css/sloppycan.css`
 
 Shared (deferred, before their users):
-- `carlito-registry.js` - every Carlito registry, created empty first; `carlitoIsFamily`, the which-machine rule
+- `carlito-registry.js` - every Carlito registry, created empty first; `carlitoIsFamily`, the which-machine rule;
+  `carlitoSig(name, dir)`, the one contract lookup, and `carlitoGearTop()`
 - `j1939-pack.js` - `window.J1939Pack`, the one J1939/N2K packing helper (self-contained)
 - `j1939-tables.js` - the one J1939 / N2K / ISOBUS dictionary + pure decoders; **edit tables here, never copy them**
 - `carlito_contract.js` - generated contract (see below); `vehicle-panel.js` - the shared panel mechanism

@@ -476,8 +476,11 @@ async function gsUsbPump() {
 }
 
 // Pack a CAN frame into a 20-byte gs_host_frame (rotating echo_id so our pump ignores the echo).
-function gsUsbPackFrame(id, isExt, isRtr, dataBytes) {
-  const dlc = Math.min(dataBytes.length, 8);
+// The DLC is a parameter, not the data's length: a remote frame requests `dlc` bytes and carries
+// none.
+function gsUsbPackFrame(id, isExt, isRtr, dlc, dataBytes) {
+  dlc = Math.max(0, Math.min(dlc, 8));
+  const n = isRtr ? 0 : Math.min(dlc, dataBytes.length);
   const buf = new ArrayBuffer(20);
   const v = new DataView(buf);
   let can_id = (id & (isExt ? CAN_EFF_MASK : CAN_SFF_MASK)) >>> 0;
@@ -488,8 +491,20 @@ function gsUsbPackFrame(id, isExt, isRtr, dataBytes) {
   v.setUint32(4, can_id, true);       // can_id + flags
   v.setUint8(8, dlc);                 // can_dlc
   // channel(9)/flags(10)/reserved(11) left 0
-  for (let i = 0; i < dlc; i++) v.setUint8(12 + i, dataBytes[i] & 0xFF);
+  for (let i = 0; i < n; i++) v.setUint8(12 + i, dataBytes[i] & 0xFF);
   return new Uint8Array(buf);
+}
+
+// The SLCAN transmit line for one frame, the only copy: t / T (data) or r / R (remote), the id in
+// 3 or 8 hex digits, the DLC digit, then exactly `dlc` data bytes, zero-padded as gs_usb's are
+// (none for a remote frame).
+function slcanEncode(id, isExt, isRtr, dlc, dataBytes) {
+  dlc = Math.max(0, Math.min(dlc, 8));
+  const idHex = ((id & (isExt ? CAN_EFF_MASK : CAN_SFF_MASK)) >>> 0).toString(16).toUpperCase().padStart(isExt ? 8 : 3, '0');
+  const type = isRtr ? (isExt ? 'R' : 'r') : (isExt ? 'T' : 't');
+  let data = '';
+  if (!isRtr) for (let i = 0; i < dlc; i++) data += ((dataBytes[i] || 0) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+  return type + idHex + dlc + data;
 }
 
 // Route a decoded serial chunk to the frame parser or the terminal log.

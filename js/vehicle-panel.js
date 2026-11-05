@@ -161,9 +161,8 @@
   // Ranges, warn thresholds and enum labels are the CONTRACT's and are never retyped in a panel: a
   // bar that turns red at its own signal's `warn` is the same number the game's cluster uses, and
   // a label read off the table cannot drift from the value the game resolved.
-  // Indexed once: setBar asks for a signal's range and warn on every render.
-  const SIG_BY = new Map(((window.CARLITO_CONTRACT || {}).signals || []).map(s => [s.name + '|' + s.dir, s]));
-  const sigDef = (name, dir) => SIG_BY.get(name + '|' + (dir || 'out'));
+  // carlito-registry.js's indexed lookup: setBar asks for a signal's range and warn on every render.
+  const sigDef = (name, dir) => window.carlitoSig(name, dir || 'out') || undefined;
   function rangeOf(name) {
     const s = sigDef(name, 'out');
     return (s && Array.isArray(s.range) && s.range.length === 2) ? s.range : [0, 1];

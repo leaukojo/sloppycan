@@ -137,6 +137,38 @@ const bridgeTests = await runSelfTests('self-tests (carlito-bridge.html)', /j193
 console.log('bridge self-tests found: ' + bridgeTests.join(', '));
 await checkHandlers('handlers (carlito-bridge.html)');
 
+// ── 1b. The bridge downlink sends every frame it was given ────────────────────
+// carlito-bridge.js coalesces stale telemetry by id. A Fast Packet or DroneCAN multi-frame
+// transfer sends every frame under one id (so do 127505's tank instances), so coalescing that
+// keeps one frame per id corrupts every one of them. With a fake open SLCAN port whose send
+// resolves at once (no timer, so a slow runner cannot make a batch go stale before the next
+// message), nothing is stale: every frame canForward is handed must go out. Two messages per
+// payload, because the slow ids ride every other one.
+where = 'bridge downlink';
+const lost = await page.evaluate(async (P) => {
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const sent = [], wanted = [];
+  busIsOpen = true; port = {}; connMode = 'serial';
+  document.getElementById('listenOnly').checked = false;
+  sendCommand = async (line) => { sent.push(line); };
+  const fwd = window.canForward;
+  window.canForward = (f) => { wanted.push((f.id >>> 0).toString(16)); return fwd(f); };
+  const lineId = (l) => parseInt(l[0] === 'T' ? l.slice(1, 9) : l.slice(1, 4), 16).toString(16);
+  const count = (a) => a.reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {});
+  const out = [];
+  for (const name of ['boat', 'drone']) {
+    sent.length = 0; wanted.length = 0;
+    for (let i = 0; i < 2; i++) { window.carlitoDebugInjectTelemetry(P[name]); await sleep(300); }
+    window.carlitoDebugInjectTelemetry(null);
+    const w = count(wanted), s = count(sent.map(lineId));
+    for (const id of Object.keys(w)) if (w[id] !== (s[id] || 0)) out.push(`${name}: id 0x${id.toUpperCase()} - ${w[id]} frame(s) forwarded, ${s[id] || 0} sent`);
+    if (!wanted.length) out.push(`${name}: nothing was forwarded`);
+  }
+  window.canForward = fwd;
+  return out;
+}, PAYLOADS);
+for (const l of lost) fail(where, l);
+
 where = 'load index.html';
 await load('index.html');
 await checkHandlers('handlers (index.html)');

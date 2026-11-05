@@ -97,6 +97,8 @@ Controller (57344) and VT (0xE600 / 0xE700) decode via a per-entry `decode(data)
 
 **Demo:** `window.j1939DemoFrames()` per mode (`j1939BaseDemoFrames` / N2K / `isoDemoFrames`, which
 includes a 1792-byte ETP transfer), injected by `demoInjectN2k` on the demo engine's 100 ms timer.
+The base J1939 groups are built by `j1939-flavor.js`'s builders (`window.j1939FlavorFrames`, the
+game's mirrors' encoders) and paced by `JF_MSGS`' J1939-71 rates (`window.j1939FlavorMsgs`).
 While game telemetry is forwarded, `j1939DemoDropGameOwned` drops every group
 `window.carlitoProducing()` reports plus its twins (`J1939_GAME_TWINS`), so each (PGN, SA) has one
 producer.

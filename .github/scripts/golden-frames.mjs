@@ -66,7 +66,7 @@ export const PAYLOADS = {
   // air_secondary, no awa/aws) - the clamps and the "absent writes nothing" paths.
   extremes: {
     speed: -40, kmh: 1e9, throttle: -200, yaw: 99, accLong: -1e6, accLat: 1e6, steer: 300,
-    heading: 720, lat: -100, lon: 400, status: 0xFFFF, battery: -5, fuel: 'abc', gear: 99,
+    heading: 720, lat: -100, lon: 400, status: 0xFFFF, battery: -5, fuel: 'abc', gear: 99, impact: 260,
     slip: [2, -1], ground: false, engine_load: 1e6, engine_hours: -3, fuel_rate: -50,
     air_primary: 1e6, retarder_state: -50, gear_ratio: 1e9, axle_load: -1, speed_limit: 999,
     pto_state: true, pto_rpm: 1e6, hitch_pos_actual: -10, wheel_speed: 1e6, ground_speed: -1,
@@ -151,6 +151,16 @@ async function capturePayload(browser, url, t) {
         try { d = window.__gHex(s.build(t)); } catch (e) { d = 'threw: ' + e.message; }
         out.requests[`${s.pgn} ${s.abbr}`] = d === undefined ? null : d;
       }
+      // carlito.js's own 0x52x block (CAN_MAP + TRAIN_MAP), which is private to it, through the
+      // real telemetry path: two messages, because the slow ids ride every other one. Last, so
+      // the packer state the captures above recorded is untouched.
+      out.canMap = [];
+      const fwd = window.canForward;
+      window.canForward = (f) => { if (!f.isExt && f.id >= 0x520 && f.id <= 0x52F) out.canMap.push(window.__gSer(f)); };
+      try {
+        for (let i = 0; i < 2; i++) { window.__gClock += 50; window.carlitoDebugInjectTelemetry(t); }
+        window.carlitoDebugInjectTelemetry(null);
+      } finally { window.canForward = fwd; }
       return out;
     }, t);
   } finally { await ctx.close(); }

@@ -1105,29 +1105,67 @@ function j1939DemoDropGameOwned(frames) {
 // Plain-J1939 base traffic: animated EEC1/ET1/CCVS1/VEP1/Fuel PGNs, the driver demand, + a periodic
 // engine ISO Address Claim, all PDU2 broadcast from SA 0x00 except Dash Display, from Instrument
 // Cluster #1 (0x17). Empty unless J1939 mode.
+//
+// ONE ENCODER PER GROUP: the five groups come out of j1939-flavor.js's builders, the ones the
+// game's mirrors use (window.j1939FlavorFrames), with that file's addresses and priorities. The
+// fields only the demo animates (torques, fuel and oil temperature, cruise, charging voltage) are
+// written over them through J1939_DB's own descriptors, so no scale is typed here.
+//
+// PACED BY THE STANDARD: each group goes out at JF_MSGS's `ms` (J1939-71's repetition rate), not
+// at the demo tick - ET1 / VEP1 / DD once a second. A group is due on the first tick at least
+// `ms` after its last, less half a tick, so a tick that fires early does not skip it; EEC1's 0
+// ("engine speed dependent") rides every tick. The tick is MEASURED (the spacing since the last
+// call), so the interval stays sloppycan.js demoStartBaseTimers' alone.
+const j1939DemoLastAt = {};       // group -> Date.now() it last went out
+let j1939DemoPrevAt;              // Date.now() of the previous tick
+function j1939DemoDue(name, now, tol) {
+  const ms = window.j1939FlavorMsgs[name].ms, last = j1939DemoLastAt[name];
+  if (ms && last !== undefined && now - last < ms - tol) return false;
+  j1939DemoLastAt[name] = now;
+  return true;
+}
 let j1939DemoTickJ = 0;
 function j1939BaseDemoFrames() {
-  const t = Date.now() / 1000;
+  const now = Date.now(), t = now / 1000;
+  const tol = j1939DemoPrevAt === undefined ? 0 : (now - j1939DemoPrevAt) / 2;   // half a tick
+  j1939DemoPrevAt = now;
   const osc = (lo, hi, p, ph = 0) => lo + (hi - lo) * (0.5 + 0.5 * Math.sin(t * 2 * Math.PI / p + ph));
   const frames = [];
-  // EEC1 (0xF004): demand/actual torque (offset −125) + engine speed (b3-4, 0.125 rpm/bit)
-  frames.push(n2kFrame(0xF004, 0x00, [0xF0, 125 + Math.round(osc(5, 40, 7)), 125 + Math.round(osc(5, 40, 7, 1)), ...n2kU16(osc(700, 2200, 9) / 0.125), 0xFF, 0xFF, 0xFF]));
-  // ET1 (0xFEEE): coolant (b0, −40) + fuel temp (b1, −40) + oil temp (b2-3, 0.03125, −273)
-  frames.push(n2kFrame(0xFEEE, 0x00, [Math.round(osc(80, 95, 60)) + 40, Math.round(osc(40, 60, 50)) + 40, ...n2kU16((90 + 273) / 0.03125), 0xFF, 0xFF, 0xFF, 0xFF]));
-  // CCVS1 (0xFEF1): vehicle speed (b1-2, 1/256 km/h) + CC set speed (b5)
-  // SPN 70 Parking Brake (1.3) and SPN 597 Brake Switch (4.5) come from the RAMN Control Panel
-  // while it drives, and read "not available" otherwise - a switch reading "off" would be decoded
-  // as a command and dim a stop lamp someone is sending by hand.
+  const G = window.j1939FlavorFrames;
+  const full = (f) => ({ id: f.id, isExt: true, isRtr: false, dlc: f.data.length, data: f.data });
+  const spn = (f, pgn, n, v) => j1939EncodeSPN(j1939SpnDef(pgn, n), f.data, v);
+  // SPN 70 Parking Brake (1.3) and SPN 597 Brake Switch (4.5) in CCVS come from the RAMN Control
+  // Panel while it drives, and read "not available" otherwise - a switch reading "off" would be
+  // decoded as a command and dim a stop lamp someone is sending by hand.
   const drive = window.j1939DriveFrames ? j1939DemoDriveCtrl() : null;
-  const ccvs = [0xFF, ...n2kU16(osc(0, 90, 23) * 256), 0x30, 0xFF, Math.round(osc(60, 90, 40)), 0xFF, 0xFF];
-  if (drive) window.j1939CcvsPatch(ccvs, drive);
-  frames.push(n2kFrame(0xFEF1, 0x00, ccvs));
+  if (G && j1939DemoDue('EEC1', now, tol)) {
+    const f = G.EEC1({ rpm: osc(700, 2200, 9) });
+    j1939Pack.bits(f.data, 0, 0, 4, 0);                  // SPN 899 Engine Torque Mode, 0 as ever
+    spn(f, 0xF004, 512, osc(5, 40, 7));
+    spn(f, 0xF004, 513, osc(5, 40, 7, 1));
+    frames.push(full(f));
+  }
+  if (G && j1939DemoDue('ET1', now, tol)) {
+    const f = G.ET1({ coolant: osc(80, 95, 60) });
+    spn(f, 0xFEEE, 174, osc(40, 60, 50));                // fuel temperature
+    spn(f, 0xFEEE, 175, 90);                             // oil temperature
+    frames.push(full(f));
+  }
+  if (G && j1939DemoDue('CCVS', now, tol)) {
+    const f = G.CCVS({ kmh: osc(0, 90, 23) }, drive);
+    for (const n of [595, 596, 598]) spn(f, 0xFEF1, n, 0); // cruise active / enable, clutch: off
+    spn(f, 0xFEF1, 86, osc(60, 90, 40));                 // cruise set speed
+    frames.push(full(f));
+  }
   if (drive) frames.push(...window.j1939DriveFrames(drive));
-  // VEP1 (0xFEF7): alternator (b2-3, 0.05 V) + battery (b4-5, 0.05 V)
-  frames.push(n2kFrame(0xFEF7, 0x00, [0xFF, 0xFF, ...n2kU16(13.8 / 0.05), ...n2kU16(osc(12.4, 14.2, 11) / 0.05), 0xFF, 0xFF]));
-  // Dash Display (0xFEFC): fuel level (b1, 0.4 %), from Instrument Cluster #1 - the sender
-  // j1939-flavor.js's DD mirror uses, so the one-producer rule sees the two as one group.
-  frames.push(n2kFrame(0xFEFC, 0x17, [0xFF, Math.round(osc(20, 90, 200) / 0.4), 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]));
+  if (G && j1939DemoDue('VEP1', now, tol)) {
+    const f = G.VEP1({ battery: osc(12.4, 14.2, 11) });
+    spn(f, 0xFEF7, 167, 13.8);                           // charging system potential
+    frames.push(full(f));
+  }
+  // Dash Display from Instrument Cluster #1 - the sender j1939-flavor.js's DD mirror uses, so the
+  // one-producer rule sees the two as one group.
+  if (G && j1939DemoDue('DD', now, tol)) frames.push(full(G.DD({ fuel: osc(20, 90, 200) })));
   // ISO Address Claim (0xEE00) every 30th tick - engine ECU NAME.
   if (j1939DemoTickJ++ % 30 === 0) {
     const name = (id, mfr, fn, devClass, indGrp) =>
