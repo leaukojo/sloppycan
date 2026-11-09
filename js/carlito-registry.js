@@ -70,3 +70,7 @@ window.carlitoIsFamily = window.carlitoIsFamily || (function () {
   }
   return (family, t) => !!t && signalsFor(family).some(n => n in t);
 })();
+// The families with a J1939 network: the truck and the tractor. The one copy of that list, read by
+// j1939-flavor.js's mirrors and j1939.js's request server (a car or a boat has no J1939 ECU to answer).
+window.carlitoJ1939Network = window.carlitoJ1939Network ||
+  ((t) => window.carlitoIsFamily('truck', t) || window.carlitoIsFamily('tractor', t));

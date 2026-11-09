@@ -114,7 +114,12 @@ J1939-71 rate is "On request".
 - **Server:** `j1939ServeRequest`, called from `j1939IngestFrame` **before** the per-mode branches
   (the Mode dropdown decides display, not what is on the bus). The group from the server's own
   `sa`; a NACK (59392 ACKM, control byte 1) when the vehicle has no such parameter; silence with
-  nothing on the link.
+  nothing on the link, or with a vehicle that has no J1939 network (`carlitoJ1939Network`: only
+  truck and tractor are served). Answers go through `J1939Pack.claimFirst`.
+- **Address Claim:** `J1939Pack.claimFirst` (`j1939-pack.js`) puts one 60928 before the first frame
+  from each J1939 source (`j1939-flavor.js`, `isobus.js`, the server); the packers' `reset()` forget
+  the shared ledger, so every source claims again when a bus opens. A request for 60928 is
+  answered by every source in the ledger (`j1939AnswerClaims`), then the implement's server.
 - **Registry** `window.j1939RequestServers`: `{ pgn, abbr, sa, prio, signals, build(t), nack? }`.
   65261 CCSS + 65253 HOURS (engine), 65258 VW (`j1939-flavor.js`, Axle - Drive #1 0x09), 60928
   Address Claim (`isobus.js`, `nack: false`). `build` gets `window.carlitoTelemetry()`, **null
@@ -153,8 +158,10 @@ in the J1939 tab, so their PGNs / SPNs are entries in `j1939-tables.js`; `cleano
 the CANopen tab.
 
 `j1939-flavor.js` is a separate file from `j1939.js` because the bridge page loads it and not
-`j1939.js`. `isobus.js` / `j1939-flavor.js` share EEC2's encoder (`window.j1939Eec2Frame`);
-`j1939.js`'s demo merges its pedal through `window.j1939DemoDrive`.
+`j1939.js`. `isobus.js` / `j1939-flavor.js` share EEC1's encoder (`window.j1939Eec1Frame`):
+`engine_load` (SPN 513) and the rpm mirror (SPN 190) in one frame, sent by `isobus.js` whenever
+`engine_load` is there. `j1939.js`'s demo merges its wheel and switches into VDC2 / CCVS through
+`window.j1939DemoDrive`; its pedal rides the demo's own EEC2.
 
 ## Vehicle link and panels: integration points
 

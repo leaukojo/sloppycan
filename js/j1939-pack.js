@@ -91,5 +91,70 @@
   // A frame from a message-table entry { pgn, prio, sa, da? }.
   function msgFrame(m, data) { return frame(buildId(m.pgn, m.prio, m.sa, m.da), data); }
 
-  window.J1939Pack = { buildId, parseId, blank, put, bits, has, hasNum, frame, msgFrame };
+  // ── Address Claim before a control function's first frame ──────────────────
+  // Address Claimed (PGN 60928) is "Sent at power on" (Open SAE J1939, p.15): a bus capture of a
+  // real vehicle starts with one claim per control function. The ledger is shared, here, because
+  // j1939-flavor.js and isobus.js both send from Engine #1 (0x00) and one ECU claims once. Both
+  // packers' reset() forget it, so carlito.js's resetPackers() (a bus opening, the link resuming)
+  // makes every source claim again. NMEA 2000 sources do not come through here.
+  //
+  // NAME Function per preferred address, off isobus.net's nameFunction and sourceAddress tables:
+  // functions 0-127 are industry-group independent, 134 Tractor ECU is industry group 2's. The
+  // implement (0x80) is absent on purpose: isobus.js claims it on attaching, with its device class.
+  const CLAIM_FUNCTION = {
+    0x00: 0,     // Engine #1                  - Engine
+    0x03: 3,     // Transmission #1            - Transmission
+    0x08: 7,     // Axle - Steering            - Axle - Steering
+    0x09: 8,     // Axle - Drive #1            - Axle - Drive
+    0x0B: 9,     // Brakes - System Controller - Brakes - System Controller
+    0x10: 13,    // Retarder - Driveline       - Retarder - Driveline
+    0x17: 19,    // Instrument Cluster #1      - Instrument Cluster
+    0xF0: 134,   // Tractor ECU                - Tractor ECU (industry group 2)
+  };
+  const CLAIM_PGN = 60928, CLAIM_PRIO = 6;
+  const claimed = new Map();   // sa -> the NAME it claimed with (a request for 60928 is answered with it)
+  // J1939-81 NAME, little-endian (isobus.js's ibName layout): manufacturer code 0 (none is
+  // registered to this project), identity 1, ECU / function instance 0, vehicle system 0
+  // (non-specific), and NOT arbitrary-address capable - these hold their preferred addresses.
+  function claimName(fn, ig) {
+    const lo = 1;
+    const hi = (((fn & 0xFF) << 8) | ((ig & 7) << 28)) >>> 0;
+    return [lo & 0xFF, (lo >>> 8) & 0xFF, (lo >>> 16) & 0xFF, (lo >>> 24) & 0xFF,
+            hi & 0xFF, (hi >>> 8) & 0xFF, (hi >>> 16) & 0xFF, (hi >>> 24) & 0xFF];
+  }
+  // `frames` with a claim inserted before the first frame from each unclaimed source in the table.
+  // The industry group is the vehicle's, off `t`: 2 agricultural for the tractor, else 1
+  // on-highway (the truck) - one rule for both packers, which share Engine #1. A different
+  // industry group is a different vehicle on a link that never went stale: its claims are not the
+  // last one's, so the ledger starts again (no truck NAME on a tractor's Engine #1, and no truck
+  // brakes controller answering a tractor's request for 60928). A vehicle with no J1939 network
+  // (a car, a boat) between two trucks counts as a change too, keyed 0: the second truck claims.
+  let claimedIg = null;
+  function claimFirst(frames, t) {
+    const ig = window.carlitoIsFamily && window.carlitoIsFamily('tractor', t) ? 2 : 1;
+    const key = window.carlitoJ1939Network && !window.carlitoJ1939Network(t) ? 0 : ig;
+    if (key !== claimedIg) { claimed.clear(); claimedIg = key; }
+    const out = [];
+    for (const f of frames) {
+      const sa = f.id & 0xFF;
+      if (f.isExt && sa in CLAIM_FUNCTION && !claimed.has(sa)) {
+        claimed.set(sa, claimName(CLAIM_FUNCTION[sa], ig));
+        out.push(claimFrame(sa));
+      }
+      out.push(f);
+    }
+    return out;
+  }
+  function claimFrame(sa) { return frame(buildId(CLAIM_PGN, CLAIM_PRIO, sa, 0xFF), claimed.get(sa).slice()); }
+  function forgetClaims() { claimed.clear(); }
+  // The sources holding a claim, for j1939.js's answer to a request for 60928: every control
+  // function answers it with its Address Claimed ("Sent ... after a 'Request' for 'Address
+  // Claim'", Open SAE J1939 p.15). A source that has not claimed is not on the bus yet.
+  const claimedSources = () => [...claimed.keys()];
+  // For the hermetic self-tests: what has been claimed, and putting it back.
+  const claimsSnapshot = () => ({ ig: claimedIg, claimed: new Map(claimed) });
+  function claimsRestore(s) { claimed.clear(); for (const [sa, name] of s.claimed) claimed.set(sa, name); claimedIg = s.ig; }
+
+  window.J1939Pack = { buildId, parseId, blank, put, bits, has, hasNum, frame, msgFrame,
+                       claimFirst, claimFrame, claimedSources, forgetClaims, claimsSnapshot, claimsRestore };
 })();

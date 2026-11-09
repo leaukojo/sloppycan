@@ -223,7 +223,7 @@ for (const kind of KINDS) {
 // own signals make the flavor packers run, and three of their groups are checked by PGN.
 where = 'telemetry seam';
 await load('index.html');
-const PACKED = { 61440: 'ERC1 (j1939-flavor.js)', 65198: 'AIR1 (j1939-flavor.js)', 61443: 'EEC2 (isobus.js)' };
+const PACKED = { 61440: 'ERC1 (j1939-flavor.js)', 65198: 'AIR1 (j1939-flavor.js)', 61444: 'EEC1 (isobus.js)' };
 const seen = await page.evaluate(async () => {
   const t = {
     speed: 12.5, kmh: 45, rpm: 1400, gear: 4, throttle: 30,
@@ -315,6 +315,8 @@ const sync = await page.evaluate(async (P) => {
     for (const id of [0x529, 0x52A, 0x52B]) if (sent(fr, id)) out.problems.push(`a truck sent 0x${id.toString(16).toUpperCase()}`);
     const eec1 = fr.find(f => f.isExt && f.game && parse(f).pgn === 0xF004 && parse(f).sa === 0);
     if (eec1) out.rpm = j1939DecodeSPN(J1939_DB[0xF004].spns.find(s => s.spn === 190), eec1.data).display;
+    if (eec1) out.load = j1939DecodeSPN(J1939_DB[0xF004].spns.find(s => s.spn === 513), eec1.data).display;
+    if (fr.some(f => f.isExt && f.game && parse(f).pgn === 0xF003)) out.problems.push('the game sent EEC2 (engine_load is SPN 513 in EEC1)');
 
     demoSetBaseTraffic('iso11783');   // the shared groups (pto_state, engine_load) are the game's
     oneProducer('truck / ISO 11783', await record(2200));
@@ -362,6 +364,7 @@ for (const [k, v] of Object.entries(WANT))
 for (const p of sync.problems) fail(where, p);
 if (!sync.ramnBack) fail(where, 'no RAMN frames after the car took the traffic back to RAMN');
 if (parseFloat(sync.rpm) !== 1500) fail(where, `the EEC1 mirror reads ${sync.rpm}, not 1500 rpm`);
+if (parseFloat(sync.load) !== 40) fail(where, `EEC1's SPN 513 reads ${sync.load}, not the truck's 40 % engine_load`);
 console.log('carlito traffic sync: ' + JSON.stringify(sync.follow) + ', EEC1 ' + sync.rpm);
 
 // Outside demo, the J1939 tab with a truck on the link selects the J1939 mode - once per vehicle
@@ -451,6 +454,48 @@ const cov = await page.evaluate(async (P) => {
     await run({ ...P.tractor, implement_connected: false });
     rec = []; window.ingestFrame(req()); fr = rec; rec = null;
     if (fr.some(f => f.isExt && (f.id & 0xFF) === 0x80)) bad('the detached implement answered (or NACKed) a request');
+
+    // Address Claim (60928) once per J1939 source, before its first frame, and again when a bus opens.
+    const claimsIn = (fr) => fr.filter(f => f.isExt && (f.id >>> 8) === 0x18EEFF).map(f => f.id & 0xFF);
+    window.carlitoBusReady();
+    fr = await run(P.truck);
+    // Every J1939 source that sent in these two ticks (the 1 s groups may not have): 0x00 and 0x0B always do.
+    const sent = [0x00, 0x03, 0x0B, 0x10, 0x17].filter(sa => fr.some(f => f.isExt && (f.id & 0xFF) === sa && (f.id >>> 8) !== 0x18EEFF));
+    if (!sent.includes(0x00) || !sent.includes(0x0B)) bad('truck: no traffic from Engine #1 / the brakes controller');
+    for (const sa of sent) {
+      const n = claimsIn(fr).filter(s => s === sa).length;
+      const at = fr.findIndex(f => f.isExt && (f.id & 0xFF) === sa);
+      if (n !== 1) bad(`truck: SA 0x${sa.toString(16)} claimed ${n} times after a bus opened, not once`);
+      else if (!(at >= 0 && (fr[at].id >>> 8) === 0x18EEFF)) bad(`truck: SA 0x${sa.toString(16)} sent before claiming`);
+    }
+    fr = await run(P.truck);
+    if (claimsIn(fr).length) bad('truck: claims re-sent with nothing changed: ' + claimsIn(fr).join(','));
+    // A global request for 60928 is answered by every source holding a claim, not by one server.
+    rec = []; window.ingestFrame(req()); const back = claimsIn(rec); rec = null;
+    for (const sa of sent) if (!back.includes(sa)) bad(`truck: SA 0x${sa.toString(16)} did not answer a global request for 60928`);
+    // A vehicle switch on a live link re-claims: truck -> boat -> truck, and truck -> tractor as
+    // agricultural (industry group 2, NAME byte 8 bits 5-7).
+    await run(P.boat);
+    fr = await run(P.truck);
+    if (!claimsIn(fr).includes(0x00)) bad('truck after a boat: Engine #1 did not claim again');
+    fr = await run(P.tractor);
+    const eng = fr.find(f => f.isExt && f.id === 0x18EEFF00);
+    if (!eng || ((eng.data[7] >> 4) & 7) !== 2) bad('tractor after a truck: Engine #1 not re-claimed as agricultural');
+
+    // The request server answers only a vehicle with a J1939 network: nothing (no answer, no NACK)
+    // for a car's CCSS or a boat's HOURS. A truck's CCSS is answered.
+    const reqFor = (pgn) => ({ id: J1939Pack.buildId(0xEA00, 6, 0xF9, 0xFF), isExt: true, isRtr: false, dlc: 3,
+                               data: [pgn & 0xFF, (pgn >> 8) & 0xFF, (pgn >> 16) & 0xFF] });
+    const answered = async (t, pgn) => {
+      await run(t);
+      rec = []; window.ingestFrame(reqFor(pgn)); const r = rec; rec = null;
+      return r.filter(f => f.isExt && (f.id & 0xFF) !== 0xF9);
+    };
+    if ((await answered(P.truck, 0xFEED)).every(f => ((f.id >>> 8) & 0xFFFF) !== 0xFEED)) bad('a truck\'s CCSS request went unanswered');
+    let a = await answered({ speed: 12.5, kmh: 45, heading: 270, status: 1, speed_limit: 50 }, 0xFEED);   // a car
+    if (a.length) bad('a car answered (or NACKed) a CCSS request: ' + a.map(f => f.id.toString(16)).join(','));
+    a = await answered(P.boat, 0xFEE5);
+    if (a.length) bad('a boat answered (or NACKed) an HOURS request on J1939: ' + a.map(f => f.id.toString(16)).join(','));
 
     // Decision 2: a drone after none sends each command once (the gimbal as 1040 + 1010).
     await run(P.truck);

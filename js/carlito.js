@@ -711,10 +711,11 @@
   //
   // THE REASON STRING IS MANDATORY here too, for the same reason it is above.
   const CAN_MAP_ON_REQUEST = {
-    speed_limit: 'configured, not measured: J1939 SPN 74 rides PGN 65261 (CCSS), whose transmission repetition rate is "On request" - so it has no periodic frame by design, and j1939.js answers a PGN 59904 request for it out of the live telemetry. The contract calls the SPN "the naming reference here, not a claim about the wire", and this changes nothing about that: the signal TYPE already IS SPN 74\'s wire form exactly (one byte, 1 km/h per bit, 0 offset), which is the only reason it can be answered without a conversion',
+    speed_limit: 'configured, not measured: J1939 SPN 74 rides PGN 65261 (CCSS), whose transmission repetition rate is "On request" - so it has no periodic frame by design, and j1939.js answers a PGN 59904 request for it out of the live telemetry, on a truck or tractor only: a car (whose limit the contract also publishes) has no J1939 network, so its speed_limit rides no frame. The contract calls the SPN "the naming reference here, not a claim about the wire", and this changes nothing about that: the signal TYPE already IS SPN 74\'s wire form exactly (one byte, 1 km/h per bit, 0 offset), which is the only reason it can be answered without a conversion',
     engine_hours: 'SPN 247 rides PGN 65253 (HOURS), whose J1939-71 transmission repetition ' +
       'rate is "On request" - there is no periodic frame to put it in, and broadcasting it at ' +
-      '10 Hz would misstate its rate. j1939.js answers a PGN 59904 request for it instead',
+      '10 Hz would misstate its rate. j1939.js answers a PGN 59904 request for it instead, on a ' +
+      'truck or tractor; a boat carries it in NMEA 2000 127489 (nmea2000.js\'s mirror)',
   };
 
   // ── Flavor packers ──────────────────────────────────────────────────────────
@@ -838,12 +839,14 @@
     // also carries (the exception at the 0x52B note). Not in its `signals`, so the "packs signals
     // that are not its out signals" warn never sees them; instead each must be an out signal its
     // OWNER packs (CAN_MAP for an unflavored one, its flavor's packer otherwise), because a mirror
-    // of something nobody packs would be a gap filled from the wrong side.
+    // of something nobody packs would be a gap filled from the wrong side. An unflavored signal
+    // this map carries on request (CAN_MAP_ON_REQUEST: the boat's engine_hours in 127489) is
+    // carried by its owner too.
     const packedByOwner = (name) => {
       const sig = outSigs.find(s => s.name === name);
       if (!sig) return false;
       if (sig.flavor) return FLAVOR_PACKERS.some(q => q.flavor === sig.flavor && (q.signals || []).includes(name));
-      return CAN_MAP.some(f => f.fields.some(([n]) => n === name));
+      return CAN_MAP.some(f => f.fields.some(([n]) => n === name)) || name in CAN_MAP_ON_REQUEST;
     };
     for (const p of FLAVOR_PACKERS) {
       const m = p.mirrors || {};

@@ -31,45 +31,21 @@
     "isobus": [
      [
       {
-       "id": "0CF00300",
+       "id": "18EEFF00",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "0100000000000010"
+      },
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
-      },
-      {
-       "id": "18FEF200",
-       "isExt": true,
-       "data": "C201FFFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -79,21 +55,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -103,21 +74,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -127,21 +93,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -151,21 +112,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -175,21 +131,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -199,21 +150,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -223,21 +169,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -247,21 +188,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -271,21 +207,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -295,21 +226,35 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF28FFFFFFFFFF"
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
-       "id": "0CFE43F0",
+       "id": "18FEF200",
        "isExt": true,
-       "data": "FFFFFFFF3FFFFFFF"
+       "data": "C201FFFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFA5C02BFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFA5C02BFFFFFF"
       },
       {
        "id": "18FEF200",
@@ -321,14 +266,389 @@
     "j1939": [
      [
       {
+       "id": "18EEFF0B",
+       "isExt": true,
+       "data": "0100000000090010"
+      },
+      {
        "id": "18F0090B",
        "isExt": true,
        "data": "FFFFFF0A7F197F81"
       },
       {
-       "id": "0CF00400",
+       "id": "18FEAE0B",
        "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
+       "data": "FFFF6462FFFFFFFF"
+      },
+      {
+       "id": "18FEEE00",
+       "isExt": true,
+       "data": "80FFFFFFFFFFFFFF"
+      },
+      {
+       "id": "18EEFF17",
+       "isExt": true,
+       "data": "0100000000130010"
+      },
+      {
+       "id": "18FEFC17",
+       "isExt": true,
+       "data": "FFAFFFFFFFFFFFFF"
+      },
+      {
+       "id": "18FEF700",
+       "isExt": true,
+       "data": "FFFFFFFFE801FFFF"
+      }
+     ],
+     [
+      {
+       "id": "18EEFF10",
+       "isExt": true,
+       "data": "01000000000D0010"
+      },
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18EEFF03",
+       "isExt": true,
+       "data": "0100000000030010"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      }
+     ],
+     [
+      {
+       "id": "18F00010",
+       "isExt": true,
+       "data": "FF69FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "81800C81FFFFFFFF"
+      },
+      {
+       "id": "18FE4F0B",
+       "isExt": true,
+       "data": "D550FFFFFFFFFFFF"
+      },
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "18F0090B",
+       "isExt": true,
+       "data": "FFFFFF0A7F197F81"
       },
       {
        "id": "18FEAE0B",
@@ -373,11 +693,6 @@
        "data": "FFFFFF0A7F197F81"
       },
       {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
        "id": "18FEF100",
        "isExt": true,
        "data": "FF002DFFFFFFFFFF"
@@ -388,11 +703,6 @@
        "id": "18F0090B",
        "isExt": true,
        "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
       }
      ],
      [
@@ -415,471 +725,6 @@
        "id": "18F0090B",
        "isExt": true,
        "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEAE0B",
-       "isExt": true,
-       "data": "FFFF6462FFFFFFFF"
-      },
-      {
-       "id": "18FEEE00",
-       "isExt": true,
-       "data": "80FFFFFFFFFFFFFF"
-      },
-      {
-       "id": "18FEFC17",
-       "isExt": true,
-       "data": "FFAFFFFFFFFFFFFF"
-      },
-      {
-       "id": "18FEF700",
-       "isExt": true,
-       "data": "FFFFFFFFE801FFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00010",
-       "isExt": true,
-       "data": "FF69FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "81800C81FFFFFFFF"
-      },
-      {
-       "id": "18FE4F0B",
-       "isExt": true,
-       "data": "D550FFFFFFFFFFFF"
-      },
-      {
-       "id": "18F0090B",
-       "isExt": true,
-       "data": "FFFFFF0A7F197F81"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFFC02BFFFFFF"
       },
       {
        "id": "18FEF100",
@@ -1371,14 +1216,29 @@
     "isobus": [
      [
       {
-       "id": "0CF00300",
+       "id": "18EEFF00",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "0100000000000020"
+      },
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFC5603BFFFFFF"
+      },
+      {
+       "id": "18EEFF09",
+       "isExt": true,
+       "data": "0100000000080020"
       },
       {
        "id": "18F00609",
        "isExt": true,
        "data": "FFDFFFFFFFFFFFFF"
+      },
+      {
+       "id": "18EEFF08",
+       "isExt": true,
+       "data": "0100000000070020"
       },
       {
        "id": "1CFDDF08",
@@ -1388,14 +1248,19 @@
       {
        "id": "18EEFF80",
        "isExt": true,
-       "data": "0100000000000CA0"
+       "data": "0100000000840CA0"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
+      },
+      {
+       "id": "18EEFFF0",
+       "isExt": true,
+       "data": "0100000000860020"
       },
       {
        "id": "0CFE43F0",
@@ -1425,16 +1290,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1464,16 +1329,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1503,16 +1368,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1542,16 +1407,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1581,9 +1446,9 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "18F00609",
@@ -1598,9 +1463,9 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1630,16 +1495,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1669,16 +1534,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1708,16 +1573,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1747,16 +1612,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1786,9 +1651,9 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "18F00609",
@@ -1803,9 +1668,9 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1835,16 +1700,16 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
-       "data": "FFFF48FFFFFFFFFF"
+       "data": "FFFFC5603BFFFFFF"
       },
       {
        "id": "0CFE43F0",
@@ -1876,10 +1741,161 @@
     "j1939": [
      [
       {
-       "id": "0CF00400",
+       "id": "18FEEE00",
        "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
+       "data": "84FFFFFFFFFFFFFF"
       },
+      {
+       "id": "18EEFF17",
+       "isExt": true,
+       "data": "0100000000130020"
+      },
+      {
+       "id": "18FEFC17",
+       "isExt": true,
+       "data": "FF8AFFFFFFFFFFFF"
+      },
+      {
+       "id": "18FEF700",
+       "isExt": true,
+       "data": "FFFFFFFFE801FFFF"
+      }
+     ],
+     [
+      {
+       "id": "18EEFF03",
+       "isExt": true,
+       "data": "0100000000030020"
+      },
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [],
+     [
+      {
+       "id": "18F00503",
+       "isExt": true,
+       "data": "83D43083FFFFFFFF"
+      },
+      {
+       "id": "18FEF100",
+       "isExt": true,
+       "data": "FF002DFFFFFFFFFF"
+      }
+     ],
+     [
       {
        "id": "18FEEE00",
        "isExt": true,
@@ -1903,288 +1919,17 @@
        "data": "83D43083FFFFFFFF"
       },
       {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
        "id": "18FEF100",
        "isExt": true,
        "data": "FF002DFFFFFFFFFF"
       }
      ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
+     [],
      [
       {
        "id": "18F00503",
        "isExt": true,
        "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEEE00",
-       "isExt": true,
-       "data": "84FFFFFFFFFFFFFF"
-      },
-      {
-       "id": "18FEFC17",
-       "isExt": true,
-       "data": "FF8AFFFFFFFFFFFF"
-      },
-      {
-       "id": "18FEF700",
-       "isExt": true,
-       "data": "FFFFFFFFE801FFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      },
-      {
-       "id": "18FEF100",
-       "isExt": true,
-       "data": "FF002DFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "18F00503",
-       "isExt": true,
-       "data": "83D43083FFFFFFFF"
-      },
-      {
-       "id": "0CF00400",
-       "isExt": true,
-       "data": "FFFFFF603BFFFFFF"
       },
       {
        "id": "18FEF100",
@@ -2328,7 +2073,7 @@
     "65261 CCSS": "28FFFFFFFFFFFFFF",
     "65253 HOURS": "99510100FFFFFFFF",
     "65258 VW": "100032FFFFFFFFFF",
-    "60928 ACL": "0100000000000CA0"
+    "60928 ACL": "0100000000840CA0"
    },
    "canMap": [
     {
@@ -2521,17 +2266,17 @@
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "001AFF800CFFFFFF"
+       "data": "001A00800CFFFFFF"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "01FFFF7F7800FFFF"
+       "data": "01FFFF7F780010A2"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "02FFFFFFFFFFFFFF"
+       "data": "021100FFFFFFFFFF"
       },
       {
        "id": "09F20100",
@@ -2613,12 +2358,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2646,12 +2391,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2679,12 +2424,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2717,12 +2462,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2750,12 +2495,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2777,17 +2522,17 @@
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "201AFF800CFFFFFF"
+       "data": "201A00800CFFFFFF"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "21FFFF7F7800FFFF"
+       "data": "21FFFF7F780010A2"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "22FFFFFFFFFFFFFF"
+       "data": "221100FFFFFFFFFF"
       },
       {
        "id": "09F20100",
@@ -2809,12 +2554,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2842,12 +2587,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2875,12 +2620,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2913,12 +2658,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2946,12 +2691,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -2973,17 +2718,17 @@
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "401AFF800CFFFFFF"
+       "data": "401A00800CFFFFFF"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "41FFFF7F7800FFFF"
+       "data": "41FFFF7F780010A2"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "42FFFFFFFFFFFFFF"
+       "data": "421100FFFFFFFFFF"
       },
       {
        "id": "09F20100",
@@ -3050,12 +2795,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -3083,12 +2828,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F3AFBFFFF"
+       "data": "00FFFF7F3AFBFFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF0FFFFF"
+       "data": "00FFFFFFFF0FFFFF"
       },
       {
        "id": "09FD0202",
@@ -8437,19 +8182,68 @@
     "isobus": [
      [
       {
-       "id": "0CF00300",
+       "id": "18EEFF00",
+       "isExt": true,
+       "data": "0100000000000020"
+      },
+      {
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
       {
        "id": "18EEFF80",
        "isExt": true,
-       "data": "010000000000CEA0"
+       "data": "010000000084CEA0"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      },
+      {
+       "id": "18EEFFF0",
+       "isExt": true,
+       "data": "0100000000860020"
+      },
+      {
+       "id": "0CFE43F0",
+       "isExt": true,
+       "data": "FFFAFFFF7FFFFFFF"
+      },
+      {
+       "id": "0CFE45F0",
+       "isExt": true,
+       "data": "00FFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE48F0",
+       "isExt": true,
+       "data": "FFFAFFFFFFFFFFF4"
+      },
+      {
+       "id": "0CFE49F0",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFC"
+      },
+      {
+       "id": "18FEF200",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8481,53 +8275,14 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFAFFFF7FFFFFFF"
-      },
-      {
-       "id": "0CFE45F0",
-       "isExt": true,
-       "data": "00FFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE48F0",
-       "isExt": true,
-       "data": "FFFAFFFFFFFFFFF4"
-      },
-      {
-       "id": "0CFE49F0",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFC"
-      },
-      {
-       "id": "18FEF200",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8559,53 +8314,14 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFAFFFF7FFFFFFF"
-      },
-      {
-       "id": "0CFE45F0",
-       "isExt": true,
-       "data": "00FFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE48F0",
-       "isExt": true,
-       "data": "FFFAFFFFFFFFFFF4"
-      },
-      {
-       "id": "0CFE49F0",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFC"
-      },
-      {
-       "id": "18FEF200",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8637,53 +8353,14 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFAFFFF7FFFFFFF"
-      },
-      {
-       "id": "0CFE45F0",
-       "isExt": true,
-       "data": "00FFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE48F0",
-       "isExt": true,
-       "data": "FFFAFFFFFFFFFFF4"
-      },
-      {
-       "id": "0CFE49F0",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFC"
-      },
-      {
-       "id": "18FEF200",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8715,53 +8392,14 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFAFFFF7FFFFFFF"
-      },
-      {
-       "id": "0CFE45F0",
-       "isExt": true,
-       "data": "00FFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE48F0",
-       "isExt": true,
-       "data": "FFFAFFFFFFFFFFF4"
-      },
-      {
-       "id": "0CFE49F0",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFC"
-      },
-      {
-       "id": "18FEF200",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8793,53 +8431,14 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE43F0",
-       "isExt": true,
-       "data": "FFFAFFFF7FFFFFFF"
-      },
-      {
-       "id": "0CFE45F0",
-       "isExt": true,
-       "data": "00FFFAFFFFFFFFFF"
-      },
-      {
-       "id": "0CFE48F0",
-       "isExt": true,
-       "data": "FFFAFFFFFFFFFFF4"
-      },
-      {
-       "id": "0CFE49F0",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFC"
-      },
-      {
-       "id": "18FEF200",
-       "isExt": true,
-       "data": "0000FFFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
-       "isExt": true,
-       "data": "FFFFFAFFFFFFFFFF"
-      }
-     ],
-     [
-      {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8871,14 +8470,170 @@
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       }
      ],
      [
       {
-       "id": "0CF00300",
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE43F0",
+       "isExt": true,
+       "data": "FFFAFFFF7FFFFFFF"
+      },
+      {
+       "id": "0CFE45F0",
+       "isExt": true,
+       "data": "00FFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE48F0",
+       "isExt": true,
+       "data": "FFFAFFFFFFFFFFF4"
+      },
+      {
+       "id": "0CFE49F0",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFC"
+      },
+      {
+       "id": "18FEF200",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE43F0",
+       "isExt": true,
+       "data": "FFFAFFFF7FFFFFFF"
+      },
+      {
+       "id": "0CFE45F0",
+       "isExt": true,
+       "data": "00FFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE48F0",
+       "isExt": true,
+       "data": "FFFAFFFFFFFFFFF4"
+      },
+      {
+       "id": "0CFE49F0",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFC"
+      },
+      {
+       "id": "18FEF200",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE43F0",
+       "isExt": true,
+       "data": "FFFAFFFF7FFFFFFF"
+      },
+      {
+       "id": "0CFE45F0",
+       "isExt": true,
+       "data": "00FFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE48F0",
+       "isExt": true,
+       "data": "FFFAFFFFFFFFFFF4"
+      },
+      {
+       "id": "0CFE49F0",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFC"
+      },
+      {
+       "id": "18FEF200",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE43F0",
+       "isExt": true,
+       "data": "FFFAFFFF7FFFFFFF"
+      },
+      {
+       "id": "0CFE45F0",
+       "isExt": true,
+       "data": "00FFFAFFFFFFFFFF"
+      },
+      {
+       "id": "0CFE48F0",
+       "isExt": true,
+       "data": "FFFAFFFFFFFFFFF4"
+      },
+      {
+       "id": "0CFE49F0",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFC"
+      },
+      {
+       "id": "18FEF200",
+       "isExt": true,
+       "data": "0000FFFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
+       "isExt": true,
+       "data": "FFFFFAFFFFFFFFFF"
+      }
+     ],
+     [
+      {
+       "id": "0CF00400",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
       },
@@ -8912,6 +8667,11 @@
     "j1939": [
      [
       {
+       "id": "18EEFF0B",
+       "isExt": true,
+       "data": "0100000000090020"
+      },
+      {
        "id": "18F0090B",
        "isExt": true,
        "data": "FFFFFFFFFA0000FA"
@@ -8920,6 +8680,11 @@
        "id": "18FEAE0B",
        "isExt": true,
        "data": "FFFFFAFFFFFFFFFF"
+      },
+      {
+       "id": "18EEFF17",
+       "isExt": true,
+       "data": "0100000000130020"
       },
       {
        "id": "18FEFC17",
@@ -8934,9 +8699,19 @@
      ],
      [
       {
+       "id": "18EEFF10",
+       "isExt": true,
+       "data": "01000000000D0020"
+      },
+      {
        "id": "18F00010",
        "isExt": true,
        "data": "FFAFFFFFFFFFFFFF"
+      },
+      {
+       "id": "18EEFF03",
+       "isExt": true,
+       "data": "0100000000030020"
       },
       {
        "id": "18F00503",
@@ -9359,17 +9134,17 @@
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "001AFFFDFFFFFFFF"
+       "data": "001A00FDFFFFFFFF"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "01FFFF7F0CFEFFFF"
+       "data": "01FFFF7F0CFE0000"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "02FFFFFFFFFFFFFF"
+       "data": "020000FFFFFFFFFF"
       },
       {
        "id": "09F20100",
@@ -9436,12 +9211,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9464,12 +9239,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9492,12 +9267,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9525,12 +9300,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9553,12 +9328,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9575,17 +9350,17 @@
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "201AFFFDFFFFFFFF"
+       "data": "201A00FDFFFFFFFF"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "21FFFF7F0CFEFFFF"
+       "data": "21FFFF7F0CFE0000"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "22FFFFFFFFFFFFFF"
+       "data": "220000FFFFFFFFFF"
       },
       {
        "id": "09F20100",
@@ -9607,12 +9382,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9635,12 +9410,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9663,12 +9438,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9696,12 +9471,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9724,12 +9499,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9746,17 +9521,17 @@
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "401AFFFDFFFFFFFF"
+       "data": "401A00FDFFFFFFFF"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "41FFFF7F0CFEFFFF"
+       "data": "41FFFF7F0CFE0000"
       },
       {
        "id": "09F20100",
        "isExt": true,
-       "data": "42FFFFFFFFFFFFFF"
+       "data": "420000FFFFFFFFFF"
       },
       {
        "id": "09F20100",
@@ -9808,12 +9583,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9836,12 +9611,12 @@
       {
        "id": "09F10D01",
        "isExt": true,
-       "data": "FFFFFF7F4F77FFFF"
+       "data": "00FFFF7F4F77FFFF"
       },
       {
        "id": "09F20000",
        "isExt": true,
-       "data": "FFFFFFFFFF80FFFF"
+       "data": "00FFFFFFFF80FFFF"
       },
       {
        "id": "09FD0202",
@@ -9959,7 +9734,7 @@
     "65261 CCSS": "FAFFFFFFFFFFFFFF",
     "65253 HOURS": "00000000FFFFFFFF",
     "65258 VW": "100000FFFFFFFFFF",
-    "60928 ACL": "010000000000CEA0"
+    "60928 ACL": "010000000084CEA0"
    },
    "canMap": [
     {
@@ -10244,37 +10019,37 @@
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFFA23E8FF7FFFFF"
+    "data": "00FA23E8FF7FFFFF"
    },
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFFA23E8FF7FFFFF"
+    "data": "00FA23E8FF7FFFFF"
    },
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFFA36FFFF7FFFFF"
+    "data": "00FA36FFFF7FFFFF"
    },
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFF80000FF7FFFFF"
+    "data": "00F80000FF7FFFFF"
    },
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFF9EE0BFF7FFFFF"
+    "data": "00F9EE0BFF7FFFFF"
    },
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFF9DD17FF7FFFFF"
+    "data": "00F9DD17FF7FFFFF"
    },
    {
     "id": "09F10D04",
     "isExt": true,
-    "data": "FFF80000FF7FFFFF"
+    "data": "00F80000FF7FFFFF"
    }
   ],
   "demo": {
@@ -10517,14 +10292,14 @@
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
-      "data": "4523810C008202A0"
+      "data": "4523810C008600A0"
      },
      {
       "id": "18EEFF80",
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
-      "data": "5634221100060CA0"
+      "data": "5634221100840CA0"
      }
     ],
     [
@@ -12492,7 +12267,7 @@
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
-      "data": "FFF80000FF7FFFFF"
+      "data": "00F80000FF7FFFFF"
      },
      {
       "id": "19F11202",
@@ -12557,7 +12332,7 @@
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
-      "data": "FFF80000FF7FFFFF"
+      "data": "00F80000FF7FFFFF"
      },
      {
       "id": "19F11202",
@@ -12594,7 +12369,7 @@
       "isExt": true,
       "isRtr": false,
       "dlc": 8,
-      "data": "FFF80000FF7FFFFF"
+      "data": "00F80000FF7FFFFF"
      },
      {
       "id": "19F11202",

@@ -13,7 +13,7 @@
 // the reason this file can be trusted at all:
 //   - ISO 11783-7 messages (65091 / 65093 / 65096 / 65097): the ISOBUS Data Dictionary at
 //     isobus.net, which is the standard's own electronic database.
-//   - SAE J1939-71 messages (61443 EEC2, 61446 EAC1, 64991 FWD, 65266 LFE1): the J1939-71 document.
+//   - SAE J1939-71 messages (61444 EEC1, 61446 EAC1, 64991 FWD, 65266 LFE1): the J1939-71 document.
 //   - Preferred source addresses: isobus.net's SourceAddress table.
 //   - The NAME bit layout: SAE J1939-81.
 // j1939.js's decode tables are held to the same sources; each place a table is easy to get wrong
@@ -32,9 +32,8 @@
 //                        j1939-pack.js
 //   carlito-bridge.html  same script tag. That page loads neither sloppycan.js nor j1939.js,
 //                        so every cross-module read here is typeof-guarded.
-//   j1939.js             decode-table corrections, so the frames render named and scaled;
-//                        window.j1939DemoDrive, the demo's pedal merged into EEC2
-//   j1939-flavor.js      window.j1939Eec2Frame, EEC2's encoder (shared with the driver demand)
+//   j1939.js             decode-table corrections, so the frames render named and scaled
+//   j1939-flavor.js      window.j1939Eec1Frame, EEC1's encoder (shared with the rpm mirror)
 //   tractor.js / truck.js  their controls are views over window.isobusCtl / isobusSetCtl
 //
 // Telemetry TX rides carlito.js's canForward gateway, which is what puts these on the wire and
@@ -75,14 +74,14 @@
   // ibPack can be checked against it - no cadence in this file is invented, and the two 100 ms
   // groups line up exactly with carlito.js's own fast/slow ticks. It is documentation rather
   // than a value the gate reads: a wall clock at 50 ms sampled by a ~50 ms caller skips a tick
-  // whenever jitter goes the wrong way, and halving EEC2's rate to avoid a magic number would
+  // whenever jitter goes the wrong way, and halving a 50 ms rate to avoid a magic number would
   // be the worse trade.
   const IB_MSGS = {
-    // (EEC2, 61443, 50 ms: its layout is j1939-flavor.js's JF_MSGS.EEC2 - see ibEec2.)
+    // (EEC1, 61444, engine speed dependent: its layout is j1939-flavor.js's JF_MSGS.EEC1 - see ibEec1.)
     // Fuel Economy (Liquid). Bytes 1-2 are SPN 183 Engine Fuel Rate, 0.05 L/h per bit. It carries
     // the contract's `fuel_rate`, an NMEA 2000-flavored signal whose coverage is nmea2000.js's
     // (PGN 127489 on the boat): on a truck or tractor the same reading is an engine parameter
-    // group, sent from the engine beside EEC2.
+    // group, sent from the engine beside EEC1.
     LFE1: { pgn: 65266, prio: 6, sa: SA_ENGINE,    ms: 100 },
     // Electronic Axle Controller 1. 2.5 is SPN 569 Differential Lock State - Rear Axle 1.
     EAC1: { pgn: 61446, prio: 6, sa: SA_AXLE_DRV1, ms: 500 },
@@ -105,10 +104,11 @@
   // dronecan-core.js gates its whole packer on one signature signal, because a drone is the only
   // vehicle that publishes any of its flavor. ISOBUS CANNOT: `engine_load`, `engine_hours` and
   // `pto_state` are declared for the TRUCK as well as the tractor (the contract says so in
-  // engine_load's own desc - "SPN 92 is a J1939 signal and the tractor's was always the
-  // borrowed one"), so a vehicle gate would either drop the truck's engine load or invent a
+  // engine_load's own desc - "it is a J1939 signal and the tractor's was always the borrowed
+  // one"), so a vehicle gate would either drop the truck's engine load or invent a
   // tractor's hitch. Each message is therefore gated on ITS OWN signals: the game publishes
-  // signals_for_vehicle, so an absent key is a real absence and not a zero.
+  // signals_for_vehicle, so an absent key is a real absence and not a zero. The one exception is
+  // RPTO, which is the tractor's alone (see ibRpto).
   const has = jp.has;
 
   // Contract `status` bit assignments. The layout is frozen by the contract, and these are the
@@ -121,13 +121,14 @@
   const KMH_TO_MS = 1 / 3.6;
 
   // ── Builders ────────────────────────────────────────────────────────────────
-  // EEC2 is ONE frame shared with the driver demand: SPN 92 (engine_load, byte 3, 1 %/bit) is
-  // this file's, SPN 91 (the accelerator pedal, byte 2) the demo's while it drives. So the encoder
-  // is j1939-flavor.js's window.j1939Eec2Frame, which merges the two - one EEC2 from the engine,
-  // never two alternating - and this file decides when it goes out. `c` is the demand or null.
-  // Null when j1939-flavor.js is not loaded: no EEC2, rather than a throw that drops every frame.
-  function ibEec2(t, c) {
-    return typeof window.j1939Eec2Frame === 'function' ? window.j1939Eec2Frame(t, c || null) : null;
+  // `engine_load` is SPN 513 Actual Engine - Percent Torque (the contract: "SPN 513-like ... NOT
+  // SPN 92"), EEC1 byte 3, 1 %/bit, -125 % offset (J1939-71 p.56). EEC1 is ONE frame shared with
+  // j1939-flavor.js's rpm mirror (SPN 190), so the encoder is its window.j1939Eec1Frame, which
+  // puts both in - one EEC1 from the engine, never two alternating - and this file decides when
+  // it goes out. Null when j1939-flavor.js is not loaded: no EEC1, rather than a throw that drops
+  // every frame.
+  function ibEec1(t) {
+    return typeof window.j1939Eec1Frame === 'function' ? window.j1939Eec1Frame(t) : null;
   }
 
   function ibLfe1(t) {
@@ -156,14 +157,12 @@
 
   function ibRpto(t) {
     const d = jp.blank();
-    // Bytes 1-2 SPN 1883 Rear PTO output shaft speed, 0.125 1/min per bit. Absent on the truck,
-    // whose chassis PTO the contract also flavors isobus but gives no shaft speed - so the
-    // field states "not available" there rather than reporting a stopped shaft.
-    // A KNOWN WART on the truck, stated rather than papered over: this goes out from the
-    // Tractor ECU address, because `pto_state` carries the isobus flavor for both vehicles and
-    // this module has one message for it. A truck's chassis PTO is really SPN 976 in PGN 65264,
-    // which is the j1939 packer's flavor and not this one's - the split is the contract's, and
-    // moving it would be a contract edit rather than a change here.
+    // Bytes 1-2 SPN 1883 Rear PTO output shaft speed, 0.125 1/min per bit; "not available"
+    // with no `pto_rpm` rather than a stopped shaft.
+    // THE TRACTOR'S ALONE (ibPack): RPTO is an ISO 11783-7 tractor message from the Tractor ECU
+    // address, and a truck has neither. A truck's `pto_state` therefore rides NO frame. J1939-71
+    // has no honest carrier for it: SPN 976 PTO State (CCVS 65265, byte 7, p.109 / p.373) gives
+    // its states only in a figure, and SPN 980 (PGN 65264) is the enable switch, not engagement.
     if (has(t, 'pto_rpm')) jp.put(d, 0, 2, t.pto_rpm, 0.125, 0);
     // Bytes 3-4 SPN 1885 set point: the requested speed is an inbound signal (`pto_mode`), so
     // there is no set point on this side to report.
@@ -235,9 +234,10 @@
   const IB_MFR_CODE = 0;      // no manufacturer code is registered to this project, and 0 is the
                               // unassigned value - inventing someone else's would be a false claim
   const IB_IDENTITY = 1;      // serial number within the manufacturer code
-  const IB_FUNCTION = 0;      // J1939-81 functions 0-127 are industry-group independent, and 0 is
-                              // "Non-specific" - right here, because this implement's identity is
-                              // carried entirely by its device class
+  const IB_FUNCTION = 132;    // "<device class> Machine Control": isobus.net's nameFunction table
+                              // gives 132 that name under industry group 2 for every class the
+                              // contract's enum carries (2 tillage, 3 secondary tillage, 5
+                              // fertilizers, 9 forage; 6 sprayers too). Function 0 is Engine.
   const IB_INDUSTRY_AG = 2;   // Agricultural and forestry equipment
 
   // J1939-81 NAME, little-endian:
@@ -294,18 +294,19 @@
     const out = [];
     const now = Date.now();
 
-    if (has(t, 'engine_load')) {                                       // 50 ms
-      const eec2 = ibEec2(t, typeof window.j1939DemoDrive === 'function' ? window.j1939DemoDrive() : null);
-      if (eec2) out.push(eec2);
+    if (has(t, 'engine_load')) {                                       // every call
+      const eec1 = ibEec1(t);
+      if (eec1) out.push(eec1);
     }
 
     if (slow) {                                                        // 100 ms
-      if (has(t, 'pto_state')) out.push(ibRpto(t));
+      // The one vehicle gate here (ibRpto): a truck's chassis PTO is not an ISO 11783 rear PTO.
+      if (has(t, 'pto_state') && window.carlitoIsFamily && window.carlitoIsFamily('tractor', t)) out.push(ibRpto(t));
       if (has(t, 'hitch_pos_actual') || has(t, 'draft_force')) out.push(ibRhs(t));
       if (has(t, 'wheel_speed')) out.push(ibWbsd(t));
       if (has(t, 'ground_speed')) out.push(ibGbsd(t));
       // A J1939 engine's burn: `fuel_rate` is declared on the car and the boat as well, which
-      // carry no J1939 engine, so the gate is the engine's own SPN 92 beside it.
+      // carry no J1939 engine, so the gate is the engine's own load (SPN 513) beside it.
       if (has(t, 'fuel_rate') && has(t, 'engine_load')) out.push(ibLfe1(t));
     }
 
@@ -319,7 +320,9 @@
     }
 
     out.push(...ibClaim(t));                                           // on change
-    return out;
+    // Each source claims its address before its first frame (j1939-pack.js). The implement's
+    // claim above is its own and passes through.
+    return jp.claimFirst(out, t);
   }
 
   window.carlitoFlavorPackers = window.carlitoFlavorPackers || [];
@@ -340,7 +343,7 @@
         'than the signal being unimplemented',
     },
     pack: ibPack,
-    reset: () => { ibLastClaim = null; },
+    reset: () => { ibLastClaim = null; jp.forgetClaims(); },
   });
 
   // ── A request for the claim (J1939-81) ──────────────────────────────────────
@@ -484,11 +487,13 @@
   // HERMETIC: the state the checks touch is snapshotted here and put back in a `finally`, so a
   // check that throws cannot leave a test value driving the game.
   function isobusSelfTest() {
-    const claim = ibLastClaim, cmd = {};
+    // The packer's reset() (check 6) also forgets J1939Pack's shared claim ledger.
+    const claim = ibLastClaim, claims = jp.claimsSnapshot(), cmd = {};
     for (const k of Object.keys(ibCmd)) cmd[k] = Object.assign({}, ibCmd[k]);
     try { return ibSelfTestChecks(); }
     finally {
       ibLastClaim = claim;
+      jp.claimsRestore(claims);
       for (const k of Object.keys(ibCmd)) Object.assign(ibCmd[k], cmd[k]);
     }
   }
@@ -528,13 +533,14 @@
     eq('RPTO 1000 rpm engaged',
       hex(ibRpto({ pto_rpm: 1000, pto_state: true }).data),
       '40 1F FF FF 7F FF FF FF');
-    eq('RPTO disengaged with no shaft speed (the truck case)',
+    eq('RPTO disengaged with no shaft speed',
       hex(ibRpto({ pto_state: false }).data),
       'FF FF FF FF 3F FF FF FF');
-    //    EEC2's encoder is j1939-flavor.js's; without it there is no EEC2 to check (ibEec2 is null).
-    const eec2Here = typeof window.j1939Eec2Frame === 'function';
-    if (!eec2Here) failures.push('j1939-flavor.js is not loaded on this page, so EEC2 (its shared encoder) was not checked');
-    if (eec2Here) eq('EEC2 42 % load', hex(ibEec2({ engine_load: 42 }).data), 'FF FF 2A FF FF FF FF FF');
+    //    EEC1's encoder is j1939-flavor.js's; without it there is no EEC1 to check (ibEec1 is null).
+    //    42 % -> 42 + 125 = 167 = 0xA7 at byte 3; no rpm off a truck or tractor.
+    const eec1Here = typeof window.j1939Eec1Frame === 'function';
+    if (!eec1Here) failures.push('j1939-flavor.js is not loaded on this page, so EEC1 (its shared encoder) was not checked');
+    if (eec1Here) eq('EEC1 42 % load', hex(ibEec1({ engine_load: 42 }).data), 'FF FF A7 FF FF FF FF FF');
     //    12.5 L/h -> 250 = 0xFA, little-endian FA 00.
     eq('LFE1 12.5 L/h', hex(ibLfe1({ fuel_rate: 12.5 }).data), 'FA 00 FF FF FF FF FF FF');
     eq('EAC1 rear diff locked', hex(ibEac1({ diff_lock_state: true }).data), 'FF DF FF FF FF FF FF FF');
@@ -552,12 +558,14 @@
     eq('a real key-off status still says off',
       hex(ibWbsd({ wheel_speed: 18, status: 0 }).data), '88 13 FF FF FF FF FF F1');
     //    ...and a value past the top of the scale clamps to the top of the valid range.
-    if (eec2Here) eq('over-range clamps under the reserved codes', ibEec2({ engine_load: 9999 }).data[2], 0xFA);
+    if (eec1Here) eq('over-range clamps under the reserved codes', ibEec1({ engine_load: 9999 }).data[2], 0xFA);
 
-    // 4. The NAME. Tillage (device class 2), agriculture (industry group 2), self-configurable.
+    // 4. The NAME. Tillage (device class 2), Machine Control (function 132), agriculture
+    //    (industry group 2), self-configurable.
     const nm = ibName(2);
-    //    hi = (2 << 28) | (1 << 31) = 0xA0000000, plus (2 << 17) = 0x00040000 for the class.
-    eq('NAME bytes', hex(nm), '01 00 00 00 00 00 04 A0');
+    //    hi = (2 << 28) | (1 << 31) = 0xA0000000, plus (2 << 17) = 0x00040000 for the class and
+    //    (132 << 8) = 0x00008400 for the function.
+    eq('NAME bytes', hex(nm), '01 00 00 00 00 84 04 A0');
     if (typeof j1939DecodeName === 'function') {
       const back = j1939DecodeName(nm);
       eq('NAME device class', back.devClass, 2);
@@ -580,7 +588,7 @@
           eq(label + ' ' + name, String(f.display).replace(/\u00A0/g, ' '), want[name]);
         }
       };
-      if (eec2Here) rt('EEC2', 61443, ibEec2({ engine_load: 42 }), { 'Percent Load At Current Speed': '42 %' });
+      if (eec1Here) rt('EEC1', 61444, ibEec1({ engine_load: 42 }), { 'Actual Engine - Percent Torque': '42 %' });
       rt('LFE1', 65266, ibLfe1({ fuel_rate: 12.5 }), { 'Fuel Rate': '12.5 L/h' });
       rt('WBSD', 65096, ibWbsd({ wheel_speed: 18, status: ST_IGNITION }),
         { 'Wheel-based machine speed': '5.000 m/s', 'Wheel-based machine direction': 'Forward' });

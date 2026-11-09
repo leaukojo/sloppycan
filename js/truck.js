@@ -56,7 +56,7 @@
         <div class="vp-bar-head"><span>RPM</span><span class="v" id="truckRpmV">&ndash;</span></div>
         <div class="vp-bar" id="truckRpmBar"><i></i></div>
       </div>
-      <div class="vp-bar-row" title="contract engine_load - percent load at the current speed (J1939 SPN 92).">
+      <div class="vp-bar-row" title="contract engine_load - actual engine torque as a percent of the peak (J1939 SPN 513-like, EEC1).">
         <div class="vp-bar-head"><span>Load</span><span class="v" id="truckLoadV">&ndash;</span></div>
         <div class="vp-bar" id="truckLoadBar"><i></i></div>
       </div>

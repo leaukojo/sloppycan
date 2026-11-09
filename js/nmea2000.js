@@ -29,15 +29,22 @@
 //
 // `battery`, `coolant`, `engine_hours`, `heading`, `pitch` and `roll` are all UNFLAVORED despite
 // their own desc text citing a PGN (127508 / 127489 / 127489 / 127250 / 127257 / 127257
-// respectively) - the `engine_hours` precedent exactly: those signals are shared with vehicle
+// respectively): those signals are shared with vehicle
 // families that do not speak NMEA 2000 at all (plane, drone, car, truck, tractor), so the PGN
 // citation is a naming reference, not a claim about which protocol owns the wire. They are the
 // base CAN map's job, and packing them here would fail checkCanCoverage's own logic for the
 // wrong reason - the signal would look covered twice, once honestly and once not. The one
 // deliberate exception is declared rather than hidden: a BOAT also carries `heading` / `lat` /
-// `lon` in 127250 / 129025 (`mirrors` below - decision 1's reasoning, applied to the boat: an NMEA
-// 2000 view of a boat with no heading or position is the stranger result). Both layouts are
-// NMEA2K_DB's, round-tripped by the self-test like every other frame here.
+// `lon` in 127250 / 129025 and `engine_hours` in 127489's Total Engine Hours (`mirrors` below -
+// decision 1's reasoning, applied to the boat: an NMEA 2000 view of a boat with no heading,
+// position or hour meter is the stranger result; the contract's engine_hours desc says the boat
+// reads 127489). All three layouts are NMEA2K_DB's, round-tripped by the self-test like every
+// other frame here.
+//
+// INSTANCE 0 on 127245 / 127488 / 127489: the instance is the key field a display binds a gauge
+// to (canboat: "0 .. 252", part of the primary key), so 0xFF there would name no rudder and no
+// engine. The boat has one of each, and canboat's ENGINE_INSTANCE gives 0 as "Single Engine or
+// Dual Engine Port".
 //
 // INTEGRATION POINTS - the only changes required in the main files:
 //   index.html            <script src="nmea2000.js" defer> after carlito-registry.js and
@@ -148,9 +155,10 @@
   // ── Builders ────────────────────────────────────────────────────────────────
   function nfRudder(t) {
     const d = jp.blank(8);
-    // Instance, Direction Order (byte 1) and the Angle Order (bytes 2-3, the COMMANDED angle a
-    // real autopilot orders) all stay "not available": this file has only the applied position,
-    // never a distinct order for it.
+    d[0] = 0;   // Instance: the boat's one rudder (header)
+    // Direction Order (byte 1) and the Angle Order (bytes 2-3, the COMMANDED angle a real
+    // autopilot orders) stay "not available": this file has only the applied position, never a
+    // distinct order for it.
     nfNaSigned(d, 2, 2);
     nfPut(d, 4, 2, has(t, 'rudder_actual') ? Number(t.rudder_actual) / 100 * RUDDER_MAX_DEG : NaN, NF_ANG, 0, true);
     return jp.msgFrame(NF_MSGS.RUDDER, d);
@@ -158,6 +166,7 @@
 
   function nfEngineRapid(t) {
     const d = jp.blank(8);
+    d[0] = 0;   // Instance: single engine (header)
     // Engine Speed (bytes 1-2) and Boost Pressure (bytes 3-4) stay "not available": `rpm` is not
     // a boat contract signal and the boat has no boost pressure reading.
     if (has(t, 'trim')) nfPut(d, 5, 1, t.trim, 1, 0, true);
@@ -235,10 +244,14 @@
   // j1939DecodePGN directly rather than through the chunked frames.
   function nfEngineDynamicPayload(t) {
     const d = jp.blank(26);
-    // Oil Temp, Coolant Temp, Alternator, Engine Hours, Coolant/Fuel Pressure, discrete status
-    // and Engine Load/Torque all stay "not available": `coolant`/`engine_hours` are UNFLAVORED
-    // (the base CAN map's job, see header) and this game has no other source for the rest.
+    d[0] = 0;   // Instance: single engine (header)
+    // Oil Temp, Coolant Temp, Alternator, Coolant/Fuel Pressure, discrete status and Engine
+    // Load/Torque all stay "not available": `coolant` is UNFLAVORED (the base CAN map's job, see
+    // header) and this game has no other source for the rest.
     if (has(t, 'oil_press')) nfPut(d, 1, 2, t.oil_press, 0.1, 0, false);
+    // Total Engine Hours, bytes 11-14: 1 s per bit, unsigned (canboat; NMEA2K_DB's 1/3600 h). The
+    // mirror - only a boat reaches this builder (nfPack's gate).
+    if (has(t, 'engine_hours')) nfPut(d, 11, 4, t.engine_hours, 1 / 3600, 0, false);
     nfPut(d, 9, 2, has(t, 'fuel_rate') ? t.fuel_rate : NaN, 0.1, 0, true);
     nfNaSigned(d, 7, 2); nfNaSigned(d, 24, 1); nfNaSigned(d, 25, 1);   // Alternator, Load, Torque
     return d;
@@ -332,7 +345,7 @@
     if (now - nfLast500 >= 500) {
       // fuel_rate is also declared on car/truck/tractor, which carry no NMEA 2000 network (a
       // truck or tractor's burn goes out as J1939 LFE1, isobus.js): 127489 is the boat's alone.
-      if (has(t, 'rudder_actual') && (has(t, 'oil_press') || has(t, 'fuel_rate'))) {
+      if (has(t, 'rudder_actual') && (has(t, 'oil_press') || has(t, 'fuel_rate') || has(t, 'engine_hours'))) {
         nfLast500 = now; out.push(...nfEngineDynamic(t));
       }
     }
@@ -370,6 +383,7 @@
       heading: '127250 Vessel Heading, boat only',
       lat:     '129025 Position, Rapid Update, boat only',
       lon:     '129025 Position, Rapid Update, boat only',
+      engine_hours: '127489 Engine Parameters, Dynamic: Total Engine Hours, boat only',
     },
     pack: nfPack,
   });
@@ -447,6 +461,7 @@
   function nfRudderOrderFrame(pct) {
     const d = jp.blank(8);
     const p = Math.max(-100, Math.min(100, Number(pct) || 0));
+    d[0] = 0;   // Instance: the boat's one rudder, the same one 127245's Position reports
     jp.bits(d, 1, 0, 3, p > 0 ? 1 : p < 0 ? 2 : 0);
     nfPut(d, 2, 2, p / 100 * RUDDER_MAX_DEG, NF_ANG, 0, true);
     nfNaSigned(d, 4, 2);   // Position: an order, not a measurement
@@ -537,12 +552,12 @@
 
     // 3. Trim is a plain signed byte; a negative value round-trips through two's complement
     //    (-40 -> 216 = 0xD8).
-    eq('trim -40 %', hex(nfEngineRapid({ trim: -40 }).data), 'FF FF FF FF FF D8 FF FF');
+    eq('trim -40 %', hex(nfEngineRapid({ trim: -40 }).data), '00 FF FF FF FF D8 FF FF');
 
     // 4. A signal the game did not publish leaves the byte at 0xFF, not a written zero.
     //    Angle Order and Position are signed: "not available" is 0x7FFF (FF 7F), never the blank.
     eq('no rudder_actual leaves Position not-available', hex(nfRudder({}).data),
-      'FF FF FF 7F FF 7F FF FF');
+      '00 FF FF 7F FF 7F FF FF');
     //    The mirrors. 90 deg = 1.5708 rad -> 15708 = 0x3D5C; Deviation / Variation 0x7FFF; True.
     //    48.8566 deg -> 488566000 = 0x1D1EECF0; -2.3522 deg -> -23522000 = 0xFE991530.
     eq('Vessel Heading 90 deg true', hex(nfHeading({ heading: 90 }).data), 'FF 5C 3D FF 7F FF 7F FC');
@@ -580,7 +595,9 @@
       rt('Engine Dynamic', 127489, nfEngineDynamicPayload({ oil_press: 350, fuel_rate: -12 }),
         { 'Oil Pressure': '350.0 kPa', 'Fuel Rate': '-12.0 L/h',
           'Alternator': 'N/A', 'Engine Load': 'N/A', 'Engine Torque': 'N/A' });
-      rt('Engine Dynamic, no fuel rate', 127489, nfEngineDynamicPayload({ oil_press: 350 }), { 'Fuel Rate': 'N/A' });
+      rt('Engine Dynamic, no fuel rate', 127489, nfEngineDynamicPayload({ oil_press: 350 }), { 'Fuel Rate': 'N/A', 'Engine Hours': 'N/A' });
+      rt('Engine Dynamic, engine hours', 127489, nfEngineDynamicPayload({ engine_hours: 321 }),
+        { 'Instance': '0', 'Engine Hours': '321.0 h' });
       rt('Fluid Level (fresh water)', 127505, nfFluidLevel(0, 62).data,
         { 'Level': '62.0 %', 'Type': 'Water' });
       rt('Fluid Level (waste)', 127505, nfFluidLevel(1, 80).data,
@@ -626,7 +643,7 @@
     nfRudderOrder.bus = undefined;
     const ord = nfRudderOrderFrame(50);
     //    17.5 deg = 0.30543 rad -> 3054 = 0x0BEE; Direction Order 1 = starboard.
-    eq('rudder order frame', hex(ord.data), 'FF F9 EE 0B FF 7F FF FF');
+    eq('rudder order frame', hex(ord.data), '00 F9 EE 0B FF 7F FF FF');
     nfDecodeCommand(ord);
     nfBoatAt = 0;
     eq('no boat on the link, no rudder', nfRudderLive(), undefined);

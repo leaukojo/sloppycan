@@ -55,15 +55,68 @@ const J1939_FMI = {
 };
 
 // ── J1939 Function codes (for Address Claim NAME decode) ──────────────────────
+// Off isobus.net's nameFunction table (the ISO 11783 / J1939-81 list). Functions 0-127 mean the
+// same in every industry group; 96-127 are unassigned there, and 95 has no name. Functions 128+
+// mean something only within an (industry group, vehicle system) pair, so they are keyed by
+// both - a code alone names nothing (128 is Spray Rate Control on a sprayer and Reserved in
+// industry group 0). Only the pairs this project meets are here; any other code reads as a number.
 const J1939_FUNCTION = {
-  0:'Non-specific',           25:'Trailer Refrigeration',  128:'Engine',
-  130:'Transmission',         136:'Axle, Steering',        137:'Axle, Drive',
-  138:'Brakes',               142:'Cruise Control',        144:'Instrument Cluster',
-  145:'Trip Recorder',        146:'Navigation',            149:'Electrical System',
-  151:'Steering Controller',  162:'Cab Controller',        165:'Body Controller',
-  171:'Off-Vehicle Gateway',  176:'Multiplex',             184:'Tachograph',
-  190:'Lighting Controls',    204:'Safety Restraint',
+  0:'Engine', 1:'Auxiliary Power Unit (APU)', 2:'Electric Propulsion Control', 3:'Transmission',
+  4:'Battery Pack Monitor', 5:'Shift Control/Console', 6:'Power TakeOff - (Main or Rear)',
+  7:'Axle - Steering', 8:'Axle - Drive', 9:'Brakes - System Controller', 10:'Brakes - Steer Axle',
+  11:'Brakes - Drive axle', 12:'Retarder - Engine', 13:'Retarder - Driveline', 14:'Cruise Control',
+  15:'Fuel System', 16:'Steering Controller', 17:'Suspension - Steer Axle',
+  18:'Suspension - Drive Axle', 19:'Instrument Cluster', 20:'Trip Recorder',
+  21:'Cab Climate Control', 22:'Aerodynamic Control', 23:'Vehicle Navigation',
+  24:'Vehicle Security', 25:'Network Interconnect ECU', 26:'Body Controller',
+  27:'Power TakeOff (Secondary or Front)', 28:'Off Vehicle Gateway', 29:'Virtual Terminal (in cab)',
+  30:'Management Computer', 31:'Propulsion Battery Charger', 32:'Headway Controller',
+  33:'System Monitor', 34:'Hydraulic Pump Controller', 35:'Suspension - System Controller',
+  36:'Pneumatic - System Controller', 37:'Cab Controller', 38:'Tire Pressure Control',
+  39:'Ignition Control Module', 40:'Seat Control', 41:'Lighting - Operator Controls',
+  42:'Water Pump Control', 43:'Transmission Display', 44:'Exhaust Emission Control',
+  45:'Vehicle Dynamic Stability Control', 46:'Oil Sensor Unit', 47:'Information System Controller',
+  48:'Ramp Control', 49:'Clutch/Converter Control', 50:'Auxiliary Heater',
+  51:'Forward-Looking Collision Warning System', 52:'Chassis Controller',
+  53:'Alternator/Charging System', 54:'Communications Unit, Cellular',
+  55:'Communications Unit, Satellite', 56:'Communications Unit, Radio', 57:'Steering Column Unit',
+  58:'Fan Drive Control', 59:'Starter', 60:'Cab Display', 61:'File Server / Printer',
+  62:'On-Board Diagnostic Unit', 63:'Engine Valve Controller', 64:'Endurance Braking',
+  65:'Gas Flow Measurement', 66:'I/O Controller', 67:'Electrical System Controller',
+  68:'Aftertreatment system gas measurement', 69:'Engine Emission Aftertreatment System',
+  70:'Auxiliary Regeneration Device', 71:'Transfer Case Control', 72:'Coolant Valve Controller',
+  73:'Rollover Detection Control', 74:'Lubrication System', 75:'Supplemental Fan',
+  76:'Temperature Sensor', 77:'Fuel Properties Sensor', 78:'Fire Suppression System',
+  79:'Power Systems Manager', 80:'Electric Powertrain', 81:'Hydraulic Powertrain', 82:'File Server',
+  83:'Printer', 84:'Start Aid Device', 85:'Engine Injection Control Module',
+  86:'EV Communication Controller', 87:'Driver Impairment Device', 88:'Electric Power Converter',
+  89:'Supply Equipment Communication Controller (SECC)',
+  90:'Vehicle Adapter Communication Controller (VACC)', 91:'Accessory Electric Motor Controller',
+  92:'Current Sensor', 93:'Fuel Cell System', 94:'Auxiliary Display',
 };
+// 128+, keyed 'industry group/vehicle system'. Each ISO 11783 implement class also lists 255 Not Available.
+const J1939_FUNCTION_BY_SYSTEM = {
+  '0/0': { 128:'Reserved', 129:'Off-board diagnostic-service tool', 130:'On-board data logger', 131:'PC Keyboard' },
+  '2/0': { 128:'Non Virtual Terminal Display', 129:'Operator Controls - Machine Specific',
+           130:'Task Controller (Mapping Computer)', 131:'Position Control', 132:'Machine Control',
+           133:'Foreign Object Detection', 134:'Tractor ECU' },
+  '2/2': { 132:'Tillage Machine Control', 135:'Tillage Depth Control', 136:'Frame Control', 255:'Not Available' },
+  '2/3': { 132:'Secondary Tillage Machine Control', 135:'Secondary Tillage Depth Control',
+           136:'Frame Control', 255:'Not Available' },
+  '2/5': { 128:'Fertilize Rate Control', 129:'Section On/Off Control', 130:'Product Pressure',
+           131:'Position Control', 132:'Fertilizers Machine Control', 133:'Product Flow',
+           134:'Product Level', 135:'Height/Depth Control', 136:'Frame Control', 255:'Not Available' },
+  '2/6': { 128:'Spray Rate Control', 129:'Section On/Off Control', 130:'Product Pressure',
+           131:'Position Control', 132:'Sprayers Machine Control', 133:'Product Flow',
+           134:'Product Level', 135:'Boom Height Control', 136:'Frame Control', 255:'Not Available' },
+  '2/9': { 128:'Twine Wrapper Control', 129:'Product Packaging Control', 131:'Product Moisture',
+           132:'Forage Machine Control', 133:'Product Flow', 135:'Working Height Control', 255:'Not Available' },
+};
+function j1939FunctionName(fn, industryGrp, vehicleSystem) {
+  const name = fn < 128 ? J1939_FUNCTION[fn]
+    : (J1939_FUNCTION_BY_SYSTEM[industryGrp + '/' + vehicleSystem] || {})[fn];
+  return name || `Function ${fn}`;
+}
 const J1939_INDUSTRY = ['Global','On-Highway','Agriculture/Forestry','Construction','Marine','Industrial/Stationary'];
 
 // ── PGN database ──────────────────────────────────────────────────────────────
@@ -81,9 +134,9 @@ const J1939_INDUSTRY = ['Global','On-Highway','Agriculture/Forestry','Constructi
 //   map  – (bit-level) {raw → label}
 //   onesValid – (bit-level) all-ones is a real state (TSC1's modes), not "not available"
 const J1939_DB = {
-  // EEC2 carries SPN 92, the engine load the carlito contract's `engine_load` borrows, and
-  // isobus.js publishes it here. Byte 3, 1 %/bit, no offset - a percent LOAD, not a percent
-  // torque, which is why it does not carry EEC1's -125 offset.
+  // EEC2's SPN 92 is a percent LOAD (byte 3, 1 %/bit, no offset). The carlito contract's
+  // `engine_load` is NOT it - it is SPN 513, a percent torque, in EEC1 below, where isobus.js
+  // publishes it.
   0xF003:{ name:'Electronic Engine Controller 2', abbr:'EEC2', spns:[
     { spn:91,  name:'Accelerator Pedal Position 1',   b:1, n:1, f:0.4, o:0, u:'%', dp:0 },
     { spn:92,  name:'Percent Load At Current Speed',  b:2, n:1, f:1,   o:0, u:'%', dp:0 },
@@ -478,7 +531,7 @@ function j1939DecodeName(data) {
   const identity    = lo & 0x1FFFFF;
   return {
     identity, fn, mfrCode, ecuInst, industryGrp, arbitrary, devClass,
-    fnName:       J1939_FUNCTION[fn]     || `Function ${fn}`,
+    fnName:       j1939FunctionName(fn, industryGrp, devClass),
     industryName: J1939_INDUSTRY[industryGrp] || `Group ${industryGrp}`,
   };
 }

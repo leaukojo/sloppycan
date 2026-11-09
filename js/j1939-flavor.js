@@ -59,8 +59,8 @@
 //                        is the demand merged into the game's EEC2 / VDC2 / CCVS. Its base
 //                        traffic builds EEC1 / ET1 / CCVS / VEP1 / DD through
 //                        window.j1939FlavorFrames and paces them by window.j1939FlavorMsgs' `ms`
-//   isobus.js            sends its EEC2 through window.j1939Eec2Frame
-//   carlito-registry.js  window.carlitoIsFamily, the mirrors' truck-or-tractor gate
+//   isobus.js            sends EEC1 (with its engine_load) through window.j1939Eec1Frame
+//   carlito-registry.js  window.carlitoJ1939Network, the mirrors' truck-or-tractor gate
 //   carlito.js           window.carlitoUplinkDecoders + carlitoUplinkOverrides (DRIVER DEMAND)
 //
 // Telemetry TX rides carlito.js's canForward gateway, which is what puts these on the wire and
@@ -108,11 +108,12 @@
     // The stability unit lives in the brake system controller (the EBS that brakes the wheels).
     VDC1: { pgn: 65103, prio: 6, sa: SA_BRAKES, ms: 100 },
     VDC2: { pgn: 61449, prio: 6, sa: SA_BRAKES, ms: 10 },
-    // SAE J1939-71. EEC2 byte 3 is SPN 92 Percent Load At Current Speed, which isobus.js sends for
-    // `engine_load` through jfEec2 (the encoder it shares with the pedal). NOT EEC1: J1939-71
-    // gives EEC1 (61444) bytes 2 and 3 as SPN 512 / 513, the two TORQUE parameters.
+    // EEC2 carries the demo's pedal only (SPN 91): the game publishes no pedal position, and
+    // `engine_load` is NOT EEC2's SPN 92 (the contract says so) - see EEC1.
     EEC2: { pgn: 61443, prio: 3, sa: SA_ENGINE, ms: 50 },
-    // The mirrors. EEC1's rate is "engine speed dependent", so 0: it rides every call.
+    // EEC1: the rpm mirror (SPN 190) and `engine_load` (SPN 513 Actual Engine - Percent Torque,
+    // J1939-71 p.56: byte 3, 1 %/bit, -125 % offset - the contract's "SPN 513-like"). Its rate
+    // is "engine speed dependent", so 0: it rides every call.
     EEC1: { pgn: 61444, prio: 3, sa: SA_ENGINE,  ms: 0 },
     CCVS: { pgn: 65265, prio: 6, sa: SA_ENGINE,  ms: 100 },
     ET1:  { pgn: 65262, prio: 6, sa: SA_ENGINE,  ms: 1000 },
@@ -196,18 +197,18 @@
   }
 
   // ── ONE ENCODER PER GROUP the driver demand shares with the game ─────────────
-  // EEC2, VDC2 and CCVS each carry a driver-demand field (`c`, the demo's RAMN panel state, or
-  // null) beside a game field (`t`). While the game's group is on the bus it is the group's ONE
+  // VDC2 and CCVS each carry a driver-demand field (`c`, the demo's RAMN panel state, or null)
+  // beside a game field (`t`). While the game's group is on the bus it is the group's ONE
   // producer - j1939.js's demo stops sending its own - so the demand rides inside it: one frame
   // per tick, never two from the same address alternating. The demo's own frames, when the game is
-  // not sending the group, come out of the same three functions (j1939DriveFrames, t = null).
+  // not sending the group, come out of the same functions (j1939DriveFrames, t = null).
   // A null `c` leaves its field "not available", so the frame's echo refreshes nothing and the
   // claim lapses on JF_DRIVE_TTL_MS rather than latching the last pedal.
-  function jfEec2(t, c) {
+  // EEC2 has no game half (the game sends no EEC2), so it is the demo's alone.
+  function jfEec2(c) {
     const d = jp.blank();
     if (c) jp.put(d, 1, 1, Math.max(0, Math.min(100, Number(c.accel) || 0)), 0.4, 0);  // SPN 91
-    if (has(t, 'engine_load')) jp.put(d, 2, 1, t.engine_load, 1, 0);                    // SPN 92
-    // Byte 4 SPN 974 Remote Accelerator stays "not available": nothing here has a second pedal.
+    // Bytes 3-4, SPN 92 and SPN 974 Remote Accelerator, stay "not available".
     return jp.msgFrame(JF_MSGS.EEC2, d);
   }
 
@@ -249,11 +250,15 @@
   // plane publishes the same five and has no J1939 network, so the gate IS the vehicle here - the
   // one place this file gates per vehicle - on carlito-registry.js's shared rule. Every other field
   // of the five groups stays "not available": the game publishes no torque, no oil temperature.
-  const jfMirrored = (t) => !!window.carlitoIsFamily &&
-    (window.carlitoIsFamily('truck', t) || window.carlitoIsFamily('tractor', t));
+  const jfMirrored = (t) => !!window.carlitoJ1939Network && window.carlitoJ1939Network(t);
+  // EEC1 is ONE frame from Engine #1 carrying two owners' signals: the rpm mirror (this file's)
+  // and `engine_load` (isobus.js's flavor). isobus.js sends it whenever `engine_load` is there,
+  // through window.j1939Eec1Frame with the rpm inside; jfPack sends it only when it is not - one
+  // EEC1 per tick, never two from the engine alternating.
   function jfEec1(t) {
     const d = jp.blank();
-    jp.put(d, 3, 2, Number(t.rpm), 0.125, 0);                    // SPN 190
+    if (has(t, 'engine_load')) jp.put(d, 2, 1, t.engine_load, 1, -125);   // SPN 513
+    if (has(t, 'rpm')) jp.put(d, 3, 2, Number(t.rpm), 0.125, 0);          // SPN 190
     return jp.msgFrame(JF_MSGS.EEC1, d);
   }
   function jfEt1(t) {
@@ -298,7 +303,8 @@
       out.push(jfVdc2(t, drive));                                        // every call
     }
     // EEC1's rate follows engine speed, faster than the bridge carries: every call, like VDC2.
-    if (mirror && has(t, 'rpm')) out.push(jfEec1(t));                   // every call
+    // With `engine_load` present it is isobus.js's to send, rpm inside (jfEec1).
+    if (mirror && has(t, 'rpm') && !has(t, 'engine_load')) out.push(jfEec1(t));   // every call
     if (mirror && slow && has(t, 'kmh')) out.push(jfCcvs(t, drive));    // 100 ms
 
     if (Date.now() - jfLast1s >= 1000) {                                // 1 s
@@ -311,7 +317,8 @@
       // does not leave the gate permanently open for the vehicle that follows it.
       if (sec.length) { jfLast1s = Date.now(); out.push(...sec); }
     }
-    return out;
+    // Each source claims its address before its first frame (j1939-pack.js).
+    return jp.claimFirst(out, t);
   }
 
   window.carlitoFlavorPackers = window.carlitoFlavorPackers || [];
@@ -340,6 +347,8 @@
       battery: 'VEP1 (65271) SPN 168 Electrical Potential, truck and tractor only',
     },
     pack: jfPack,
+    // A bus that was not listening heard no claim: every source claims again on its next frame.
+    reset: () => jp.forgetClaims(),
   });
 
   // ── The retarder REQUEST (contract `retarder`, dir "in") ─────────────────────
@@ -447,7 +456,7 @@
     tc1[2] = jfGearRaw(c.gear);
     const full = (f) => ({ id: f.id, isExt: true, isRtr: false, dlc: 8, data: f.data });
     return [
-      full(jfEec2(null, c)),
+      full(jfEec2(c)),
       { id: jp.buildId(PGN_EBC1, 6, SA_BRAKES), isExt: true, isRtr: false, dlc: 8, data: ebc1 },
       full(jfVdc2(null, c)),
       { id: jp.buildId(PGN_TC1, 3, SA_SHIFT_CONSOLE, SA_TRANSMISSION), isExt: true, isRtr: false, dlc: 8, data: tc1 },
@@ -508,7 +517,9 @@
   }
   window.j1939DriveFrames = j1939DriveFrames;
   window.j1939CcvsPatch = j1939CcvsPatch;
-  window.j1939Eec2Frame = jfEec2;   // ← isobus.js, which decides when EEC2 goes out
+  // ← isobus.js, which decides when EEC1 goes out (whenever engine_load is there). The rpm mirror
+  // rides inside it only for a truck or tractor, the mirror's own gate.
+  window.j1939Eec1Frame = (t) => jfEec1(jfMirrored(t) ? t : { engine_load: t.engine_load });
   // ← j1939.js's demo traffic, which builds the same five groups through these builders (one
   // encoder per wire format) and paces them by JF_MSGS's rates.
   window.j1939FlavorMsgs = JF_MSGS;
@@ -523,11 +534,12 @@
   // HERMETIC: the state the checks touch is snapshotted here and put back in a `finally`, so a
   // check that throws cannot leave a test value driving the game.
   function j1939FlavorSelfTest() {
-    const clock = jfLast1s, drive = {};
+    const clock = jfLast1s, drive = {}, claims = jp.claimsSnapshot();
     for (const k of Object.keys(jfDrive)) drive[k] = Object.assign({}, jfDrive[k]);
     try { return jfSelfTestChecks(); }
     finally {
       jfLast1s = clock;
+      jp.claimsRestore(claims);
       for (const k of Object.keys(jfDrive)) jfDrive[k] = drive[k];
     }
   }
@@ -604,6 +616,15 @@
     eq('an air-braked truck sends VDC1 on the slow tick', pgns({ status: 0, air_primary: 8 }, true).includes(0xFE4F), true);
     eq('no VDC1 off the slow tick', pgns({ status: 0, air_primary: 8 }, false).includes(0xFE4F), false);
     eq('VDC2 on every call', pgns({ status: 0, air_primary: 8 }, false).includes(0xF009), true);
+    //    Address Claim before a source's first frame, once until a reset. The brakes controller
+    //    (0x0B): NAME identity 1, function 9 (Brakes - System Controller), industry group 1.
+    //    The 1 s clock is held shut, or AIR1 (also from 0x0B) could join on a live-traffic edge.
+    jp.forgetClaims();
+    jfLast1s = Date.now();
+    const first = jfPack({ status: 0, air_primary: 8 }, false);
+    eq('the brakes claim 0x0B before VDC2', first.map(f => f.id.toString(16).toUpperCase()), ['18EEFF0B', '18F0090B']);
+    eq('the claim NAME', hex(first[0].data), '01 00 00 00 00 09 00 10');
+    eq('no second claim', pgns({ status: 0, air_primary: 8 }, false).includes(0xEEFF), false);
 
     // 4. The on-request half, which lives in j1939.js but is this flavor's coverage. Only
     //    checked where that module is loaded - and said out loud when it is not, because a
@@ -675,7 +696,7 @@
     eq('decoded gear R', live('gear'), 0xFF);
     feed(j1939DriveFrames({ gear: 3 }).slice(3));
     eq('decoded gear 3', live('gear'), 3);
-    //    Not available refreshes nothing: isobus.js's EEC2 (SPN 91 = 0xFF) must not zero the pedal.
+    //    Not available refreshes nothing: an EEC2 with SPN 91 = 0xFF must not zero the pedal.
     jfDecodeDrive({ id: jp.buildId(PGN_EEC2, 3, SA_ENGINE), isExt: true, data: [0xFF, 0xFF, 42, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
     eq('an EEC2 with SPN 91 not available leaves the pedal', Math.round(live('accel')), 40);
     //    The own-address rule for VDC2: this file's sensor frame (SPN 1807 n/a) steers nothing.
@@ -734,6 +755,14 @@
     eq('EEC1 id', jfEec1({ rpm: 1500 }).id.toString(16).toUpperCase(), 'CF00400');
     eq('DD id is the cluster\'s', jfDd({ fuel: 70 }).id.toString(16).toUpperCase(), '18FEFC17');
     eq('EEC1 1500 rpm', hex(jfEec1({ rpm: 1500 }).data), 'FF FF FF E0 2E FF FF FF');
+    //    engine_load 42 % -> SPN 513 raw 42 + 125 = 167 = 0xA7 at byte 3, beside the rpm.
+    eq('EEC1 load and rpm in one frame', hex(jfEec1({ rpm: 1500, engine_load: 42 }).data), 'FF FF A7 E0 2E FF FF FF');
+    eq('EEC1 load 0 % is raw 125', jfEec1({ engine_load: 0 }).data[2], 0x7D);
+    eq('a truck with engine_load: jfPack leaves EEC1 to isobus.js',
+      pgns({ rpm: 1500, engine_load: 42, air_primary: 8 }, true).includes(0xF004), false);
+    eq("isobus.js's EEC1 carries the rpm on a truck",
+      hex(window.j1939Eec1Frame({ rpm: 1500, engine_load: 42, air_primary: 8 }).data), 'FF FF A7 E0 2E FF FF FF');
+    eq('...and no rpm off one', hex(window.j1939Eec1Frame({ rpm: 1500, engine_load: 42 }).data), 'FF FF A7 FF FF FF FF FF');
     eq('CCVS 45 km/h, no driver', hex(jfCcvs({ kmh: 45 }, null).data), 'FF 00 2D FF FF FF FF FF');
     eq('ET1 88 degC', hex(jfEt1({ coolant: 88 }).data), '80 FF FF FF FF FF FF FF');
     eq('DD 70 %', hex(jfDd({ fuel: 70 }).data), 'FF AF FF FF FF FF FF FF');
@@ -745,19 +774,19 @@
     eq('a tractor carries all five mirrors', mirrored({ ...shared, hitch_pos_actual: 50 }), 5);
     eq('a car carries none', mirrored(shared), 0);
     //    The merged groups: one frame carries the demand beside the game's half, and a null demand
-    //    leaves its field not available. 40 % pedal = 0x64 beside 42 % load = 0x2A.
-    eq('EEC2 pedal and load in one frame', hex(jfEec2({ engine_load: 42 }, { accel: 40 }).data), 'FF 64 2A FF FF FF FF FF');
-    eq('EEC2 with no driver leaves SPN 91', hex(jfEec2({ engine_load: 42 }, null).data), 'FF FF 2A FF FF FF FF FF');
+    //    leaves its field not available. EEC2 has no game half: 40 % pedal = 0x64, SPN 92 n/a.
+    eq('EEC2 pedal only', hex(jfEec2({ accel: 40 }).data), 'FF 64 FF FF FF FF FF FF');
+    eq('EEC2 with no driver leaves SPN 91', hex(jfEec2(null).data), 'FF FF FF FF FF FF FF FF');
     eq('CCVS speed and switches in one frame', hex(jfCcvs({ kmh: 45 }, { handbrake: 1, brake: 30 }).data), 'F7 00 2D DF FF FF FF FF');
     eq('VDC2 wheel and sensors in one frame',
       hex(jfVdc2({ yaw: 0.5, accLat: -2, accLong: -1.5, speed: 10 }, { steer: -100 }).data), '32 A3 FF 71 8D 7F 8D 6E');
     //    The echo: a merged frame drives the claim, and once the demand is gone its field reads not
     //    available and refreshes nothing, so the claim lapses on its TTL instead of latching.
     for (const k of Object.keys(jfDrive)) jfDrive[k] = { bus: undefined, at: 0 };
-    jfDecodeDrive(jfEec2({ engine_load: 42 }, { accel: 40 }));
-    eq('the merged EEC2 echo drives the pedal', Math.round(live('accel')), 40);
+    jfDecodeDrive(jfEec2({ accel: 40 }));
+    eq('the EEC2 echo drives the pedal', Math.round(live('accel')), 40);
     jfDrive.accel.at = Date.now() - JF_DRIVE_TTL_MS - 1;
-    jfDecodeDrive(jfEec2({ engine_load: 42 }, null));
+    jfDecodeDrive(jfEec2(null));
     eq('an EEC2 with the demand gone lets the pedal lapse', live('accel'), undefined);
     jfDecodeDrive(jfCcvs({ kmh: 45 }, null));
     eq('a CCVS with no driver sets no switch', [live('handbrake'), live('brakeLamp')], [undefined, undefined]);
@@ -768,9 +797,10 @@
       eq('ET1 round trip', dec(65262, jfEt1({ coolant: 88 }), 'Coolant Temp'), '88 °C');
       eq('DD round trip', dec(65276, jfDd({ fuel: 70 }), 'Fuel Level'), '70 %');
       eq('VEP1 round trip', dec(65271, jfVep1({ battery: 24.4 }), 'Battery Voltage'), '24.40 V');
-      const both = jfEec2({ engine_load: 42 }, { accel: 40 });
-      eq('EEC2 round trip, both halves',
-        [dec(61443, both, 'Accelerator Pedal Position 1'), dec(61443, both, 'Percent Load At Current Speed')], ['40 %', '42 %']);
+      eq('EEC2 pedal round trip', dec(61443, jfEec2({ accel: 40 }), 'Accelerator Pedal Position 1'), '40 %');
+      const both = jfEec1({ rpm: 1500, engine_load: 42 });
+      eq('EEC1 round trip, both halves',
+        [dec(61444, both, 'Engine Speed'), dec(61444, both, 'Actual Engine - Percent Torque')], ['1500.0 rpm', '42 %']);
     }
 
     if (failures.length) console.error('J1939 flavor self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));

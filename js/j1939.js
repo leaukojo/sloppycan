@@ -205,12 +205,12 @@ function j1939Hex(v, w = 2) { return '0x' + j1939H(v, w); }
 function j1939SaLabel(sa) {
   const c = j1939AddrMap.get(sa);
   if (c) {
-    // Function 0 is "Non-specific" - true, and no help naming the node. An ISO 11783 implement is
-    // identified by its DEVICE CLASS instead (NAME bits 49-55 under the agriculture industry group),
-    // which is exactly how isobus.js's implement claims, so name that. Anything else falls through
-    // to the address tables.
+    // An ISO 11783 implement is identified by its DEVICE CLASS (NAME bits 49-55 under the
+    // agriculture industry group; class 1 is the tractor itself): its function, 132 "Machine
+    // Control" for isobus.js's implement, only means something within that class. Function 0
+    // (Engine) falls through to the address tables, which read 0x00 as Engine #1.
+    if (c.industryGrp === 2 && c.devClass > 1 && ISOBUS_DEVICE_CLASS[c.devClass]) return ISOBUS_DEVICE_CLASS[c.devClass] + ' implement';
     if (c.fn !== 0) return c.fnName;
-    if (c.industryGrp === 2 && c.devClass && ISOBUS_DEVICE_CLASS[c.devClass]) return ISOBUS_DEVICE_CLASS[c.devClass] + ' implement';
   }
   return J1939_SA[sa] || `SA 0x${j1939H(sa)}`;
 }
@@ -561,6 +561,7 @@ window.j1939LampChange = j1939LampChange;
 // (j1939-tables.js): this path encodes through the very table it decodes with.
 const J1939_REQ_PGN = 0xEA00;    // Request
 const J1939_ACK_PGN = 0xE800;    // Acknowledgment (ACKM)
+const J1939_CLAIM_PGN = 0xEE00;  // Address Claimed
 const J1939_PRIO_REQ = 6;        // J1939-21's default for the request, the ack and both answers
 // J1939-21 control byte. Only NACK is ever sent from here: a positive ACK belongs to commands,
 // and the positive answer to a request IS the requested parameter group. (The control-byte
@@ -568,7 +569,7 @@ const J1939_PRIO_REQ = 6;        // J1939-21's default for the request, the ack 
 const J1939_ACK_NACK = 1;
 const J1939_SA_TOOL = 0xF9;      // the request client - Off-Board Diagnostic-Service Tool #1
 // Both parameter groups below are engine-ECU functions: the road-speed governor SPN 74 reports
-// is part of the engine controller, and so is the hour meter. isobus.js already sources EEC2
+// is part of the engine controller, and so is the hour meter. isobus.js already sources EEC1
 // from this same address for the same reason.
 const J1939_SA_ENGINE = 0x00;
 
@@ -600,7 +601,8 @@ function j1939SpnDef(pgn, spn) {
 // because "carried by a frame that only exists when asked for" and "carried by a periodic frame"
 // are different statements and a check that cannot tell them apart hides the difference.
 // `build` is handed the game's live telemetry and returns the eight data bytes, or null if THIS
-// vehicle has nothing to say - a boat has no road-speed governor, and that gets a NACK.
+// truck or tractor has nothing to say, and that gets a NACK. (A car or boat is not asked at all:
+// it has no J1939 network - see the server below.)
 window.j1939RequestServers = window.j1939RequestServers || [];
 const J1939_REQ_SERVERS = window.j1939RequestServers;
 
@@ -666,7 +668,11 @@ J1939_REQ_SERVERS.push({
 // telemetry rides: ingested once for the monitor AND transmitted when a bus is open, shown as a
 // single FW entry. There is no second transmit path and no bus state to check here.
 function j1939TxFrame(pgn, sa, da, prio, data) {
-  const f = { id: j1939Pack.buildId(pgn, prio, sa, da), isExt: true, isRtr: false, dlc: data.length, data };
+  j1939TxRaw({ id: j1939Pack.buildId(pgn, prio, sa, da), isExt: true, isRtr: false, dlc: data.length, data });
+}
+function j1939TxRaw(f) {
+  // J1939Pack's frames (a claim claimFirst inserts) carry no isRtr / dlc; ingestFrame logs both.
+  f = Object.assign({ isRtr: false, dlc: f.data.length }, f);
   if (window.canForward) window.canForward(f);
   else if (window.ingestFrame) window.ingestFrame(f);
 }
@@ -679,14 +685,38 @@ function j1939TxFrame(pgn, sa, da, prio, data) {
 //   - the vehicle publishes the signal            -> the parameter group, from the engine ECU
 //   - a vehicle is there but has no such parameter -> a NACK from the engine ECU
 //   - no vehicle on the link at all               -> SILENCE, because there is no ECU to answer
-// The last one is the same reading the DroneCAN roster gives a node that has stopped publishing.
+//   - a vehicle with no J1939 network (a car, a boat) -> SILENCE, for the same reason
+//     (carlito-registry.js's carlitoJ1939Network)
+// The silent ones are the same reading the DroneCAN roster gives a node that has stopped publishing.
+// An answer, or a NACK, goes through J1939Pack.claimFirst: an ECU claims its address before the
+// first frame it ever sends, so a source that has said nothing yet claims first.
 // A request that nothing answers is not a bug in the requester. A server with `nack: false` (the
 // implement's Address Claimed, isobus.js) folds the second case into the third: a control function
 // that is not attached is not on the bus to NACK from.
+//
+// A REQUEST FOR ADDRESS CLAIMED (60928) is answered by EVERY control function, not one server:
+// it is how a node learns who is on the bus. Each source holding a claim (J1939Pack's ledger)
+// re-sends its NAME - all of them for a global request, the one asked for a specific one - and
+// the implement then answers through its own server below.
 let j1939ReqLast = null;   // { ts, pgn, outcome } - the bar's readout, not bus state
+function j1939AnswerClaims(parsed) {
+  const t = window.carlitoTelemetry ? window.carlitoTelemetry() : null;
+  if (!t || !(window.carlitoJ1939Network && window.carlitoJ1939Network(t))) return 0;
+  let n = 0;
+  for (const sa of j1939Pack.claimedSources()) {
+    if (parsed.da !== 0xFF && parsed.da !== sa) continue;   // addressed to some other ECU
+    if (parsed.sa === sa) continue;                          // an ECU does not answer itself
+    j1939TxRaw(j1939Pack.claimFrame(sa));
+    n++;
+  }
+  return n;
+}
 function j1939ServeRequest(parsed, data) {
   if (!data || data.length < 3) return;
   const want = (data[0] | (data[1] << 8) | (data[2] << 16)) >>> 0;
+  const claims = want === J1939_CLAIM_PGN ? j1939AnswerClaims(parsed) : 0;
+  const claimed = claims ? `${claims} vehicle source${claims > 1 ? 's' : ''} re-claimed` : '';
+  const note = (o) => j1939ReqNote(want, claimed && o ? claimed + '; ' + o : (claimed || o));
   // Whether anything here implements the group AT ALL, kept apart from whether it was addressed
   // to the right ECU. Those are different answers: "nobody carries this" and "the ECU that
   // carries it is not the one you asked" are the two ways a specific-address request goes quiet,
@@ -698,32 +728,42 @@ function j1939ServeRequest(parsed, data) {
     if (parsed.da !== 0xFF && parsed.da !== srv.sa) continue;   // addressed to some other ECU
     if (parsed.sa === srv.sa) continue;                          // an ECU does not answer itself
     const t = window.carlitoTelemetry ? window.carlitoTelemetry() : null;
-    if (!t) { j1939ReqNote(want, 'no vehicle on the link - nothing answered'); return; }
+    if (!t) { note('no vehicle on the link - nothing answered'); return; }
+    if (!(window.carlitoJ1939Network && window.carlitoJ1939Network(t))) {
+      note('this vehicle has no J1939 network - nothing answered'); return;
+    }
+    const tx = (pgn, da, prio, data) => {
+      const f = { id: j1939Pack.buildId(pgn, prio, srv.sa, da), isExt: true, isRtr: false, dlc: data.length, data };
+      for (const g of j1939Pack.claimFirst([f], t)) j1939TxRaw(g);
+    };
     const payload = srv.build(t);
     if (payload) {
       // PDU2, so the answer is a broadcast whoever asked for it - which is why every listener
       // sees it and it lands in the PGN Monitor beside the periodic traffic.
-      j1939TxFrame(srv.pgn, srv.sa, 0xFF, srv.prio, payload);
-      j1939ReqNote(want, 'answered by ' + j1939SaLabel(srv.sa));
+      tx(srv.pgn, 0xFF, srv.prio, payload);
+      note('answered by ' + j1939SaLabel(srv.sa));
     } else if (srv.nack === false) {
       // The address, not a label: the last claim from it is still in the map, and naming the
       // implement that just left as the one not answering would read backwards.
-      j1939ReqNote(want, `nothing at 0x${j1939H(srv.sa)} to answer`);
+      note(`nothing at 0x${j1939H(srv.sa)} to answer`);
     } else {
       const d = j1939Pack.blank();
       d[0] = J1939_ACK_NACK;
       d[1] = 0xFF;                                   // group function: not applicable to a request
       d[4] = srv.sa;                                 // the address the acknowledgment came from
       d[5] = want & 0xFF; d[6] = (want >> 8) & 0xFF; d[7] = (want >> 16) & 0xFF;
-      j1939TxFrame(J1939_ACK_PGN, srv.sa, parsed.sa, J1939_PRIO_REQ, d);
-      j1939ReqNote(want, 'NACK - this vehicle carries no such parameter');
+      tx(J1939_ACK_PGN, parsed.sa, J1939_PRIO_REQ, d);
+      note('NACK - this vehicle carries no such parameter');
     }
     return;
   }
   // The address named here is the SERVER'S, not a constant: VW is answered by Axle - Drive #1
   // and the other two by Engine #1, so a fixed 'it is the engine' would send a reader looking at
   // the wrong ECU for one group in three.
-  j1939ReqNote(want, implemented
+  if (claims) { note(''); return; }   // the vehicle's own sources answered; no server is this one
+  // Every control function answers 60928, so the implement's server is no pointer for it.
+  if (want === J1939_CLAIM_PGN) { note(`nothing at 0x${j1939H(parsed.da)} has claimed an address`); return; }
+  note(implemented
     ? `it is ${j1939SaLabel(implemented.sa)} that carries this one, not 0x${j1939H(parsed.da)}`
     : 'nothing on this bus implements it - no answer is the answer');
 }
@@ -1028,7 +1068,7 @@ function j1939RenderAddr() {
     { cls: 'j-name', html: j1939ProtoMode === 'nmea2000'
       ? `${NMEA_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text3)">/ Fn ${e.fn}</span>`
       : j1939ProtoMode === 'iso11783'
-      ? `${ISOBUS_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text3)">/ Fn ${e.fn}</span>`
+      ? `${ISOBUS_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text3)">/ ${e.fnName}</span>`
       : e.fnName },
     { cls: 'j-name', html: e.industryName },
     { cls: 'j-ts', html: e.ecuInst },
@@ -1067,8 +1107,9 @@ function j1939DemoDriveCtrl() {
       window.vehiclePanelIsFamily('drone', window.carlitoTelemetry())) return null;
   return window.ramnCtrlGet();
 }
-// The same demand for the encoders the game's own groups share: while EEC2 / VDC2 / CCVS are the
-// game's (one producer, below), j1939-flavor.js carries the pedal, wheel and switches inside them.
+// The same demand for the encoders the game's own groups share: while VDC2 / CCVS are the game's
+// (one producer, below), j1939-flavor.js carries the wheel and switches inside them. The pedal's
+// EEC2 is never the game's: the demo sends its own.
 // Null unless the demo is running a traffic that drives through J1939.
 window.j1939DemoDrive = () => {
   const kind = window.demoIsActive && window.demoIsActive() && window.demoGetBaseTraffic && window.demoGetBaseTraffic();
@@ -1086,7 +1127,7 @@ window.j1939DemoDrive = () => {
 //  - no claim of an address the game holds: an implement claims once, on attaching (isobus.js),
 //    and keeps 0x80 - the demo sprayer's address - for as long as it stays attached.
 // A car produces no J1939 group, so it silences nothing. The driver demand is not lost when its
-// group is the game's: j1939-flavor.js merges it into that one frame (EEC2 / VDC2 / CCVS).
+// group is the game's: j1939-flavor.js merges it into that one frame (VDC2 / CCVS).
 const J1939_GAME_TWINS = { tractor: [0xFEE8] };
 const J1939_SA_IMPLEMENT = 0x80;
 function j1939DemoDropGameOwned(frames) {
@@ -1284,12 +1325,14 @@ function isoDemoFrames() {
   const ddi = 271, element = 5, cmd = 3, val = Math.round(osc(0, 5000, 8));
   frames.push(n2kFrame(0xCB00, 0x80, [((element & 0x0F) << 4) | cmd, (element >> 4) & 0xFF, ddi & 0xFF, (ddi >> 8) & 0xFF, val & 0xFF, (val >> 8) & 0xFF, (val >> 16) & 0xFF, (val >> 24) & 0xFF]));
 
-  // Address claims (ag NAMEs, every 30th tick): a tractor + a sprayer implement.
+  // Address claims (ag NAMEs, every 30th tick): the Tractor ECU + a sprayer implement. Functions off
+  // isobus.net's nameFunction table: 134 Tractor ECU (industry group 2, vehicle system 0) and 132
+  // Sprayers Machine Control (device class 6) - the same function isobus.js's implement claims.
   if (tick % 30 === 0) {
     const name = (id, mfr, fn, devClass, indGrp) =>
       [...n2kU32((id | (mfr << 21)) >>> 0), ...n2kU32(((fn << 8) | (devClass << 17) | (indGrp << 28) | (1 << 31)) >>> 0)];
-    frames.push(n2kFrame(0xEE00, 0xF0, name(0x12345, 100, 130, 1, 2))); // Tractor
-    frames.push(n2kFrame(0xEE00, 0x80, name(0x23456, 137, 6,   6, 2))); // Sprayer
+    frames.push(n2kFrame(0xEE00, 0xF0, name(0x12345, 100, 134, 0, 2))); // Tractor ECU
+    frames.push(n2kFrame(0xEE00, 0x80, name(0x23456, 137, 132, 6, 2))); // Sprayer
   }
 
   // ETP transfer (every 80th tick): a >1785-byte object pool to the VT (0xE700, ECU to VT), at
