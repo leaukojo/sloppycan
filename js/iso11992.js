@@ -22,7 +22,7 @@
 //   [SEC]  Secondary only - a training deck and a J1939 PGN table, seen through search summaries:
 //          the PGNs, EBS21 = 768 (PDU1) and EBS22 = 65220 (0xFEC4, PDU2). 0xFEC4's even GE agrees
 //          with [ISO]'s direction rule, which is all the corroboration there is.
-// Two signals have NO source for their scaling at all, and are declared unpackable rather than
+// Three signals have NO source for their scaling at all, and are declared unpackable rather than
 // guessed (see the registration below).
 //
 // INTEGRATION POINTS:
@@ -76,6 +76,9 @@
       trailer_brake_demand: 'its carrier is EBS11 bytes 3-4 "Service/secondary brake demand value" ' +
         '(EU 2015/68 Annex XII), a PRESSURE demand whose resolution no source reachable here gives, ' +
         'and the contract\'s % has no pressure scale to convert through - provide ISO 11992-2 to implement this',
+      trailer_brake_applied: 'its carrier is EBS25 bytes 1-6 "Brake cylinder pressure" per wheel (UN R13 ' +
+        'Annex 16 2.4.2), PRESSURES whose resolution no source reachable here gives, and the contract\'s ' +
+        'one % has neither a pressure scale nor a per-wheel split - provide ISO 11992-2 to implement this',
     },
     pack: isoPack,
   });
