@@ -454,6 +454,9 @@ function be12bytes(pct, lo, hi) { // map pct of [lo,hi] of a 12-bit value to 2 B
   const v = Math.max(0, Math.min(0xFFF, Math.round(lo + (hi - lo) * pct)));
   return [(v >> 8) & 0xFF, v & 0xFF];
 }
+// The 0x062 steer span either side of centre 0x7FF: 0x7FF counts left (to 0x000), 0x800 right (to
+// 0xFFF). The encode and the decode both use it, so ±100 % round-trips exactly.
+const ramnSteerSpan = (side) => side > 0 ? 0x800 : 0x7FF;
 
 // Demo blinker phase (~1 Hz): the dashboard now mirrors the 0x1BB turn bit directly, so the
 // demo must toggle that bit at blink rate to make the indicator visibly blink.
@@ -465,9 +468,8 @@ function ramnCtrlPayload(id) {
   switch (id) {
     case 0x024: return be12bytes(c.brake / 100, 0, 0xFFF);
     case 0x039: return be12bytes(c.accel / 100, 0, 0xFFF);
-    // steer: L100→0x000, centre→0x7FF, R100→0xFFF (per user spec). Span the positive side by 0x800
-    // (not 0x7FF) so steer=100 reaches the documented 0xFFF; steer=-100 → -1 clamps back to 0x000.
-    case 0x062: { const v = Math.max(0, Math.min(0xFFF, Math.round(0x7FF + c.steer / 100 * 0x800))); return [(v >> 8) & 0xFF, v & 0xFF]; }
+    // steer: L100→0x000, centre→0x7FF, R100→0xFFF (per user spec); ramnSteerSpan, shared with the decode.
+    case 0x062: { const v = Math.max(0, Math.min(0xFFF, Math.round(0x7FF + c.steer / 100 * ramnSteerSpan(c.steer)))); return [(v >> 8) & 0xFF, v & 0xFF]; }
     // P is 0xFE, a byte real RAMN never sends (Carlito contract v48): every RAMN byte keeps its meaning.
     case 0x077: return [c.gear === 'R' ? 0xFF : (c.gear === 'P' ? 0xFE : c.gear), c.joy];
     case 0x098: return [c.horn ? 1 : 0, 0];
@@ -501,7 +503,7 @@ function ramnIngestFrame(frame) {
     case 0x039: st.accel = (be16(d) & 0xFFF) / 0xFFF * 100; ramnSeenFields.add('accel'); break;
     case 0x062: {                      // user spec: 0x000=L100%, 0x7FF=centre, 0xFFF=R100%
       const raw = be16(d) & 0xFFF;
-      st.steer = (raw - 0x7FF) / 0x7FF * 100;
+      st.steer = (raw - 0x7FF) / ramnSteerSpan(raw - 0x7FF) * 100;
       ramnSeenFields.add('steer');
       break;
     }

@@ -26,7 +26,7 @@
 //                      window.vehiclePanelRequestForProto('dronecan')
 //   vehicle-panel.js   fan-out, link detection, RAMN handoff, deep link, button visibility, both
 //                      windows' chrome (vehiclePanelWindow) and the contract readers
-//   carlito.js         window.carlitoUplinkOverrides
+//   carlito-registry.js window.carlitoUplinkClaim (read by carlito.js)
 //   carlito-bridge.js  window.droneIsOpen = () => true;   (that page has no dashboards)
 // Live-only: no persistence of window position/state.
 
@@ -236,21 +236,15 @@
   // turns with the other, which is what drone.gd's Vector2(tilt, 0) says.
   const stick = { pitch: 0, yaw: 0 };   // -100..100, pitch + = nose forward
   const flying = () => ctrlOpen() && droneLive;
-  // Claims COMPOSE: this panel is asked first and an earlier registrant's claim (j1939-flavor.js's
-  // bus driver demand) answers when it declines.
-  window.carlitoUplinkOverrides = window.carlitoUplinkOverrides || {};
+  // Claims are asked by priority (carlito-registry.js lists it): this panel is 20, above
+  // j1939-flavor.js's bus driver demand, which answers when the panel declines.
   const claims = {
     accel: () => flying() ? Math.max(0, stick.pitch) : undefined,
     brake: () => flying() ? Math.max(0, -stick.pitch) : undefined,
     steer: () => flying() ? stick.yaw : undefined,
     key:   () => flying() ? ctrlKey : undefined,
   };
-  for (const [name, mine] of Object.entries(claims)) {
-    const prev = window.carlitoUplinkOverrides[name];
-    window.carlitoUplinkOverrides[name] = prev
-      ? (st) => { const v = mine(st); return v !== undefined ? v : prev(st); }
-      : mine;
-  }
+  for (const [name, mine] of Object.entries(claims)) window.carlitoUplinkClaim(name, 20, mine);
 
   // ── Dashboard window DOM ────────────────────────────────────────────────────
   // vehicle-panel.js builds both windows (chrome, makeFloating); the pair logic below is this file's.

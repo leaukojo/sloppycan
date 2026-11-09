@@ -542,10 +542,9 @@ function logTxErr(e) {
 // Takes a frame { id, isExt, isRtr, dlc, data: [bytes] }; the encoders are can-link.js's.
 async function txTransmitRaw(f) {
   if (connMode === 'gsusb') {
-    // NOTE: unlike the SLCAN branch (serialized via sendCommand), this transferOut is NOT serialized.
-    // Un-awaited bursts (e.g. canForward telemetry) can overlap on the OUT endpoint. Lower risk than
-    // SLCAN (one URB per binary frame, no byte-interleave), but if gs_usb TX ever drops/reorders
-    // frames, route it through the same write-queue.
+    // Not queued like the SLCAN branch: one transferOut is one whole binary frame, so overlapping
+    // un-awaited sends (canForward bursts) cannot interleave bytes. withTxLock is not for this - it
+    // holds whole request→response transactions, and telemetry would wait behind an XCP reply.
     if (!usbSerDev) return;   // disconnect can null the device between scheduling and here
     const r = await usbSerDev.transferOut(usbSerOut, gsUsbPackFrame(f.id, f.isExt, f.isRtr, f.dlc, f.data));
     if (r && r.status !== 'ok') log(`gs_usb TX ${r.status}`, 'err');

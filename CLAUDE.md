@@ -73,7 +73,8 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
   address its module transmits that message from**, or it would read its own echo (127237's
   `nav_mode_actual`) back as the command. Periodic commands expire to the panel value; on-change
   ones latch; a panel edit clears a bus value. `window.carlitoUplinkOverrides` is a *claim*
-  checked first, entries compose, and an override **must return `undefined` when not in control**
+  checked first, registered via `carlitoUplinkClaim(name, prio, fn)` (the precedence is listed in
+  `carlito-registry.js`), and an override **must return `undefined` when not in control**
   (0 would mean "centred").
 - **Numbers come off a primary source, never a plan document or web summary:** DSDL files +
   pydronecan for DroneCAN; J1939-71 / J1939-81 / isobus.net for J1939 and ISOBUS. This has caught

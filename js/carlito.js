@@ -345,12 +345,11 @@
   // to prevent. Same rule the game's own arbitration uses: while the bridge is fresh it owns
   // the vehicle outright, and when it goes stale the local controls are simply back.
   //
-  // A registry entry is ONE function per signal, so a second claimant composes with the first
-  // (wraps it, and asks whichever should win first) rather than assigning over it: drone.js's
-  // sticks and j1939-flavor.js's bus driver demand both claim accel/brake/steer, and the panel in
-  // hand wins.
+  // A registry entry is a LIST of claims per signal, asked highest priority first (the precedence
+  // is listed once, in carlito-registry.js): drone.js's sticks and j1939-flavor.js's bus driver
+  // demand both claim accel/brake/steer, and the panel in hand wins.
   const UPLINK_OVERRIDES = window.carlitoUplinkOverrides = window.carlitoUplinkOverrides || {};
-  const inSource = (name) => UPLINK_OVERRIDES[name] || IN_SOURCES[name] || MODULE_IN_SOURCES[name];
+  const inSource = (name) => (UPLINK_OVERRIDES[name] || []).length || IN_SOURCES[name] || MODULE_IN_SOURCES[name];
 
   // ── Uplink DECODERS: a command that arrives as a FRAME ───────────────────────
   // The fourth registry, and the inbound half of the three above: a module that owns a command
@@ -379,7 +378,6 @@
     }
   };
 
-  const _inShapeWarned = {};
   // Send the contract's SHAPE: bool goes as 0/1 (what turnL has always done), everything else as
   // a Number, and a non-finite one is omitted rather than sent as NaN (absence is meaningful,
   // NaN is not).
@@ -388,17 +386,8 @@
   // the fraction is real control resolution, so rounding here would coarsen the controls to 1%
   // steps. A source is responsible for its own integer shape.
   function coerceIn(sig, v) {
-    // UNREACHABLE BY CONSTRUCTION today: an instanced signal (contract 'count' > 1) is
-    // ARRAY-valued, and all four of them (esc_rpm, esc_current, esc_temp, node_health) are "out"
-    // - the contract parse-rejects 'count' on an "in" signal. This exists so the day that changes
-    // fails LOUDLY here instead of silently sending a scalar where the peer decodes an array.
-    if ((sig.count | 0) > 1) {
-      if (!_inShapeWarned[sig.name]) {
-        _inShapeWarned[sig.name] = true;
-        console.warn(`Carlito: in signal '${sig.name}' declares count ${sig.count} - an array-valued uplink field is not supported; omitting it.`);
-      }
-      return undefined;
-    }
+    // Unreachable: contract.gd parse-rejects 'count' on an "in" signal (an array-valued uplink).
+    console.assert(!((sig.count | 0) > 1), "Carlito: in signal '%s' declares count %s", sig.name, sig.count);
     if (sig.type === 'bool') return v ? 1 : 0;
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
@@ -425,9 +414,8 @@
   // test would read a declining override as a source saying "off" and the fall-through would never
   // happen. No source at all → undefined → omitted (see the IN_SOURCES header).
   function inValue(sig, st) {
-    const ov = UPLINK_OVERRIDES[sig.name];
-    if (ov) {
-      const raw = ov(st);
+    for (const ov of UPLINK_OVERRIDES[sig.name] || []) {
+      const raw = ov.fn(st);
       if (raw !== undefined) return coerceIn(sig, raw);
     }
     const src = IN_SOURCES[sig.name] || MODULE_IN_SOURCES[sig.name];
@@ -781,47 +769,42 @@
 
     // One scope's coverage. `own` = the out signals it is responsible for, `packed` = what it
     // actually packs, `optOut` = { signal: reason } it has declared it will never pack. The
-    // opt-outs come off the gap list and get their own line; the three warns before that are the
-    // ways a bogus opt-out could otherwise hide a real gap.
+    // opt-outs come off the gap list and get their own line.
     function report(label, own, packed, optOut, onRequest) {
-      const onReq = Object.keys(onRequest || {});
-      const declared = Object.keys(optOut || {});
-      const noReason = declared.filter(s => typeof optOut[s] !== 'string' || !optOut[s].trim());
-      const notOurs = declared.filter(s => !own.includes(s));
-      const bothWays = declared.filter(s => packed.has(s));
-      if (noReason.length) console.warn(`Carlito: ${label} declares signals unpackable with no reason given: ` + noReason.join(', '));
-      if (notOurs.length) console.warn(`Carlito: ${label} declares unpackable signals that are not its out signals: ` + notOurs.join(', '));
-      if (bothWays.length) console.warn(`Carlito: ${label} declares signals unpackable yet packs them: ` + bothWays.join(', '));
-
-      // The same three ways a bogus declaration could hide a real gap, for the on-request map.
-      const reqNoReason = onReq.filter(s => typeof onRequest[s] !== 'string' || !onRequest[s].trim());
-      const reqNotOurs = onReq.filter(s => !own.includes(s));
-      const reqBothWays = onReq.filter(s => packed.has(s));
-      if (reqNoReason.length) console.warn(`Carlito: ${label} declares signals request-served with no reason given: ` + reqNoReason.join(', '));
-      if (reqNotOurs.length) console.warn(`Carlito: ${label} declares request-served signals that are not its out signals: ` + reqNotOurs.join(', '));
-      if (reqBothWays.length) console.warn(`Carlito: ${label} declares signals request-served yet also packs them periodically: ` + reqBothWays.join(', '));
-      // ...plus the one only this map can have: a declaration with nothing implementing it. Only
-      // checked where a request transport is actually loaded - see the CAN_MAP_ON_REQUEST note.
-      if (REQUEST_SERVED.size) {
-        const unserved = onReq.filter(s => !REQUEST_SERVED.has(s));
-        if (unserved.length) console.warn(`Carlito: ${label} declares signals request-served that no registered server answers for: ` + unserved.join(', '));
-        const undeclared = own.filter(s => REQUEST_SERVED.has(s) && !onReq.includes(s) && !packed.has(s));
-        if (undeclared.length) console.warn(`Carlito: ${label} has registered request servers for signals it does not declare request-served: ` + undeclared.join(', '));
-      }
-
+      optOut = optOut || {}; onRequest = onRequest || {};
+      const declared = Object.keys(optOut), onReq = Object.keys(onRequest);
       const optSet = new Set(declared), reqSet = new Set(onReq);
-      const missing = own.filter(s => !packed.has(s) && !optSet.has(s) && !reqSet.has(s));
-      const extra = [...packed].filter(s => !own.includes(s));
-      if (missing.length) console.warn(`Carlito: ${label} missing out signals: ` + missing.join(', '));
-      if (extra.length) console.warn(`Carlito: ${label} packs signals that are not its out signals: ` + extra.join(', '));
-
-      // A decision on the record, not a problem: info, reported separately from `missing`.
+      const noReason = (m) => (s) => typeof m[s] !== 'string' || !m[s].trim();
+      const notOurs = (s) => !own.includes(s), packs = (s) => packed.has(s);
+      const served = (s) => s + (REQUEST_SERVED.has(s) ? ` (${REQUEST_SERVED.get(s)})` : ' (no request transport loaded on this page)');
+      // [ names, filter, message ] - a warn per non-empty row. The first six are the ways a bogus
+      // opt-out or on-request declaration could hide a real gap; the two REQUEST_SERVED rows (a
+      // declaration nothing implements, a server nothing declares) only where a request transport
+      // is loaded - see the CAN_MAP_ON_REQUEST note.
+      const warns = [
+        [declared, noReason(optOut), 'declares signals unpackable with no reason given'],
+        [declared, notOurs, 'declares unpackable signals that are not its out signals'],
+        [declared, packs, 'declares signals unpackable yet packs them'],
+        [onReq, noReason(onRequest), 'declares signals request-served with no reason given'],
+        [onReq, notOurs, 'declares request-served signals that are not its out signals'],
+        [onReq, packs, 'declares signals request-served yet also packs them periodically'],
+        ...(REQUEST_SERVED.size ? [
+          [onReq, (s) => !REQUEST_SERVED.has(s), 'declares signals request-served that no registered server answers for'],
+          [own, (s) => REQUEST_SERVED.has(s) && !reqSet.has(s) && !packed.has(s), 'has registered request servers for signals it does not declare request-served'],
+        ] : []),
+        [own, (s) => !packed.has(s) && !optSet.has(s) && !reqSet.has(s), 'missing out signals'],
+        [[...packed], notOurs, 'packs signals that are not its out signals'],
+      ];
+      for (const [names, bad, msg] of warns) {
+        const hit = names.filter(bad);
+        if (hit.length) console.warn(`Carlito: ${label} ${msg}: ` + hit.join(', '));
+      }
+      // Decisions on the record, not problems: info, reported separately from `missing`.
       const honoured = declared.filter(s => own.includes(s) && !packed.has(s));
       if (honoured.length) console.info(`Carlito: ${label} deliberately packs nothing for ` +
         honoured.map(s => `${s} (${optOut[s]})`).join(' · '));
       const servedHere = onReq.filter(s => own.includes(s));
-      if (servedHere.length) console.info(`Carlito: ${label} carries on request ` +
-        servedHere.map(s => `${s}${REQUEST_SERVED.has(s) ? ` (${REQUEST_SERVED.get(s)})` : ' (no request transport loaded on this page)'}`).join(' · '));
+      if (servedHere.length) console.info(`Carlito: ${label} carries on request ` + servedHere.map(served).join(' · '));
     }
 
     report('CAN map',

@@ -7,13 +7,22 @@
 //
 // Load (defer) before every module that registers, on both pages. Reads nothing at eval time.
 // Modules keep their own `window.x = window.x || ...` lines; with this loaded they are no-ops.
+// carlitoUplinkClaim has no such fallback: a module that claims needs this file loaded first.
 
 // { signal: () => value } - a protocol module's own control for a contract "in" signal. One
 // signal, one source: a name here AND in carlito.js's RAMN IN_SOURCES warns.
 window.carlitoUplinkSources = window.carlitoUplinkSources || {};
-// { signal: (st) => value | undefined } - a temporary CLAIM on a shared axis, asked first;
-// `undefined` declines. A second claimant wraps the first rather than assigning over it.
+// { signal: [ { prio, fn: (st) => value | undefined } ] } - temporary CLAIMS on a shared axis,
+// asked before any source, highest prio first; `undefined` declines to the next. Register through
+// carlitoUplinkClaim, never by assigning. THE PRECEDENCE, stated once (higher wins):
+//   20  drone.js        the Drone Control panel's sticks, while it is flying
+//   10  j1939-flavor.js bus driver demand (EEC2 / EBC1 / VDC2 / TC1 / CCVS), while fresh
 window.carlitoUplinkOverrides = window.carlitoUplinkOverrides || {};
+window.carlitoUplinkClaim = window.carlitoUplinkClaim || function (name, prio, fn) {
+  const list = window.carlitoUplinkOverrides[name] = window.carlitoUplinkOverrides[name] || [];
+  list.push({ prio, fn });
+  list.sort((a, b) => b.prio - a.prio);
+};
 // [ frame => void ] - a module reading its own command off the bus into its own state.
 window.carlitoUplinkDecoders = window.carlitoUplinkDecoders || [];
 // [ { flavor, signals, pack(t, slow), unpackable?, onRequest?, mirrors?, reset? } ] - a flavor's frame

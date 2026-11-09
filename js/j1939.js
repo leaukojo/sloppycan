@@ -762,7 +762,10 @@ function j1939ServeRequest(parsed, data) {
   // the wrong ECU for one group in three.
   if (claims) { note(''); return; }   // the vehicle's own sources answered; no server is this one
   // Every control function answers 60928, so the implement's server is no pointer for it.
-  if (want === J1939_CLAIM_PGN) { note(`nothing at 0x${j1939H(parsed.da)} has claimed an address`); return; }
+  if (want === J1939_CLAIM_PGN) {
+    note(parsed.da === 0xFF ? 'nothing on this bus has claimed an address' : `nothing at 0x${j1939H(parsed.da)} has claimed an address`);
+    return;
+  }
   note(implemented
     ? `it is ${j1939SaLabel(implemented.sa)} that carries this one, not 0x${j1939H(parsed.da)}`
     : 'nothing on this bus implements it - no answer is the answer');
@@ -1125,7 +1128,9 @@ window.j1939DemoDrive = () => {
 //  - nothing the game carries under another identity (J1939_GAME_TWINS): a tractor's bearing
 //    and speed are 0x520 / 0x524's, which VDS would restate;
 //  - no claim of an address the game holds: an implement claims once, on attaching (isobus.js),
-//    and keeps 0x80 - the demo sprayer's address - for as long as it stays attached.
+//    and keeps 0x80 - the demo sprayer's address - for as long as it stays attached; and every
+//    vehicle source claims once, before its first frame (J1939Pack.claimFirst), so a demo NAME
+//    at an address in that ledger would be a second NAME there once the claim's hold lapsed.
 // A car produces no J1939 group, so it silences nothing. The driver demand is not lost when its
 // group is the game's: j1939-flavor.js merges it into that one frame (VDC2 / CCVS).
 const J1939_GAME_TWINS = { tractor: [0xFEE8] };
@@ -1136,9 +1141,11 @@ function j1939DemoDropGameOwned(frames) {
   const is = (fam) => !!(window.carlitoIsFamily && window.carlitoIsFamily(fam, p.t));
   const twins = new Set(Object.keys(J1939_GAME_TWINS).filter(is).flatMap(fam => J1939_GAME_TWINS[fam]));
   const implement = is('tractor') && !!p.t.implement_connected;
+  const claimed = new Set(j1939Pack.claimedSources());
   return frames.filter(f => {
     const { pgn, sa } = j1939Pack.parseId(f.id >>> 0);
     if (twins.has(pgn) || p.produces(pgn, sa)) return false;
+    if (pgn === 0xEE00 && claimed.has(sa)) return false;
     return !(implement && pgn === 0xEE00 && sa === J1939_SA_IMPLEMENT);
   });
 }

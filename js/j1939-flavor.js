@@ -60,8 +60,9 @@
 //                        traffic builds EEC1 / ET1 / CCVS / VEP1 / DD through
 //                        window.j1939FlavorFrames and paces them by window.j1939FlavorMsgs' `ms`
 //   isobus.js            sends EEC1 (with its engine_load) through window.j1939Eec1Frame
-//   carlito-registry.js  window.carlitoJ1939Network, the mirrors' truck-or-tractor gate
-//   carlito.js           window.carlitoUplinkDecoders + carlitoUplinkOverrides (DRIVER DEMAND)
+//   carlito-registry.js  window.carlitoJ1939Network, the mirrors' truck-or-tractor gate;
+//                        window.carlitoUplinkClaim (DRIVER DEMAND, read by carlito.js)
+//   carlito.js           window.carlitoUplinkDecoders (DRIVER DEMAND)
 //
 // Telemetry TX rides carlito.js's canForward gateway, which is what puts these on the wire and
 // in the dump as FW entries. No transport code here.
@@ -504,17 +505,9 @@
 
   // A CLAIM, not a home: these signals belong to the RAMN state in carlito.js,
   // so a bus value that is live takes them over and a stale one hands them straight back. Claims
-  // COMPOSE - an earlier registrant's entry is asked first (drone.js composes the other way round,
-  // so the Drone Control panel wins whichever file loads first).
-  window.carlitoUplinkOverrides = window.carlitoUplinkOverrides || {};
+  // are asked by priority (carlito-registry.js lists it): this is 10, below the Drone Control panel.
   const jfClaim = (name) => jfDriveFresh(jfDrive[name]) ? jfDrive[name].bus : undefined;
-  for (const name of Object.keys(jfDrive)) {
-    const prev = window.carlitoUplinkOverrides[name];
-    const mine = () => jfClaim(name);
-    window.carlitoUplinkOverrides[name] = prev
-      ? (st) => { const v = prev(st); return v !== undefined ? v : mine(); }
-      : mine;
-  }
+  for (const name of Object.keys(jfDrive)) window.carlitoUplinkClaim(name, 10, () => jfClaim(name));
   window.j1939DriveFrames = j1939DriveFrames;
   window.j1939CcvsPatch = j1939CcvsPatch;
   // ← isobus.js, which decides when EEC1 goes out (whenever engine_load is there). The rpm mirror
