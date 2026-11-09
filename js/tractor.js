@@ -48,8 +48,9 @@
 
   const { rangeOf, isWarn, enumLabel, num, fmt, whole, setTell, setBar } = window.vehiclePanelUtil;
 
-  // contract `status`, whose bit layout is FROZEN (its desc): the bits a tractor sets.
-  const ST = { ign: 0, park: 5, lights: 6, stab: 7 };
+  // contract `status` masks, from its `bits` table: the bits a tractor sets.
+  const stBit = (b) => window.carlitoBit('status', b);
+  const ST = { ign: stBit('ignition'), park: stBit('handbrake'), lights: stBit('headlights'), stab: stBit('esc') };
 
   // ── Panel body ──────────────────────────────────────────────────────────────
   const BODY = `
@@ -130,10 +131,10 @@
 
     <div class="vp-rule"></div>
     <div class="vp-tells">
-      <div class="vp-tell" id="tractorTellIgn" data-color="green" title="contract status bit 0 - ignition.">Ign</div>
-      <div class="vp-tell" id="tractorTellPark" data-color="red" title="contract status bit 5 - handbrake.">Park</div>
-      <div class="vp-tell" id="tractorTellLights" data-color="blue" title="contract status bit 6 - headlights at LOW or brighter.">Lights</div>
-      <div class="vp-tell" id="tractorTellStab" data-color="amber" title="contract status bit 7 - stability control acting.">Stab</div>
+      <div class="vp-tell" id="tractorTellIgn" data-color="green" title="contract status bit 'ignition'.">Ign</div>
+      <div class="vp-tell" id="tractorTellPark" data-color="red" title="contract status bit 'handbrake'.">Park</div>
+      <div class="vp-tell" id="tractorTellLights" data-color="blue" title="contract status bit 'headlights' - at LOW or brighter.">Lights</div>
+      <div class="vp-tell" id="tractorTellStab" data-color="amber" title="contract status bit 'esc' - stability control acting.">Stab</div>
     </div>
 
     <div class="vp-rule"></div>
@@ -231,7 +232,7 @@
 
     // ── Tell-tales ──
     const st = num(t.status) | 0;
-    const bit = (b) => !!(st & (1 << b));
+    const bit = (mask) => !!(st & mask);
     setTell(el.tIgn, bit(ST.ign));
     setTell(el.tPark, bit(ST.park));
     setTell(el.tLights, bit(ST.lights));

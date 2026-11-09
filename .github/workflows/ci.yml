@@ -35,20 +35,33 @@ jobs:
 
       # js/carlito_contract.js is generated (tools/gen_js_contract.mjs in the carlito
       # repo) and must set window.CARLITO_CONTRACT with a version - a truncated or
-      # half-pasted copy would otherwise only surface as a runtime warning.
+      # half-pasted copy would otherwise only surface as a runtime warning. The body is the
+      # contract text verbatim and CARLITO_CONTRACT_HASH its SHA-256, so re-hashing the body
+      # catches a hand edit to the copy, however neatly formatted.
       - name: Contract copy sanity
         run: |
           node -e '
             const vm = require("vm");
             const fs = require("fs");
+            const crypto = require("crypto");
+            const file = process.argv[1] || "js/carlito_contract.js";
+            const text = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
             const ctx = { window: {} };
             vm.createContext(ctx);
-            vm.runInContext(fs.readFileSync("js/carlito_contract.js", "utf8"), ctx);
+            vm.runInContext(text, ctx);
             const c = ctx.window.CARLITO_CONTRACT;
             if (!c) throw new Error("carlito_contract.js did not set window.CARLITO_CONTRACT");
             if (!(c.version > 0)) throw new Error("contract has no usable version: " + c.version);
             if (!Array.isArray(c.signals) || !c.signals.length) throw new Error("contract carries no signals");
-            console.log("contract v" + c.version + ", " + c.signals.length + " signals");
+            const head = "\nwindow.CARLITO_CONTRACT = ", tail = ";\nwindow.CARLITO_CONTRACT_HASH = ";
+            const a = text.indexOf(head), b = text.indexOf(tail);
+            if (a < 0 || b < a || typeof ctx.window.CARLITO_CONTRACT_HASH !== "string")
+              throw new Error("carlito_contract.js lacks its body or CARLITO_CONTRACT_HASH: regenerate in carlito");
+            const hash = crypto.createHash("sha256").update(text.slice(a + head.length, b), "utf8").digest("hex");
+            if (hash !== ctx.window.CARLITO_CONTRACT_HASH)
+              throw new Error("hand-edited generated copy: its body hashes to " + hash.slice(0, 12) +
+                ", not the stamped " + ctx.window.CARLITO_CONTRACT_HASH.slice(0, 12) + ". Regenerate in carlito.");
+            console.log("contract v" + c.version + " " + hash.slice(0, 12) + ", " + c.signals.length + " signals");
           '
 
       # Inline on*="..." handlers call functions that exist; every <script src> exists.

@@ -96,9 +96,10 @@
   const LUFF_AOA_DEG = 2.5;
   const LUFF_MIN_BOOM_DEG = 1;
 
-  // contract `status`, whose bit layout is FROZEN: bit 1 is "on the ground", which for a hull is
-  // AGROUND, and bit 6 is headlights at LOW or brighter, which on a boat is the navigation lights.
-  const ST_IGNITION = 1 << 0, ST_GROUND = 1 << 1, ST_LIGHTS = 1 << 6;
+  // contract `status` bits: `ground` is "on the ground", which for a hull is AGROUND, and
+  // `headlights` is headlights at LOW or brighter, which on a boat is the navigation lights.
+  const ST_IGNITION = window.carlitoBit('status', 'ignition'), ST_GROUND = window.carlitoBit('status', 'ground'),
+    ST_LIGHTS = window.carlitoBit('status', 'headlights');
 
   // THE INVALID SOUNDING IS THE RANGE FLOOR, not a hardcoded -1: the contract declares the
   // sentinel there ("the cluster's echo sounder reads range[0]"), so widening the range downward
@@ -238,9 +239,9 @@
 
     <div class="vp-rule"></div>
     <div class="vp-tells">
-      <div class="vp-tell" id="boatTellIgn" data-color="green" title="contract status bit 0 - ignition. The throttle is forced to zero without it.">Ign</div>
-      <div class="vp-tell" id="boatTellAgnd" data-color="red" title="contract status bit 1 - 'on the ground', which for a hull means AGROUND: the bed has come up far enough to hold the boat off its rest depth. It reads the same seabed the sounding does, so the two cannot drift apart.">Aground</div>
-      <div class="vp-tell" id="boatTellNav" data-color="blue" title="contract status bit 6 - headlights at LOW or brighter, which on a boat is the navigation lights.">Nav</div>
+      <div class="vp-tell" id="boatTellIgn" data-color="green" title="contract status bit 'ignition'. The throttle is forced to zero without it.">Ign</div>
+      <div class="vp-tell" id="boatTellAgnd" data-color="red" title="contract status bit 'ground' - on the ground, which for a hull means AGROUND: the bed has come up far enough to hold the boat off its rest depth. It reads the same seabed the sounding does, so the two cannot drift apart.">Aground</div>
+      <div class="vp-tell" id="boatTellNav" data-color="blue" title="contract status bit 'headlights' - at LOW or brighter, which on a boat is the navigation lights.">Nav</div>
       <div class="vp-tell" id="boatTellShoal" data-color="red" title="contract depth against its own warn, a LOW-side threshold: a metre of water under a hull that draws a third of one is shallow but still swimming. The invalid -1 sounding is excluded, because it is not a shoal.">Shoal</div>
       <div class="vp-tell" id="boatTellHeel" data-color="amber" title="contract roll against its own warn, taken as a magnitude - a knockdown to port is the same reading as one to starboard.">Heel</div>
       <div class="vp-tell" id="boatTellPitch" data-color="amber" title="contract pitch against its own warn, taken as a magnitude. Bow up or bow down, out of the buoyancy sim.">Pitch</div>

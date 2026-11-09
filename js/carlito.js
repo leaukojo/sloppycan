@@ -220,7 +220,7 @@
   const GAME_ORIGIN = new URL(GAME_URL, location.href).origin;   // postMessage target + inbound origin gate
   let iframe = null, loaded = false, upOn = true, downOn = true, rafId = null, kbdBlocked = false;
   let lastTel = null, lastTelT = 0, slowTick = false;   // last telemetry + ts + fast/slow forward toggle
-  const ST_BRAKE_LIGHT = 1 << 8;   // contract 'status' bit 8, the brake-light request (VehicleTelemetry.ST_BRAKE_LIGHT)
+  const ST_BRAKE_LIGHT = window.carlitoBit('status', 'brake_light');   // the brake-light request (VehicleTelemetry.ST_BRAKE_LIGHT)
   // Uplink/render are time-gated (not run every rAF). On Android the bridge runs the WebUSB read loop,
   // this push loop, the downlink drain AND a heavy WebGL game on the single main thread; rendering ~32
   // DOM writes at 60Hz into a (by-default hidden) debug panel was starving the read loop. ~33Hz is
@@ -246,6 +246,9 @@
   // version mismatch instead of failing silently.
   const CONTRACT = window.CARLITO_CONTRACT || { version: 0, signals: [] };
   const CONTRACT_VERSION = CONTRACT.version | 0;
+  // SHA-256 of the contract text, stamped beside the copy by the generator: two builds at the same
+  // version whose content differs disagree here ('' with no copy loaded).
+  const CONTRACT_HASH = window.CARLITO_CONTRACT_HASH || '';
   // The "in" signal DEFS drive the uplink build (IN_SOURCES below); the name Set stays the
   // conformance check on what we actually sent.
   const CONTRACT_IN_SIGS = CONTRACT.signals.filter(s => s.dir === 'in');
@@ -257,11 +260,18 @@
 
   // Warn once if the game's contract version differs from ours (plan §3 change protocol). A game
   // that sends no version is an older build — warn too, so "old bridge omits field" is visible.
-  function checkContractVersion(peerVersion) {
-    if (_verWarned || peerVersion === CONTRACT_VERSION) return;
-    _verWarned = true;
-    const peer = (typeof peerVersion === 'number') ? ('v' + peerVersion) : 'unknown (older game)';
-    console.warn(`Carlito: contract version mismatch — game ${peer} vs bridge v${CONTRACT_VERSION}; some signals may be missing or misread.`);
+  // At the same version a differing content hash warns as well: one side's copy was edited without
+  // a bump, or not regenerated. A game that sends no hash is an older build, covered by the version.
+  function checkContractVersion(peerVersion, peerHash) {
+    if (_verWarned) return;
+    if (peerVersion !== CONTRACT_VERSION) {
+      _verWarned = true;
+      const peer = (typeof peerVersion === 'number') ? ('v' + peerVersion) : 'unknown (older game)';
+      console.warn(`Carlito: contract version mismatch — game ${peer} vs bridge v${CONTRACT_VERSION}; some signals may be missing or misread.`);
+    } else if (typeof peerHash === 'string' && peerHash && peerHash !== CONTRACT_HASH) {
+      _verWarned = true;
+      console.warn(`Carlito: contract content mismatch at v${CONTRACT_VERSION} — game ${peerHash.slice(0, 12)} vs bridge ${CONTRACT_HASH.slice(0, 12)}; one copy was edited without a version bump, or not regenerated.`);
+    }
   }
 
   // ── Uplink sources: contract "in" signal → where its value comes from ────────────
@@ -499,7 +509,7 @@
         // main-thread budget the render-skip above protects.
         const noDrive = v.accel === undefined && v.brake === undefined && v.steer === undefined;
         if (noDrive !== noDriveShown) { noDriveShown = noDrive; el.noDrive.classList.toggle('on', noDrive); }
-        try { iframe.contentWindow.postMessage({ type: 'carlitoInput', version: CONTRACT_VERSION, values: v }, GAME_ORIGIN); } catch (e) { /* not ready */ }
+        try { iframe.contentWindow.postMessage({ type: 'carlitoInput', version: CONTRACT_VERSION, hash: CONTRACT_HASH, values: v }, GAME_ORIGIN); } catch (e) { /* not ready */ }
       }
       // Skip the debug-panel DOM writes when it's collapsed (the default). renderOut/renderIn rewrite
       // ~32 elements that are display:none - pure main-thread waste that starves the read loop.
@@ -947,7 +957,7 @@
   // Everything after the listener's source/origin checks. `anyWindow` lets the debug seam below
   // forward with the Carlito window closed (CI has no game and no iframe).
   function acceptTelemetry(d, anyWindow) {
-    checkContractVersion(d.version);   // both sides warn on version mismatch (plan §3)
+    checkContractVersion(d.version, d.hash);   // both sides warn on a version or content mismatch (plan §3)
     setChallenge(!!d.challenge);
     // A link resuming after a gap that ended it is a NEW link: what the packers announced on the
     // old one (a claim, a latched command) is announced again.
@@ -972,7 +982,7 @@
   // and the vehicle panels see it end, rather than waiting on a staleness nobody announces.
   window.carlitoDebugInjectTelemetry = (values, opts) => {
     if (values == null) { lastTel = null; resetPackers(); notifyTelemetry(null); setChallenge(false); return; }
-    acceptTelemetry({ values, version: CONTRACT_VERSION, challenge: !!(opts && opts.challenge) }, true);
+    acceptTelemetry({ values, version: CONTRACT_VERSION, hash: CONTRACT_HASH, challenge: !!(opts && opts.challenge) }, true);
   };
   // ── Challenge attempts: the RAMN demo traffic steps aside ───────────────────
   // The game's envelope carries `challenge` (not a contract signal). A challenge is driven by

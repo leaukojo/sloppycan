@@ -27,7 +27,8 @@ Core (classic scripts, one shared global scope, loaded in this order):
 
 Shared (deferred, before their users):
 - `carlito-registry.js` - every Carlito registry, created empty first; `carlitoIsFamily`, the which-machine rule;
-  `carlitoSig(name, dir)`, the one contract lookup, and `carlitoGearTop()`
+  `carlitoSig(name, dir)`, the one contract lookup, `carlitoBit(name, bit)` (a bitfield mask by
+  name; never hand-type a bit number), and `carlitoGearTop()`
 - `j1939-pack.js` - `window.J1939Pack`, the one J1939/N2K packing helper (self-contained)
 - `j1939-tables.js` - the one J1939 / N2K / ISOBUS dictionary + pure decoders; **edit tables here, never copy them**
 - `carlito_contract.js` - generated contract (see below); `vehicle-panel.js` - the shared panel mechanism
@@ -83,8 +84,8 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
   (`J1939Pack.put`) clamp to 0xFA / 0xFAFF / 0xFAFFFFFF. A mode or value shown only in a figure is
   not written; leave the field "not available".
 - **`carlito_contract.js` is generated:** never hand-edit it; regenerate in the `carlito` repo
-  (`node tools/gen_js_contract.mjs`). It loads before `carlito.js`. The runtime version-mismatch
-  warning is the only drift guard.
+  (`node tools/gen_js_contract.mjs`). It loads before `carlito.js`. Drift guards: the runtime
+  version / content-hash mismatch warning, and CI re-hashing the body against `CARLITO_CONTRACT_HASH`.
 - **A contract change is paired across two repos:** the version bump lands on `dev` of **both**
   `carlito` and `sloppycan`, and both are promoted to stable together. Promoting one alone puts
   stable on mismatched versions and signals are misread.

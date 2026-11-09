@@ -175,9 +175,10 @@
     return jp.msgFrame(JF_MSGS.AIR1, d);
   }
 
-  // The contract's `status` bits VDC reads (VehicleTelemetry.ST_*, contract v60): 7 ESC braking
-  // (yaw or roll), 8 brake-light request, 9 a fitted ESC switched off, 10 yaw, 11 roll.
-  const ST = { ESC: 1 << 7, BRAKE_LIGHT: 1 << 8, OFF: 1 << 9, YAW: 1 << 10, ROLL: 1 << 11 };
+  // The contract's `status` bits VDC reads (VehicleTelemetry.ST_*): ESC braking (yaw or roll),
+  // the brake-light request, a fitted ESC switched off, yaw, roll.
+  const stBit = (b) => window.carlitoBit('status', b);
+  const ST = { ESC: stBit('esc'), BRAKE_LIGHT: stBit('brake_light'), OFF: stBit('esc_off'), YAW: stBit('esc_yaw'), ROLL: stBit('esc_roll') };
 
   // VDC1 (65103) off the status bits. The lamp (SPN 1813) is on while ESC acts or is switched
   // off; the cluster flashes the first and holds the second (its own rule). Each control's ENGINE

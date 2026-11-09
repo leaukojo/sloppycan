@@ -111,10 +111,10 @@
   // RPTO, which is the tractor's alone (see ibRpto).
   const has = jp.has;
 
-  // Contract `status` bit assignments. The layout is frozen by the contract, and these are the
-  // only two bits this file reads - `status` itself stays CAN_MAP's signal to pack.
-  const ST_IGNITION = 1 << 0;
-  const ST_REVERSE  = 1 << 3;
+  // Contract `status` bits, read from its `bits` table. These are the only two this file reads -
+  // `status` itself stays CAN_MAP's signal to pack.
+  const ST_IGNITION = window.carlitoBit('status', 'ignition');
+  const ST_REVERSE  = window.carlitoBit('status', 'reverse');
   const stat = (t) => (Number(t && t.status) || 0);
 
   // km/h (the contract's unit for both speeds) -> m/s (the SPNs' unit).

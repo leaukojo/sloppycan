@@ -47,6 +47,22 @@ window.carlitoSig = window.carlitoSig || (function () {
     return index.get(name + '|' + dir) || null;
   };
 })();
+// A bitfield bit's MASK by contract name: carlitoBit('status', 'brake_light') === 1 << 8. The
+// layout is the signal's `bits` table (index -> name), so no module hand-types a bit number. A bit
+// the contract does not declare warns once and is 0: a mask that never matches, not a wrong bit.
+window.carlitoBit = window.carlitoBit || (function () {
+  const warned = new Set();
+  return (name, bit) => {
+    const sig = [window.carlitoSig(name, 'out'), window.carlitoSig(name, 'in')].find(s => s && s.bits);
+    const key = sig && Object.keys(sig.bits).find(k => sig.bits[k] === bit);
+    if (key !== undefined) return 1 << +key;
+    if (!warned.has(name + '.' + bit)) {
+      warned.add(name + '.' + bit);
+      console.warn(`Carlito: contract '${name}' declares no bit '${bit}' - it reads as never set.`);
+    }
+    return 0;
+  };
+})();
 // The tallest drive byte: the top of the contract `gear` enum's '1-N' key, so a panel and a decoder
 // follow the bus rather than a literal. 6, RAMN's own MAX_GEAR_VALUE, with no contract loaded.
 window.carlitoGearTop = window.carlitoGearTop || (() => {

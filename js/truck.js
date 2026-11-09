@@ -39,8 +39,10 @@
 
   const { enumLabel, num, fmt, whole, setTell, setBar } = window.vehiclePanelUtil;
 
-  // contract `status`, whose bit layout is FROZEN (its desc): the bits a truck sets.
-  const ST = { ign: 0, moving: 2, park: 5, lights: 6, brkLamp: 8, escOff: 9, yaw: 10, roll: 11 };
+  // contract `status` masks, from its `bits` table: the bits a truck sets.
+  const stBit = (b) => window.carlitoBit('status', b);
+  const ST = { ign: stBit('ignition'), moving: stBit('moving'), park: stBit('handbrake'), lights: stBit('headlights'),
+    brkLamp: stBit('brake_light'), escOff: stBit('esc_off'), yaw: stBit('esc_yaw'), roll: stBit('esc_roll') };
 
   // ── Panel body ──────────────────────────────────────────────────────────────
   const BODY = `
@@ -148,14 +150,14 @@
 
     <div class="vp-rule"></div>
     <div class="vp-tells">
-      <div class="vp-tell" id="truckTellIgn" data-color="green" title="contract status bit 0 - ignition.">Ign</div>
-      <div class="vp-tell" id="truckTellPark" data-color="red" title="contract status bit 5 - handbrake.">Park</div>
-      <div class="vp-tell" id="truckTellLights" data-color="blue" title="contract status bit 6 - headlights at LOW or brighter.">Lights</div>
-      <div class="vp-tell" id="truckTellBrk" data-color="red" title="contract status bit 8 - brake-light request from roll stability's own braking (J1939 VDC1 SPN 1815 on a truck).">Brk lamp</div>
-      <div class="vp-tell" id="truckTellYaw" data-color="amber" title="contract status bit 10 - the yaw controller braking (J1939 VDC1 YC, SPNs 1817/1819).">Yaw ctl</div>
-      <div class="vp-tell" id="truckTellRoll" data-color="amber" title="contract status bit 11 - roll stability braking (J1939 VDC1 ROP, SPNs 1816/1818).">Roll ctl</div>
-      <div class="vp-tell" id="truckTellEsc" data-color="amber" title="contract status bit 9 - a fitted stability control switched off (esc_off; VDC1 SPN 1814).">ESC off</div>
-      <div class="vp-tell" id="truckTellMove" data-color="green" title="contract status bit 2 - moving.">Moving</div>
+      <div class="vp-tell" id="truckTellIgn" data-color="green" title="contract status bit 'ignition'.">Ign</div>
+      <div class="vp-tell" id="truckTellPark" data-color="red" title="contract status bit 'handbrake'.">Park</div>
+      <div class="vp-tell" id="truckTellLights" data-color="blue" title="contract status bit 'headlights' - at LOW or brighter.">Lights</div>
+      <div class="vp-tell" id="truckTellBrk" data-color="red" title="contract status bit 'brake_light' - brake-light request from roll stability's own braking (J1939 VDC1 SPN 1815 on a truck).">Brk lamp</div>
+      <div class="vp-tell" id="truckTellYaw" data-color="amber" title="contract status bit 'esc_yaw' - the yaw controller braking (J1939 VDC1 YC, SPNs 1817/1819).">Yaw ctl</div>
+      <div class="vp-tell" id="truckTellRoll" data-color="amber" title="contract status bit 'esc_roll' - roll stability braking (J1939 VDC1 ROP, SPNs 1816/1818).">Roll ctl</div>
+      <div class="vp-tell" id="truckTellEsc" data-color="amber" title="contract status bit 'esc_off' - a fitted stability control switched off (esc_off; VDC1 SPN 1814).">ESC off</div>
+      <div class="vp-tell" id="truckTellMove" data-color="green" title="contract status bit 'moving'.">Moving</div>
     </div>
 
     <div class="vp-rule"></div>
@@ -241,7 +243,7 @@
 
     // ── Tell-tales ──
     const st = num(t.status) | 0;
-    const bit = (b) => !!(st & (1 << b));
+    const bit = (mask) => !!(st & mask);
     setTell(el.tIgn, bit(ST.ign));
     setTell(el.tPark, bit(ST.park));
     setTell(el.tLights, bit(ST.lights));

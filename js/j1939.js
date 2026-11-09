@@ -747,6 +747,9 @@ function j1939ServeRequest(parsed, data) {
       // implement that just left as the one not answering would read backwards.
       note(`nothing at 0x${j1939H(srv.sa)} to answer`);
     } else {
+      // COMPROMISE: this NACKs a GLOBAL request (DA 0xFF) too. J1939-21 is recalled (unverified: no
+      // copy on hand; ../Open SAE J1939.pdf and ../j1939-71.pdf do not state it) to forbid a NACK
+      // to a global request. Once a page confirms it: return silently when parsed.da === 0xFF.
       const d = j1939Pack.blank();
       d[0] = J1939_ACK_NACK;
       d[1] = 0xFF;                                   // group function: not applicable to a request

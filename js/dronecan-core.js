@@ -1139,14 +1139,20 @@ const DC_ALL_ONLINE = (1 << DC_ROSTER.length) - 1;
 // a bus: node_online is not decoded here, and must not be - a listener learns it from the absence
 // of frames, and the roster view is that listener.
 const DC_NODE_STALE_MS = 3000;
-// The contract's node_health `count` is the ONLY machine-readable half of the roster - the ids and
-// the order are prose - so it is the one thing that can be asserted, and it is what makes growing
-// the roster on the game side a loud failure here instead of frames addressed to the wrong node.
+// The contract's node_health `count` and node_fail `bits` (index -> lower-case node name) are the
+// machine-readable halves of the roster - the ids are not in the contract - so both are asserted,
+// which makes growing or reordering the roster on the game side a loud failure here instead of
+// frames addressed to the wrong node.
 (function checkRoster() {
   const n = dcContractNum('node_health', 'count', 0);
   if (n && n !== DC_ROSTER.length) {
     console.warn(`DroneCAN: node roster is ${DC_ROSTER.length} entries but the contract's node_health ` +
       `declares count ${n} - the game's roster has changed and DC_ROSTER has not followed.`);
+  }
+  const bits = (window.carlitoSig('node_fail', 'in') || {}).bits;
+  if (bits && DC_ROSTER.some((r, i) => bits[i] !== r.name.toLowerCase())) {
+    console.warn(`DroneCAN: DC_ROSTER names (${DC_ROSTER.map(r => r.name).join(', ')}) disagree with the ` +
+      `contract's node_fail bits (${JSON.stringify(bits)}) - the game's roster has changed and DC_ROSTER has not followed.`);
   }
 })();
 
@@ -1343,7 +1349,14 @@ function dcQuatFromPitchYaw(pitchDeg, yawDeg) {
 
 // The last arming picture the game sent, for the tab's pre-arm readout. It is deliberately
 // NOT on the wire - see the ArmingStatus block in dcBuildFrames.
-const DC_PREARM_BITS = ['ATTITUDE', 'BATTERY', 'ESC', 'AHRS', 'STICK', 'FAILSAFE', 'GPS'];
+// Index -> label, off the contract's prearm_fail `bits` table (sparse-safe: readers fall back to
+// 'bit N').
+const DC_PREARM_BITS = (() => {
+  const bits = (window.carlitoSig('prearm_fail', 'out') || {}).bits || {};
+  const out = [];
+  for (const k of Object.keys(bits)) out[+k] = bits[k].toUpperCase();
+  return out;
+})();
 let dcArm = null;
 
 // The last flight-mode picture the game sent, for the tab's request/actual/failsafe readout.
