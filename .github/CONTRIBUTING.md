@@ -4,11 +4,11 @@ Thanks for taking a look at SloppyCAN.
 
 ## Before you start
 
-- Read [`README.md`](README.md) for what the app does and how to run it.
+- Read [`README.md`](../README.md) for what the app does and how to run it.
 - For architecture, wire formats, and data structures, see
-  [`.claude/core-arch.md`](.claude/core-arch.md) and [`.claude/modules.md`](.claude/modules.md).
-- There's no build step and no dependencies: `index.html` + `css/sloppycan.css` + `js/sloppycan.js`
-  is the core; everything else is a bolt-on module (see [Contributing](README.md#contributing) in
+  [`.claude/core-arch.md`](../.claude/core-arch.md) and [`.claude/modules.md`](../.claude/modules.md).
+- There's no build step and no dependencies: `index.html` + `assets/sloppycan.css` + `js/sloppycan.js`
+  is the core; everything else is a bolt-on module (see [Contributing](../README.md#contributing) in
   the README for the module list).
 
 ## Reporting bugs / requesting features
@@ -31,5 +31,5 @@ Open a [GitHub issue](https://github.com/leaukojo/sloppycan/issues). Useful thin
 ## A note on scope
 
 This project is for **learning CAN bus protocols**, not for interfacing with real, in-service
-vehicles; see the [License](README.md#license). Please keep contributions aligned with that
+vehicles; see the [License](../README.md#license). Please keep contributions aligned with that
 scope (bench setups, simulators, RAMN/Carlito, demo/test traffic).

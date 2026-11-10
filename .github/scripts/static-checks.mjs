@@ -1,7 +1,7 @@
 // Static checks that need no browser and no dependencies:
 //   1. every inline on*="..." handler in the two app pages calls functions that are defined;
 //   2. every <script src> in the app pages and explainers/*.html points at a file that exists;
-//   3. CLAUDE.md stays within its size budget (it is loaded into every Claude Code session).
+//   3. .claude/CLAUDE.md stays within its size budget (it is loaded into every Claude Code session).
 //
 //   node .github/scripts/static-checks.mjs [repo-root]
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -65,7 +65,7 @@ for (const f of htmlFiles) {
 // ── 3. CLAUDE.md size budget ─────────────────────────────────────────────────
 // Per-module detail belongs in the module itself or .claude/modules.md, not here.
 const CLAUDE_MD_BUDGET = 9000;   // bytes
-const claudeMdBytes = Buffer.byteLength(read('CLAUDE.md').replace(/\r\n/g, '\n'), 'utf8');
+const claudeMdBytes = Buffer.byteLength(read('.claude/CLAUDE.md').replace(/\r\n/g, '\n'), 'utf8');
 if (claudeMdBytes > CLAUDE_MD_BUDGET) failures.push(`CLAUDE.md is ${claudeMdBytes} bytes, over its ${CLAUDE_MD_BUDGET}-byte budget`);
 
 console.log(`${handlerCount} inline handlers, ${scriptCount} local <script src> checked, CLAUDE.md ${claudeMdBytes}/${CLAUDE_MD_BUDGET} bytes`);

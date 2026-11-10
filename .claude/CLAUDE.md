@@ -17,13 +17,13 @@ and the Android fallback), or `python -m http.server 8000`. No hardware: the **D
 
 ## File map
 
-Every script is in `js/` (flat, no subfolders), the stylesheet is `css/sloppycan.css`. The pages
+Every script is in `js/` (flat, no subfolders), the stylesheet and images are in `assets/`. The pages
 (`index.html`, `carlito-bridge.html`) stay at the root: deployed URLs and the `/dev/` pairing need it.
 
 Core (classic scripts, one shared global scope, loaded in this order):
 - `can-link.js` - CAN transport (gs_usb + SLCAN open, RX pumps, parse, serialized write); reused by the bridge
 - `diag-parse.js` - OBD-II / UDS / KWP2000 decoders + tables; also loaded by `explainers/dtc.html`
-- `sloppycan.js` - the app (navigate by `// ── Section ──`); `index.html`, `css/sloppycan.css`
+- `sloppycan.js` - the app (navigate by `// ── Section ──`); `index.html`, `assets/sloppycan.css`
 
 Shared (deferred, before their users):
 - `carlito-registry.js` - every Carlito registry, created empty first; `carlitoIsFamily`, the which-machine rule;

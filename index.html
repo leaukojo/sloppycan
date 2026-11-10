@@ -10,7 +10,7 @@
      covers the CSS request and buys no real head-start. Offline/file:// degrades to system fonts. -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/sloppycan.css">
+<link rel="stylesheet" href="assets/sloppycan.css">
 <script src="js/carlito-registry.js" defer></script><!-- every Carlito registry, created empty; must precede every module that registers (j1939.js included) -->
 <script src="js/j1939-pack.js" defer></script><!-- the one J1939 / NMEA 2000 frame-packing helper (window.J1939Pack); must precede j1939.js and every packer -->
 <script src="js/j1939-tables.js" defer></script><!-- shared J1939 dictionary + pure decoders (also loaded by explainers/dtc.html + j1939-explainer.html); must precede j1939.js -->
@@ -431,7 +431,7 @@
              onclick="carlitoToggle()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();carlitoToggle()}"
              title="Open Carlito (needs a live bus - Connect or Demo first).">
           <div class="onboard-shot has-img">
-            <img src="img/carlito_screenshot.png" alt="Carlito driving simulator">
+            <img src="assets/carlito_screenshot.png" alt="Carlito driving simulator">
           </div>
           <div class="onboard-card-title">🚗 Drive Carlito</div>
           <div class="onboard-card-desc">Launch the driving simulator - its telemetry streams back as live CAN frames you can watch and decode here. Open it with the <b>Carlito</b> button up top.</div>

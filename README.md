@@ -4,7 +4,7 @@ Want to experiment with a CAN bus, but too lazy to install anything? SloppyCAN i
 
 **[Try it online →](https://leaukojo.github.io/sloppycan/)**
 
-![SloppyCAN demo](img/demo.jpg)
+![SloppyCAN demo](assets/demo.jpg)
 
 ## What it is
 
@@ -129,7 +129,7 @@ license. See [`LICENSE`](LICENSE) for the full text.
 
 ## Contributing
 
-The app core is `index.html` + `css/sloppycan.css` + `js/sloppycan.js`, with `can-link.js` (the USB/serial
+The app core is `index.html` + `assets/sloppycan.css` + `js/sloppycan.js`, with `can-link.js` (the USB/serial
 transport) and `diag-parse.js` (OBD-II / UDS / KWP2000 decoders) beside it. Everything else is a
 bolt-on module in its own script under `js/`; the ones the core calls are wired in through a few hooks tagged
 *"remove to revert"*:
@@ -143,7 +143,7 @@ bolt-on module in its own script under `js/`; the ones the core calls are wired 
 - **Scripting:** `script-link.js` (talks to `scripting/sloppycan_relay.py`).
 
 See [`.claude/core-arch.md`](.claude/core-arch.md) and [`.claude/modules.md`](.claude/modules.md)
-for architecture details, and [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to file issues and
+for architecture details, and [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) for how to file issues and
 submit pull requests.
 
 ---

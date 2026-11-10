@@ -20,7 +20,7 @@ Explainer pages live in `explainers/`.
 | Module | Core hooks (`sloppycan.js` unless noted) |
 |---|---|
 | `graph.js` | `ingestFrame` → `graphIngestFrame`; `switchViewTab` + `graphOnShow`; `#frameBody` contextmenu → `graphContextMenu`; `graphSignals` persistence. `index.html`: `#vtab-graph`, `#graphWrap`, `#graphCtxMenu` |
-| `fuzz.js` | `fuzzTxFrame` / `fuzzBusReady` / `fuzzObservedIds` (near `frameKey`); `switchViewTab` + `fuzzOnShow`; `disconnectSerial` → `fuzzStop`; `fuzz` key. `index.html`: `#vtab-fuzz`, `#fuzzWrap`, `#fuzzActiveBadge` (TX Scheduler header). CSS `.fuzz-*` in `css/sloppycan.css` |
+| `fuzz.js` | `fuzzTxFrame` / `fuzzBusReady` / `fuzzObservedIds` (near `frameKey`); `switchViewTab` + `fuzzOnShow`; `disconnectSerial` → `fuzzStop`; `fuzz` key. `index.html`: `#vtab-fuzz`, `#fuzzWrap`, `#fuzzActiveBadge` (TX Scheduler header). CSS `.fuzz-*` in `assets/sloppycan.css` |
 | `chademo.js` | `ingestFrame` → `chademoIngestFrame`; `clearFrames` → `chademoClear`; `switchViewTab` + `demoMaybeSwitch('chademo')`; demo engine → `chademoDemoLoopStart/Stop`. No persistence. Explainer `ev-charging-explainer.html` |
 | `xcp.js` | `ingestFrame` / `clearFrames` / `disconnectSerial` → `xcpIngestFrame` / `xcpClear` / `xcpStop`; `switchViewTab` + `xcpOnShow`; `xcp` key; `window.xcpDemoActive`. Explainer `xcp-explainer.html` |
 | `canopen.js` | Same four hooks as XCP (`canopen*`); `canopen` key; `window.canopenDemoActive`; demo engine → `canopenDemoStart/Stop` (a base traffic, not started on tab show). Explainer `canopen-explainer.html` |

@@ -111,7 +111,7 @@ jobs:
           mkdir -p ../site
           rsync -a ./ ../site/ \
             --exclude .git --exclude .github --exclude .claude \
-            --exclude .gitattributes --exclude CLAUDE.md --exclude CONTRIBUTING.md \
+            --exclude .gitattributes \
             --exclude /AUDIT.md --exclude /audit --exclude 'scripting/test_*.py'
 
       - name: Publish to gh-pages:/dev/
