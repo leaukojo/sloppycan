@@ -29,19 +29,12 @@
   padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
   font-family:var(--sans); font-size:var(--fs-m); font-weight:600; color:var(--text);
 }
-.co-logbar a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:400; font-size:var(--fs-s); margin-left:auto; }
 .co-tx-hint { font-size:var(--fs-s); color:var(--amber); padding:2px 0 0 0; font-family:var(--sans); }
 .co-tbl a.co-seecan { color:var(--blue); text-decoration:none; }
-.co-config {
-  background:var(--bg2); border-bottom:1px solid var(--border);
-  padding:7px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  flex-shrink:0; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
-}
-.co-config label { display:flex; align-items:center; gap:5px; }
-.co-config input {
-  background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 6px; outline:none; width:74px;
-}
+#canopenWrap .bar input { padding:0 6px; }
+#coSdoTimeout, #coSdoReq, #coSdoRsp { width:64px; }
+.co-cfg-menu { left:0; padding:10px 12px; gap:8px; min-width:200px; }
+.co-cfg-menu .field { justify-content:space-between; }
 .co-controls {
   padding:14px 20px; display:flex; flex-direction:column; gap:11px;
   border-top:1px solid var(--border); flex-shrink:0;
@@ -71,7 +64,12 @@
 }
 .co-readout.err { color:var(--red); }
 .co-nodes { padding:14px 20px 4px; }
-.co-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:36px 0; font-family:var(--sans); line-height:1.6; }
+/* On a wide window the SDO / NMT / SYNC forms sit beside the node map instead of under it, where
+   a few nodes pushed them off-screen. */
+@media (min-width:1200px) {
+  #co-nodes { display:grid; grid-template-columns:minmax(0,1fr) 360px; align-items:start; }
+  #co-nodes .co-controls { border-top:none; border-left:1px solid var(--border); }
+}
 .co-chip { display:inline-block; padding:2px 10px; border-radius:var(--r-pill); font-size:var(--fs-s); font-weight:600;
   font-family:var(--sans); background:var(--bg2); color:var(--text3); border:1px solid var(--border); }
 .co-chip.oper  { background:var(--green-dim); color:var(--green); border-color:transparent; }
@@ -90,7 +88,7 @@
 .co-tbl tr:last-child td { border-bottom:none; }
 .co-tbl td.co-ts  { color:var(--text3); font-size:var(--fs-s); white-space:nowrap; }
 .co-tbl td.co-id  { color:var(--blue); white-space:nowrap; }
-.co-tbl td.co-node{ color:var(--text2); white-space:nowrap; text-align:center; }
+.co-tbl td.co-node{ color:var(--text2); white-space:nowrap; }
 .co-tbl td.co-type{ font-family:var(--sans); white-space:nowrap; }
 .co-tbl td.co-type.emcy { color:var(--red); }
 .co-tbl td.co-type.sdo  { color:var(--purple); }
@@ -98,7 +96,7 @@
 .co-tbl td.co-type.nmt  { color:var(--amber); }
 .co-tbl td.co-type.pdo  { color:var(--text2); }
 .co-tbl td.co-raw { color:var(--text3); font-size:var(--fs-s); letter-spacing:.03em; }
-.co-tbl td.co-dec { color:var(--text2); font-size:var(--fs-s); font-family:var(--sans); }
+.co-tbl td.co-dec { color:var(--text2); font-size:var(--fs-m); font-family:var(--sans); }
 .co-tbl td.co-dec .co-hex { font-family:var(--mono); }   /* hex bytes are mono everywhere */
 .co-tbl tr.emcy-row td { background:var(--red-dim); }
 `;
@@ -549,17 +547,16 @@ function coRenderNodes() {
   window.renderKeyedTable(el, {
     tableClass: 'co-tbl',
     theadHtml: '<tr><th>Node</th><th>State</th><th>Last seen</th><th>Messages</th></tr>',
-    emptyHtml: '<div class="co-empty">No nodes seen yet.<br>' +
-      'Heartbeats (0x700+node) and any traffic populate this map.<br>' +
-      'In <b>Demo</b> mode, switch the demo base traffic to CANopen (open this tab) for simulated nodes - no hardware needed.</div>',
+    emptyHtml: '<div class="empty" title="Heartbeats (0x700+node) and any traffic populate this map.">No nodes yet.</div>',
   }, ids, id => id, id => {
     const n = coNodes.get(id);
-    const stName = n.state == null ? '-' : (CO_NMT_STATE[n.state] || coH(n.state));
+    const stName = n.state == null ? '' : (CO_NMT_STATE[n.state] || coH(n.state));
     const cls = n.state == null ? '' : (CO_STATE_CLASS[n.state] || '');
     const tags = [...n.types].filter(Boolean).map(t => `<span class="co-tag">${t}</span>`).join('');
     return { cells: [
       { cls: 'co-node', html: `${id} <span style="color:var(--text2)">(${coH(id)})</span>` },
-      `<span class="co-chip ${cls}">${stName}</span>`,
+      // A node heard but with no heartbeat yet has no NMT state: blank, not an empty chip.
+      stName ? `<span class="co-chip ${cls}">${stName}</span>` : '',
       { cls: 'co-ts', html: n.lastSeen ? coRelTs(n.lastSeen) : '-' },
       tags || '<span style="color:var(--text3)">-</span>',
     ] };
@@ -605,6 +602,27 @@ function canopenNmtBtn(cmd) {
 }
 function canopenSyncBtn() { coSync(); }
 
+// The gear popover holding the SDO overrides. Closes on a click outside it (toggleNotchPanel's
+// shape: the old listener is always dropped first, so open/close cycles never stack them).
+let coCfgCloser = null;
+function canopenCfgMenu() {
+  const menu = document.getElementById('coCfgMenu');
+  if (!menu) return;
+  const open = menu.style.display !== 'none';
+  if (coCfgCloser) { document.removeEventListener('click', coCfgCloser); coCfgCloser = null; }
+  menu.style.display = open ? 'none' : 'flex';
+  if (open) return;
+  setTimeout(() => {
+    coCfgCloser = (e) => {
+      if (menu.contains(e.target) || e.target.closest('#coCfgBtn')) return;
+      menu.style.display = 'none';
+      document.removeEventListener('click', coCfgCloser);
+      coCfgCloser = null;
+    };
+    document.addEventListener('click', coCfgCloser);
+  }, 0);
+}
+
 // ── Stacked log tab (render loop + frame-log table via the shared factory) ─────
 // Nodes & Control and Message Log are stacked in one view (Nodes on top via renderTop, Log below).
 const CO_TYPE_CLS = { emcy: 'emcy', sdo_rx: 'sdo', sdo_tx: 'sdo', hb: 'hb', nmt: 'nmt', pdo: 'pdo' };
@@ -613,7 +631,7 @@ const coTab = window.makeStackedLogTab({
   readoutElId: 'co-readout', txHintElId: 'co-tx-hint',
   tableClass: 'co-tbl',
   theadHtml: '<tr><th>Time</th><th>COB-ID</th><th>Node</th><th>Type</th><th>Bytes</th><th>Decoded</th></tr>',
-  emptyHtml: '<div class="co-empty">No CANopen frames yet.<br>The COB-ID (11-bit) is split into a function code + node-ID to classify each frame.</div>',
+  emptyHtml: '<div class="empty">No CANopen frames yet.</div>',
   onTick: coUpdateButtons,
   renderTop: coRenderNodes,
   coalesce: (prev, e) => e.kind === 'pdo' && prev.kind === 'pdo' && prev.id === e.id && (e.ts - prev.ts) < CO_PDO_COALESCE_MS,
@@ -650,6 +668,7 @@ window.canopenDemoStop = coStopDemo;
 window.canopenStop = coStop;
 window.canopenOnShow = canopenOnShow;
 window.canopenCfgChange = canopenCfgChange;
+window.canopenCfgMenu = canopenCfgMenu;
 window.canopenSdoReadBtn = canopenSdoReadBtn;
 window.canopenSdoWriteBtn = canopenSdoWriteBtn;
 window.canopenNmtBtn = canopenNmtBtn;

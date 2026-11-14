@@ -47,9 +47,16 @@
 .j1939-fault-badge { display:inline-block; padding:1px 6px; border-radius:0; font-size:var(--fs-s); font-weight:600; }
 .j1939-fault-badge.dm1 { background:var(--red-dim);  color:var(--red); }
 .j1939-fault-badge.dm2 { background:var(--amber-dim); color:var(--amber); }
-.j1939-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:48px 0; font-family:var(--sans); }
 .j1939-log-row { display:flex; gap:12px; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--border); font-size:var(--fs-s); }
 .j1939-log-row:last-child { border-bottom:none; }
+/* The request client at the right of the sub-tab bar. The bar wraps rather than clipping on a
+   narrow window; the learn link follows the request group, so its own auto margin is dropped. */
+#j1939Wrap > .subtab-bar { flex-wrap:wrap; }
+.j1939-req { display:flex; align-items:center; gap:8px; padding:4px 0; min-width:0; }
+#j1939ReqPgn { width:64px; padding:0 6px; }
+#j1939ReqDa { width:56px; padding:0 6px; }
+.j1939-req-status { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2); }
+#j1939Learn { margin-left:12px; }
 .j1939-tp-badge { display:inline-block; padding:0 4px; background:var(--purple-dim); color:var(--purple); border-radius:0; font-size:var(--fs-s); margin-left:4px; }
 `;
   document.head.appendChild(s);
@@ -464,10 +471,12 @@ function j1939SetProto(mode) {
     const b = document.getElementById(id);
     if (b) b.classList.toggle('active', m === mode);
   }
-  const lkN = document.getElementById('nmea2000LearnLink');
-  if (lkN) lkN.style.display = (mode === 'nmea2000') ? '' : 'none';
-  const lkI = document.getElementById('iso11783LearnLink');
-  if (lkI) lkI.style.display = (mode === 'iso11783') ? '' : 'none';
+  // One learn link for the three modes, pointed at the mode's own explainer.
+  const lk = document.getElementById('j1939Learn');
+  if (lk) {
+    lk.href = 'explainers/' + mode + '-explainer.html';   // mode is normalised above
+    lk.textContent = `Learn how ${j1939ModeName()} works \u2197`;
+  }
   // NMEA 2000 has no DM1/DM2 - hide the Faults sub-tab in NMEA mode (ISOBUS keeps it).
   const dmBtn = document.getElementById('j1939stab-dm');
   if (dmBtn) dmBtn.style.display = (mode === 'nmea2000') ? 'none' : '';
@@ -508,8 +517,8 @@ function j1939LampBit(state) {
 //
 // The two TRAILER lamps share the pattern without being DM1: `trailer_ebs_fault` is the towed
 // unit's ISO 11992 fault report and `trailer_abs_lamp` is SAE J2497's power-line lamp. The contract
-// mirrors both verbatim with no local source, so a selector here is the fault injected from the
-// bench, which is the only way either lamp ever lights. Neither has a frame this side decodes:
+// mirrors both verbatim with no local source, so the Truck panel's setting is the fault injected
+// from the bench, which is the only way either lamp ever lights. Neither has a frame this side decodes:
 // J2497 has no CAN carrier at all (it is modulated onto the power line), and while iso11992.js now
 // packs the trailer's EBS21 / EBS22 (trailer ABS / VDC) onto this CAN, `trailer_ebs_fault` still
 // has no decode: the towed unit is SA 0xC8, the address iso11992.js itself transmits from, so a
@@ -523,15 +532,15 @@ Object.assign(window.carlitoUplinkSources, {
   trailer_ebs_fault: () => j1939LampBit(j1939Lamps.trailer_ebs_fault),
   trailer_abs_lamp:  () => j1939LampBit(j1939Lamps.trailer_abs_lamp),
 });
-// Read the lamp selectors out of the bar. No latch and no command to flush: these are lamp
-// states sampled by the uplink, not messages sent on an edge.
-function j1939LampChange() {
-  for (const name of Object.keys(j1939Lamps)) {
-    const el = document.getElementById('j1939Lamp_' + name);
-    if (el) j1939Lamps[name] = parseInt(el.value, 10) || 0;
+// The lamps are SET from the Truck panel (truck.js), a view over this pair - the isobusCtl /
+// isobusSetCtl shape. No latch and no command to flush: these are lamp states sampled by the
+// uplink, not messages sent on an edge.
+window.j1939LampsCtl = () => Object.assign({}, j1939Lamps);
+window.j1939LampsSetCtl = (patch) => {
+  for (const [name, v] of Object.entries(patch || {})) {
+    if (name in j1939Lamps) j1939Lamps[name] = Math.max(J1939_LAMP_OFF, Math.min(J1939_LAMP_FLASH_2HZ, Number(v) | 0));
   }
-}
-window.j1939LampChange = j1939LampChange;
+};
 
 // ── THE REQUEST PATH (J1939-21) ───────────────────────────────────────────────
 // Most of J1939 is broadcast: an ECU decides a parameter group is worth sending and sends it,
@@ -776,7 +785,8 @@ function j1939ServeRequest(parsed, data) {
 function j1939ReqNote(pgn, outcome) {
   j1939ReqLast = { ts: Date.now(), pgn, outcome };
   const el = document.getElementById('j1939ReqStatus');
-  if (el) el.textContent = j1939PgnLabel(pgn) + ' - ' + outcome;
+  // The readout sits in the sub-tab bar and is cut to fit; the whole of it is the tooltip.
+  if (el) el.textContent = el.title = j1939PgnLabel(pgn) + ' - ' + outcome;
 }
 
 // ── Client ──────────────────────────────────────────────────────────────────
@@ -787,7 +797,10 @@ function j1939ReqNote(pgn, outcome) {
 function j1939SendRequest() {
   const pgnEl = document.getElementById('j1939ReqPgn');
   const daEl  = document.getElementById('j1939ReqDa');
-  const pgn = window.canParseIntAuto ? window.canParseIntAuto(pgnEl ? pgnEl.value : '') : NaN;
+  // The box starts EMPTY so its datalist shows every answerable group (a browser filters the list
+  // by the typed value); empty asks for the placeholder's group.
+  const pgnText = pgnEl ? (pgnEl.value.trim() || pgnEl.placeholder) : '';
+  const pgn = window.canParseIntAuto ? window.canParseIntAuto(pgnText) : NaN;
   if (!Number.isFinite(pgn) || pgn > 0xFFFFFF) { j1939ReqNote(0, 'not a PGN'); return; }
 
   let da = 0xFF;
@@ -810,16 +823,7 @@ function j1939SendRequest() {
   j1939TxFrame(J1939_REQ_PGN, J1939_SA_TOOL, da, J1939_PRIO_REQ,
     [pgn & 0xFF, (pgn >> 8) & 0xFF, (pgn >> 16) & 0xFF]);
 }
-// The preset dropdown only FILLS the box. The request stays a typed field, because the point of
-// the bar is that any PGN can be asked for - including one nothing here answers, which is a
-// reading of its own.
-function j1939ReqPreset() {
-  const sel = document.getElementById('j1939ReqPreset');
-  const box = document.getElementById('j1939ReqPgn');
-  if (sel && box && sel.value) { box.value = sel.value; sel.value = ''; }
-}
 window.j1939SendRequest = j1939SendRequest;
-window.j1939ReqPreset = j1939ReqPreset;
 
 window.j1939SetProto = j1939SetProto;
 window.j1939GetProto = () => j1939ProtoMode;
@@ -852,7 +856,7 @@ function j1939Clear() {
   j1939TpSessions.clear();
   j1939ReqLast = null;
   const rq = document.getElementById('j1939ReqStatus');
-  if (rq) rq.textContent = '';
+  if (rq) rq.textContent = rq.title = '';
   j1939Dirty = true;
 }
 
@@ -870,6 +874,10 @@ function j1939SubTab(name) {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
+// The active mode's name, for the learn link and the empty states.
+function j1939ModeName() {
+  return j1939ProtoMode === 'nmea2000' ? 'NMEA 2000' : j1939ProtoMode === 'iso11783' ? 'ISO 11783' : 'J1939';
+}
 function j1939Render() {
   if (document.getElementById('j1939Wrap')?.style.display === 'none') { j1939WasHidden = true; return; }
   if (j1939WasHidden) { j1939WasHidden = false; j1939Dirty = true; } // tab just became visible - refresh
@@ -924,7 +932,7 @@ function j1939RenderPGN() {
     <th>PGN</th><th>Name</th><th>SA (Source)</th><th>Values</th>
     <th>Frames</th><th>Last seen</th><th>Raw data</th>
   </tr>`,
-    emptyHtml: '<div class="j1939-empty">No J1939 frames received yet.<br>J1939 uses 29-bit extended CAN IDs.</div>',
+    emptyHtml: `<div class="empty">No ${j1939ModeName()} frames yet.</div>`,
   }, rows, e => e.more ? 'more' : e.pgn + ':' + e.sa, e => {
     if (e.more) return { cells: [{ span: 7, style: 'color:var(--text2);text-align:center',
       html: `${e.more} more not shown (least recently seen)` }] };
@@ -954,7 +962,7 @@ function j1939RenderLog() {
     theadHtml: `<tr>
     <th>Time</th><th>PGN</th><th>SA → DA</th><th>Values / Raw</th>
   </tr>`,
-    emptyHtml: '<div class="j1939-empty">No J1939 frames in log yet.</div>',
+    emptyHtml: `<div class="empty">No ${j1939ModeName()} frames yet.</div>`,
   }, j1939Log, e => e.seq, e => {
     const entry = db[e.pgn];
     const pgnLabel = entry ? `<b>${entry.abbr}</b>` : j1939H(e.pgn,4);
@@ -977,7 +985,7 @@ function j1939RenderDM() {
   const el = document.getElementById('j1939-dm');
   if (!j1939DmMap.size) {
     el._dmSecs = null;
-    window.setHtmlIfChanged(el, '<div class="j1939-empty">No DM1/DM2 messages received yet.<br>DM1 = active faults, DM2 = previously active.</div>');
+    window.setHtmlIfChanged(el, '<div class="empty" title="DM1 = active faults, DM2 = previously active">No DM1/DM2 yet.</div>');
     return;
   }
   if (!el._dmSecs) { el.innerHTML = el._html = ''; el._dmSecs = new Map(); }
@@ -1068,7 +1076,7 @@ function j1939RenderAddr() {
     <th>SA</th><th>Function</th><th>Industry</th><th>ECU Instance</th>
     <th>Mfr Code</th><th>Arb. Addr</th><th>Last seen</th><th>Raw Data</th>
   </tr>`,
-    emptyHtml: '<div class="j1939-empty">No Address Claim (PGN 0xEE00) messages received.<br>Devices broadcast their identity when joining the bus.</div>',
+    emptyHtml: '<div class="empty" title="PGN 0xEE00: devices broadcast their identity when joining the bus">No address claims yet.</div>',
   }, [...j1939AddrMap.values()].sort((a,b)=>a.sa-b.sa), e => e.sa, e => ({ cells: [
     { cls: 'j-pgn', html: `0x${j1939H(e.sa)}` },
     { cls: 'j-name', html: j1939ProtoMode === 'nmea2000'

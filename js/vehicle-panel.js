@@ -45,7 +45,7 @@
   }
 
   // ── Toolbar buttons ─────────────────────────────────────────────────────────
-  // A panel's button + onboarding chip are up only while its machine is on the link, or while the
+  // A panel's button is up only while its machine is on the link, or while the
   // window they close is open. Runs on every telemetry push (~20 Hz), so it decides before it
   // writes: reflowHeader measures the whole header, which a shown/hidden button changes.
   let btnsShown = null;
@@ -61,12 +61,8 @@
     if (sig === btnsShown) return;
     btnsShown = sig;
     for (const [p, show] of want) {
-      if (p._btnEl === undefined) {
-        p._btnEl = document.getElementById(p.btn) || null;
-        p._chipEl = document.querySelector('.onboard-chip[data-target="#' + p.btn + '"]') || null;
-      }
+      if (p._btnEl === undefined) p._btnEl = document.getElementById(p.btn) || null;
       if (p._btnEl) p._btnEl.style.display = show ? '' : 'none';
-      if (p._chipEl) p._chipEl.style.display = show ? '' : 'none';
     }
     if (window.reflowHeader) window.reflowHeader();
   }
@@ -103,7 +99,9 @@
       else if (window.ramnSetDashOpen) window.ramnSetDashOpen(false);
       syncButtons();
     } else {
-      if (heldBy !== id) return;
+      // Not holding: nothing to hand back, but the button still follows the window (drone.js's
+      // Drone Control opened from the DroneCAN tab with no drone on the link claims nothing).
+      if (heldBy !== id) { syncButtons(); return; }
       heldBy = '';
       syncButtons();
       if (!ramnDashWasOpen) return;   // a window the user had closed stays closed

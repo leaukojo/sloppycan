@@ -296,15 +296,19 @@ function removeTxMessage(seq) {
   scheduleSave();
 }
 
+// The rows share one grid (.tx-grid, the column template in the CSS), so the labels are printed once,
+// in a header row above them.
+const TX_HEAD_HTML = `<div class="tx-grid tx-head">
+  <span></span><span>ID</span><span></span><span>RTR</span><span>DLC</span><span>Data (hex)</span>
+  <span>Period (ms)</span><span>Enable</span><span></span><span></span><span></span>
+</div>`;
 function renderTxRows() {
   const body = document.getElementById('txBody');
-  body.innerHTML = txMessages.map(msg => {
+  const rows = txMessages.map(msg => {
     const maxIdLen = msg.ext ? 8 : 3;
-    return `<div class="tx-row" data-seq="${msg.seq}">
-      <button class="btn" style="padding:0 7px;font-size:var(--fs-s);color:var(--red);border-color:transparent;margin-right:2px"
+    return `<div class="tx-row tx-grid" data-seq="${msg.seq}">
+      <button class="btn" style="padding:0 7px;font-size:var(--fs-s);color:var(--red);border-color:transparent"
         onclick="removeTxMessage(${msg.seq})" title="Remove">✕</button>
-      <span class="tx-sep"></span>
-      <span class="tx-lbl">ID</span>
       <input type="text" style="width:${msg.ext?80:50}px" maxlength="${maxIdLen}"
         value="${escHtml(msg.id.toUpperCase().padStart(maxIdLen,'0'))}"
         oninput="txSyncField(${msg.seq},'id',this.value)"
@@ -313,49 +317,34 @@ function renderTxRows() {
         <option ${!msg.ext?'selected':''}>STD</option>
         <option ${msg.ext?'selected':''}>EXT</option>
       </select>
-      <span class="tx-sep"></span>
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-        <input type="checkbox" ${msg.rtr?'checked':''} onchange="txSyncField(${msg.seq},'rtr',this.checked)">
-        <span class="tx-lbl">RTR</span>
-      </label>
-      <span class="tx-sep"></span>
-      <span class="tx-lbl">DLC</span>
+      <input type="checkbox" aria-label="RTR" ${msg.rtr?'checked':''} onchange="txSyncField(${msg.seq},'rtr',this.checked)">
       <select style="width:44px" onchange="txSetDlc(${msg.seq}, parseInt(this.value))">
         ${[0,1,2,3,4,5,6,7,8].map(n=>`<option ${msg.dlc===n?'selected':''}>${n}</option>`).join('')}
       </select>
-      <span class="tx-sep"></span>
-      <span class="tx-lbl">Data (hex)</span>
       <input type="text" style="width:${Math.max(80, msg.dlc*27)}px" maxlength="${msg.dlc*3}"
         value="${escHtml(msg.data)}" placeholder="hex bytes"
         oninput="txSyncField(${msg.seq},'data',this.value)"
         class="${!msg.rtr && !txValidateData(msg) ? 'tx-data-invalid' : ''}"
         ${msg.rtr ? 'disabled' : ''}>
-      <span class="tx-sep"></span>
-      <span class="tx-lbl">Period</span>
       <input type="number" style="width:64px;${msg.period < 10 ? 'border-color:var(--red);background:#f8717115;' : ''}" min="10" max="60000" step="10"
         value="${escHtml(String(msg.period))}" onchange="txSetPeriod(${msg.seq}, parseInt(this.value))">
-      <span class="tx-lbl" style="${msg.period < 10 ? 'color:var(--red)' : ''}">ms</span>
-      <span class="tx-sep"></span>
       <input type="checkbox" title="Enable - send periodically" ${msg.enabled ? 'checked' : ''}
         ${!txValidateData(msg) || msg.period < 10 ? 'disabled' : ''}
         onchange="txSetEnabled(${msg.seq}, this.checked)">
-      <span class="tx-lbl">Enable</span>
-      <span class="tx-sep"></span>
       <button class="btn" id="txonce-${msg.seq}" style="padding:0 8px;font-size:var(--fs-s);"
         onclick="txSendOnce(this,${msg.seq})" title="Send once" ${!txValidateData(msg) ? 'disabled' : ''}>
         ▶
       </button>
-      <span class="tx-sep"></span>
       <span class="tx-status ${msg.enabled ? (txSuspended ? 'paused' : 'running') : 'stopped'}" id="txstat-${msg.seq}">
         ${msg.enabled ? (txSuspended ? 'Paused' : 'ON') : 'OFF'}
       </span>
-      <span class="tx-sep"></span>
-      <input type="text" class="note-input" placeholder="note…" maxlength="120"
+      <input type="text" class="note-input" placeholder="Note" maxlength="120"
         value="${escHtml(msg.note || '')}"
-        oninput="(txMessages.find(m=>m.seq===${msg.seq})||{}).note=this.value"
-        style="flex:1;min-width:80px;width:auto">
+        oninput="(txMessages.find(m=>m.seq===${msg.seq})||{}).note=this.value">
     </div>`;
-  }).join('') || '<div style="padding:8px 16px;font-size:var(--fs-m);color:var(--text2);font-family:var(--sans)">No messages. Click Add to create one.</div>';
+  }).join('');
+  body.innerHTML = rows ? TX_HEAD_HTML + rows
+    : '<div style="padding:8px 16px;font-size:var(--fs-m);color:var(--text2);font-family:var(--sans)">No messages. Click Add to create one.</div>';
   updateTxIndicator();
   renderTxModuleRows();
 }
@@ -475,10 +464,6 @@ function txSetPeriod(seq, ms) {
   if (periodInput) {
     periodInput.style.borderColor = valid ? '' : 'var(--red)';
     periodInput.style.background  = valid ? '' : '#f8717115';
-  }
-  const msLbl = periodInput && periodInput.nextElementSibling;
-  if (msLbl && msLbl.classList.contains('tx-lbl')) {
-    msLbl.style.color = valid ? '' : 'var(--red)';
   }
   const enableCb = document.querySelector(`.tx-row[data-seq="${seq}"] input[type=checkbox][title]`);
   if (enableCb) enableCb.disabled = !txValidateData(msg) || !valid;
@@ -1069,6 +1054,7 @@ function toggleConsole() {
   const open    = pane.style.display !== 'none';
   pane.style.display = open ? 'none' : '';
   panel.style.height  = open ? '28px' : '200px';
+  panel.classList.toggle('expanded', !open); // .console-open-only controls show only while expanded
   chevron.style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
   scheduleSave(); // panel state is a global UI pref
 }
@@ -1086,6 +1072,8 @@ function log(msg, cls = '') {
   // Auto-expand console on errors - only when opted in (off by default, so a burst of errors
   // doesn't keep popping the console open while the user works).
   if (cls === 'err' && body.style.display === 'none' && document.getElementById('autoExpandErr')?.checked) toggleConsole();
+  // With no link the console bar is hidden; an error (a failed connect) brings it back to be found.
+  if (cls === 'err' && document.body.classList.contains('no-link')) document.getElementById('logPanel').classList.add('show-err');
 }
 
 function escHtml(s) {
@@ -1329,6 +1317,7 @@ async function connectSerial() {
     document.getElementById('termInput').style.opacity = termAvail ? '1' : '0.4';
     updateBusPauseBtn();
     setStatus(true);
+    syncLinkState();
     startRenderLoop();
     reflowHeader();
   } catch (e) {
@@ -1364,11 +1353,13 @@ async function connectSerial() {
   }
 }
 
-// Transform the Demo button into a page-reload button (used after demo start and
-// after a hardware disconnect, so the stale Demo entry point isn't offered).
-function makeReloadBtn() {
+// Transform the Demo button into a page-reload button (used after demo start, labelled "Stop demo"
+// since reloading is what stopping it means, and after a hardware disconnect, labelled "Reload", so
+// the stale Demo entry point isn't offered).
+function makeReloadBtn(label) {
   const demoBtn = document.getElementById('demoBtn');
-  demoBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-3.49"/></svg> <span>Reload</span>`;
+  demoBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-3.49"/></svg> <span>${label}</span>`;
+  demoBtn.title = 'Reload the page.';
   demoBtn.style.borderColor = 'var(--border2)';
   demoBtn.style.color = 'var(--text2)';
   demoBtn.onclick = () => location.reload();
@@ -1432,10 +1423,11 @@ async function disconnectSerial() {
   bytesReceived = 0;
   document.getElementById('statBytes').textContent = '0';
   setStatus(false);
+  syncLinkState();
   stopRenderLoop();
   document.getElementById('connectBtn').style.display = '';
   document.getElementById('demoBtn').style.display = '';
-  makeReloadBtn(); // after a disconnect, offer Reload rather than Demo
+  makeReloadBtn('Reload'); // after a disconnect, offer Reload rather than Demo
   document.getElementById('disconnectBtn').style.display = 'none';
   document.getElementById('notchBtn').disabled = true;
   document.getElementById('notchArrowBtn').disabled = true;
@@ -1461,6 +1453,21 @@ async function disconnectSerial() {
 // The "Connected" status pill was removed (#2) - live traffic already conveys state.
 // Kept as a no-op so existing call sites don't need touching.
 function setStatus(_connected) {}
+
+// The one "link" state behind the welcome screen and the chrome (body.no-link, see the CSS):
+// set while no adapter is connected, no Demo runs and nothing is captured. Keyed on the link,
+// not the bus: with auto-open off an adapter connects with the bus closed, and Open Bus must
+// show. A disconnect keeps captured frames (and the toolbar to filter / export them) on screen;
+// Clear after it brings the welcome back. Called on connect, startDemo, disconnect and Clear.
+function syncLinkState() {
+  const linkUp = demoMode || !!port || !!usbSerDev || !!slcanSocket;
+  const noLink = !linkUp && frames.size === 0;
+  // The welcome lives in the ID List: going no-link from another tab (Clear on the Dump after a
+  // disconnect) would otherwise leave that tab with its chrome hidden and no welcome.
+  if (noLink && !document.body.classList.contains('no-link') && !idsViewActive) switchViewTab('ids');
+  document.body.classList.toggle('no-link', noLink);
+  if (linkUp) document.getElementById('logPanel').classList.remove('show-err');   // only for a failed connect
+}
 
 // readLoop (Web Serial RX), processBuffer, escRawLine, parseSLCAN, HEX_STR_RE/isHexStr,
 // hexToBytes → can-link.js (shared transport).
@@ -1545,13 +1552,22 @@ function updateStats() {
   const capEl = document.getElementById('statIdsCap');
   const capShow = framesCapped ? '' : 'none';
   if (capEl.style.display !== capShow) capEl.style.display = capShow;
-  document.getElementById('statTotal').textContent  = totalFrames.toLocaleString();
   document.getElementById('statRate').textContent   = rateWindowCount(frameRateBuffer);
   document.getElementById('statErrors').textContent = parseErrors;
   const pct = Math.round(dumpLog.size / DUMP_MAX * 100);
   document.getElementById('statDumpBuf').textContent = pct + '%';
-  document.getElementById('statDumpBuf').style.color =
-    dumpLog.size >= DUMP_MAX ? 'var(--red)' : pct > 80 ? 'var(--amber)' : '';
+  document.getElementById('statDumpBuf').style.color = dumpLog.size >= DUMP_MAX ? 'var(--red)' : 'var(--amber)';
+  const statsTitle = `${totalFrames.toLocaleString()} frames · ${bytesReceived.toLocaleString()} bytes received`;
+  const statsEl = document.getElementById('headerStats');
+  if (statsEl.title !== statsTitle) statsEl.title = statsTitle;
+  // Errors only when there are any, Memory only when it is filling up. Showing one changes the
+  // header's width, so re-measure it then (rarely: these flip, they don't flicker).
+  const errBox = document.getElementById('statErrorsBox'), memBox = document.getElementById('statMemBox');
+  const errShow = parseErrors > 0 ? '' : 'none', memShow = pct >= 75 ? '' : 'none';
+  if (errBox.style.display !== errShow || memBox.style.display !== memShow) {
+    errBox.style.display = errShow; memBox.style.display = memShow;
+    reflowHeader();
+  }
 }
 
 // Single RAF render loop - runs continuously, throttled to RENDER_INTERVAL
@@ -1576,23 +1592,7 @@ function stopRenderLoop() {
   if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 }
 
-// ── Responsive header: collapsible stats + icons-only fallback (#4) ───────────────
-// Stats default to COLLAPSED (only the Memory tile shows) - the live counters expand on demand
-// via the chevron. The icons-only fallback is decided against the *current* stats state, so a
-// collapsed default leaves plenty of room and button labels stay visible.
-let _statsCollapsed = true; // persisted; default collapsed
-try { const s = localStorage.getItem('slcanStatsCollapsed'); if (s !== null) _statsCollapsed = s === '1'; } catch(_) {}
-
-function applyStatsCollapse() {
-  document.getElementById('headerStats').classList.toggle('stats-collapsed', _statsCollapsed);
-}
-
-function toggleStatsCollapse() {
-  _statsCollapsed = !_statsCollapsed;
-  try { localStorage.setItem('slcanStatsCollapsed', _statsCollapsed ? '1' : '0'); } catch(_) {}
-  applyStatsCollapse();
-  reflowHeader(); // expanding may force icons-only; collapsing may restore labels
-}
+// ── Responsive header: icons-only fallback (#4) ───────────────────────────────────
 
 // Do the action buttons wrap onto more than one row? (Uses viewport-relative tops so
 // it's correct even though the buttons have different positioned offsetParents. The
@@ -1608,20 +1608,18 @@ function _buttonsWrap() {
 }
 
 // Go icons-only only when the action buttons would otherwise wrap (measured against the
-// current stats state - collapsed by default, so this rarely fires).
+// stats as currently shown).
 let _reflowing = false;
 function reflowHeader() {
   if (_reflowing) return;
   _reflowing = true;
   const h = document.querySelector('header');
   h.classList.remove('header-compact');
-  applyStatsCollapse();
   if (_buttonsWrap()) h.classList.add('header-compact');
   _reflowing = false;
 }
 
 (function initHeaderReflow() {
-  applyStatsCollapse();
   let raf = 0;
   const schedule = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; reflowHeader(); }); };
   window.addEventListener('resize', schedule);
@@ -1663,7 +1661,7 @@ function rerenderTable() {
   const now2 = Date.now();
 
   if (frames.size === 0) {
-    document.getElementById('emptyState').style.display = 'flex';
+    document.getElementById('idsNoFrames').style.display = '';
     document.getElementById('frameTable').style.display = 'none';
     setFilterEmptyState('ids', false, flt);
     return;
@@ -1671,7 +1669,7 @@ function rerenderTable() {
   // Frames exist but the filter hides them all → show the "filtered out" notice.
   const filterEmpty = rows.length === 0;
   setFilterEmptyState('ids', filterEmpty, flt);
-  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('idsNoFrames').style.display = 'none';
   document.getElementById('frameTable').style.display = filterEmpty ? 'none' : 'table';
 
   // Build key→row index map
@@ -1927,7 +1925,7 @@ function switchViewTab(name) {
 function onViewTabKey(e) {
   const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
   if (!keys.includes(e.key)) return;
-  const tabs = [...document.querySelectorAll('.view-tabs .view-tab')].filter(t => !t.disabled);
+  const tabs = [...document.querySelectorAll('.view-tabs .view-tab')].filter(t => !t.disabled && t.style.display !== 'none');
   if (!tabs.length) return;
   const cur = tabs.indexOf(document.activeElement);
   let next;
@@ -2066,6 +2064,9 @@ function renderDump() {
   // Frames logged but the filter hides them all → show the "filtered out" notice.
   // Run before the skip-redraw early return so it updates even when the window is unchanged.
   setFilterEmptyState('dump', dumpLog.size > 0 && total === 0, flt);
+  const noFrames = document.getElementById('dumpNoFrames');
+  const noFramesShow = dumpLog.size ? 'none' : '';
+  if (noFrames.style.display !== noFramesShow) noFrames.style.display = noFramesShow;
 
   const totalH = total * DUMP_ROW_H;
   spacer.style.height = (totalH + 28) + 'px'; // +28 for thead
@@ -2445,16 +2446,15 @@ function updateBusPauseBtn() {
   updateTerminalTab();
 }
 
-// Enable/disable the Serial Terminal tab. Usable once connected or in demo.
+// Show the Serial Terminal tab only while it is usable: connected (not gs_usb, which has no SLCAN
+// text channel) or in demo. Hidden, not disabled; losing it while it is the open tab goes to the ID List.
 function updateTerminalTab() {
   const tab = document.getElementById('vtab-term');
-  // gs_usb has no SLCAN text channel - hide the terminal tab entirely.
-  if (connMode === 'gsusb') { tab.style.display = 'none'; return; }
-  tab.style.display = '';
   const connected = demoMode || !!port || !!usbSerDev || !!slcanSocket;
-  tab.disabled = !connected;
-  tab.title = connected ? '' : 'Connect or start demo to use the Serial Terminal';
-  updateTermTrafficWarn();
+  const show = connected && connMode !== 'gsusb';
+  tab.style.display = show ? '' : 'none';
+  if (!show && tab.classList.contains('active')) switchViewTab('ids');
+  if (show) updateTermTrafficWarn();
 }
 
 // Serial-tab warning (#9): show whenever live traffic is streaming - an open bus (RX) and/or
@@ -2547,8 +2547,6 @@ function clearFrames() {
   dumpRowElsDirty = true;
   document.getElementById('dumpBody').innerHTML = '';
   dumpRowEls.clear();
-  document.getElementById('statDumpBuf').textContent = '0%';
-  document.getElementById('statDumpBuf').style.color = '';
   document.getElementById('termBody').innerHTML = '';
   clearInspector();
   if (dumpViewActive) renderDump();
@@ -2565,13 +2563,11 @@ function clearFrames() {
   frameRateBuffer = [];
   bytesReceived = 0;
   document.getElementById('statBytes').textContent = '0';
-  document.getElementById('statTotal').textContent = '0';
-  document.getElementById('statRate').textContent = '0';
-  document.getElementById('statErrors').textContent = '0';
-  document.getElementById('statIds').textContent = '0';
+  updateStats();
   document.getElementById('frameBody').innerHTML = '';
   document.getElementById('frameTable').style.display = 'none';
-  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('idsNoFrames').style.display = '';
+  syncLinkState();
   log('Cleared', 'warn');
 }
 
@@ -3121,7 +3117,7 @@ function startDemo() {
 
   document.getElementById('connectBtn').style.display = 'none';
   document.getElementById('disconnectBtn').style.display = 'none';
-  makeReloadBtn(); // transform Demo button into a page-reload button
+  makeReloadBtn('Stop demo'); // transform Demo button into a page-reload button
   document.getElementById('listenOnly').disabled = true;
   document.getElementById('baudRate').disabled = true;
   document.getElementById('autoOpen').disabled = true;
@@ -3131,6 +3127,7 @@ function startDemo() {
 
   updateBusPauseBtn();
   updateNotchBtn();
+  syncLinkState();
   startRenderLoop();
   reflowHeader();
   if (window.ramnDemoStarted) window.ramnDemoStarted(); // ← RAMN demo hook
@@ -5080,12 +5077,12 @@ function toggleConnectPopover(forceOpen) {
   const open = forceOpen === true ? true : !wasOpen;
   panel.style.display = open ? 'flex' : 'none';
   // Only wire the outside-click closer on a genuine closed→open transition (no stacking).
-  // The header Connect button and the onboarding "Connect to hardware" CTA are exempt so
+  // The header Connect button and the welcome's Connect tile are exempt so
   // clicking them again keeps the popover open rather than toggling it shut.
   if (open && !wasOpen) {
     setTimeout(() => {
       const close = (e) => {
-        if (!panel.contains(e.target) && !e.target.closest('#connectBtn') && !e.target.closest('.onboard-connect')) {
+        if (!panel.contains(e.target) && !e.target.closest('#connectBtn') && !e.target.closest('.welcome-connect')) {
           panel.style.display = 'none';
           document.removeEventListener('click', close);
         }
@@ -5251,16 +5248,13 @@ document.getElementById('frameBody').addEventListener('contextmenu', e => {
   window.graphContextMenu(e.clientX, e.clientY, row.dataset.key);
 });
 
-// ── Onboarding spotlight arrow (empty ID List) ──────────────────────────────
-// Hovering / focusing a feature chip draws an arrow from the chip to the real
-// control and pulses it. One target at a time, geometry recomputed on each show
-// and on resize/scroll so it never goes stale.
+// ── Onboarding arrow (welcome screen) ───────────────────────────────────────
+// The welcome's Connect tile draws an arrow from itself to the Connect popover's button and
+// pulses it. Geometry is recomputed on resize so it never goes stale.
 (function onboardSpotlight() {
   const svg  = document.getElementById('onboardArrow');
   const path = document.getElementById('oaPath');
-  // The Carlito card behaves like a chip now (#5) - it points an arrow at the toolbar button.
-  const chips = document.querySelectorAll('.onboard-chip, .onboard-card[data-target]');
-  if (!svg || !path || !chips.length) return;
+  if (!svg || !path) return;
 
   let activeChip = null, activeTarget = null;
 
@@ -5291,9 +5285,6 @@ document.getElementById('frameBody').addEventListener('contextmenu', e => {
   }
 
   let _autoT = 0;
-  function show(chip) {
-    showArrowBetween(chip, document.querySelector(chip.dataset.target));
-  }
 
   // Draw the arrow from a source element to a target element, optionally auto-hiding after autoMs.
   function showArrowBetween(sourceEl, target, autoMs) {
@@ -5314,16 +5305,8 @@ document.getElementById('frameBody').addEventListener('contextmenu', e => {
     svg.classList.remove('show');
   }
 
-  // Programmatic trigger (used by the onboarding "Select your Hardware" CTA #1).
+  // Programmatic trigger (the welcome's Connect tile).
   window.onboardArrowTo = (sourceEl, targetSel, ms) => showArrowBetween(sourceEl, document.querySelector(targetSel), ms);
 
-  chips.forEach(chip => {
-    chip.addEventListener('mouseenter', () => show(chip));
-    chip.addEventListener('mouseleave', hide);
-    chip.addEventListener('focus', () => show(chip));   // keyboard + touch tap
-    chip.addEventListener('blur', hide);
-  });
   window.addEventListener('resize', draw);
-  // The onboarding panel scrolls independently of the fixed chrome it points at.
-  document.getElementById('emptyState').addEventListener('scroll', draw, { passive: true });
 })();

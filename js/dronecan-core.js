@@ -1209,7 +1209,7 @@ Object.assign(window.carlitoUplinkSources, {
 
 // ── The same commands, off the BUS ────────────────────────────────────────────
 // A LightsCommand / hardpoint.Command / camera_gimbal.AngularCommand from any node drives dcCtl
-// exactly as the tab's widgets and drone.js do - the one-owner rule above, so the uplink sources
+// exactly as drone.js's Drone Control window does - the one-owner rule above, so the uplink sources
 // need no second copy. It reassembles into its OWN state rather than the tab's dcRx, because it
 // runs on carlito-bridge.html too, where the tab's ingest is never called.
 //

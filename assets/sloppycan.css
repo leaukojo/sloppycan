@@ -134,7 +134,7 @@ header {
 /* Touch momentum scrolling (harmless on desktop). */
 .table-wrap, #dumpWrap, .view-tabs { -webkit-overflow-scrolling: touch; }
 
-/* Workspace/FPS + Adapter clusters: fixed 24px so the side dividers (on
+/* Workspace + Adapter clusters: fixed 24px so the side dividers (on
    .header-cluster-box) are inset from the 36px row, matching the mock. A fixed
    small height (not 100%/stretch) is also safe for the multi-row header wrap. */
 .header-cluster { height: 24px; }
@@ -172,22 +172,6 @@ header {
   padding: 0 6px;
 }
 
-/* Collapsible counter group (#4-1) - the chevron hides the five live tiles;
-   the Memory tile stays visible alongside it. */
-.hstat-group { display: flex; gap: 14px; align-items: center; }
-.header-stats.stats-collapsed .hstat-group { display: none; }
-.hstat-toggle {
-  display: flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px; padding: 0;
-  background: none; border: none; cursor: pointer;
-  color: var(--text3); flex-shrink: 0;
-}
-.hstat-toggle:hover { color: var(--text); }
-.hstat-toggle svg { width: 13px; height: 13px; transition: transform 0.15s; }
-/* Chevron points left when collapsed, right when expanded. (base SVG points left) */
-.header-stats.stats-collapsed .hstat-toggle svg { transform: rotate(0deg); }
-.header-stats:not(.stats-collapsed) .hstat-toggle svg { transform: rotate(180deg); }
-
 .hstat {
   display: flex;
   align-items: baseline;
@@ -202,6 +186,8 @@ header {
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+
+.hstat-val.stat-err { color: var(--red); }
 
 .hstat-lbl {
   font-size: var(--fs-s);
@@ -342,7 +328,7 @@ header {
   white-space: nowrap;
 }
 
-select, input[type=number], input[type=text] {
+select, input[type=number], input[type=text], input:not([type]) {
   background: var(--bg3);
   border: 1px solid var(--border2);
   color: var(--text);
@@ -770,155 +756,81 @@ tbody td {
 .filter-empty-icon { border-color: var(--amber); color: var(--amber); }
 /* Dump view is virtual-scrolled - overlay the notice over the (empty) scroll area */
 #dumpFilterEmpty { position: absolute; inset: 0; z-index: 1; background: var(--bg); }
+#dumpNoFrames { position: absolute; top: 28px; left: 0; right: 0; }
 
-/* ── Onboarding (empty ID List) ─────────────────────────────────────────────── */
-.onboard {
+/* ── Welcome (no link) ─────────────────────────────────────────────────────────
+   body.no-link (syncLinkState in sloppycan.js): no adapter, no Demo, nothing captured.
+   The welcome shows only then; .link-only chrome only otherwise. The console bar comes
+   back with no link once an error is logged (.show-err, set by log()). */
+body:not(.no-link) #emptyState { display: none; }
+body.no-link .link-only:not(.show-err) { display: none !important; }
+.welcome {
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 28px 24px 36px;
-  color: var(--text2);
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 24px;
   font-family: var(--sans);
-  overflow-y: auto;
 }
-.onboard-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
+.welcome-title {
+  font-size: var(--fs-xxl);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--amber);
+}
+.welcome-sub { font-size: var(--fs-m); color: var(--text2); }
+.welcome-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
   width: 100%;
-  max-width: 780px;
+  max-width: 1200px;
+  height: 40vh;
+  min-height: 200px;
+  margin-top: 10px;
 }
-.onboard-hero {
+.welcome-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  text-align: center;
-}
-.onboard-title {
+  justify-content: center;
+  gap: 14px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 0;
+  color: var(--text);
+  font-family: var(--sans);
   font-size: var(--fs-xl);
   font-weight: 600;
-  color: var(--text);
-}
-.onboard-sub {
-  font-size: var(--fs-m);
-  color: var(--text2);
-  max-width: 420px;
-  line-height: 1.5;
-}
-.onboard-explainers-link { font-size: var(--fs-m); color: var(--text2); }
-.onboard-explainers-link a { color: var(--amber); text-decoration: none; }
-.onboard-explainers-link a:hover { text-decoration: underline; }
-.onboard-cta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 4px;
-}
-.onboard-connect { font-size: var(--fs-l); height: 32px; padding: 0 16px; }   /* 15px Saira needs ~24px inside */
-.onboard-demo    { font-size: var(--fs-l); height: 32px; padding: 0 16px; }
-.onboard-cta-note { font-size: var(--fs-m); color: var(--text2); }
-
-.onboard-cols {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: stretch;
-  gap: 18px;
-  width: 100%;
-  margin-top: 6px;
-}
-.onboard-card {
-  flex: 1 1 260px;
-  max-width: 340px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 0;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.onboard-shot {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  border: 2px dashed var(--border2);
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text3);
-  font-size: var(--fs-m);
-  letter-spacing: 0.04em;
-  overflow: hidden;
-}
-.onboard-shot img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
-/* When the shot holds a real screenshot, drop the dashed placeholder chrome. */
-.onboard-shot.has-img { border: 1px solid var(--border); padding: 0; }
-.onboard-card-title { font-size: var(--fs-l); font-weight: 600; color: var(--text); }
-.onboard-card-desc  { font-size: var(--fs-m); color: var(--text2); line-height: 1.5; flex: 1; }
-/* The Carlito card points an arrow at the toolbar button on hover/focus (#5). */
-.onboard-card.carlito { cursor: pointer; }
-.onboard-card.carlito:hover, .onboard-card.carlito:focus-visible { border-color: var(--amber); outline: none; }
-
-.onboard-guide {
-  flex: 1 1 260px;
-  max-width: 360px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 0;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-.onboard-guide-title {
-  font-size: var(--fs-m);
-  font-weight: 600;
-  color: var(--text2);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 4px;
-}
-.onboard-guide-hint {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--text2);
-}
-.onboard-chips {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-}
-.onboard-chip {
-  text-align: left;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 0;
-  padding: 9px 11px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-family: var(--sans);
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  transition: border-color 0.15s, background 0.15s;
 }
-.onboard-chip:hover,
-.onboard-chip:focus-visible {
-  border-color: var(--blue);
-  background: var(--blue-dim);
-  outline: none;
-  transform: translateY(-1px);
+.welcome-tile svg { width: 40px; height: 40px; }
+.welcome-tile:hover, .welcome-tile:focus-visible { border-color: var(--amber); background: var(--bg3); outline: none; }
+.welcome-connect { color: var(--green); }
+.welcome-connect:hover, .welcome-connect:focus-visible { border-color: var(--green); }
+.welcome-demo { color: var(--amber); }
+/* Carlito: the screenshot fills the tile, its label sits on a band along the bottom. */
+.welcome-carlito { justify-content: flex-end; }
+.welcome-carlito img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.welcome-carlito span {
+  position: relative; width: 100%; padding: 10px 0;
+  background: var(--bg2); border-top: 1px solid var(--border2);
 }
-.oc-name { font-size: var(--fs-m); font-weight: 600; color: var(--text); }
-.onboard-chip:hover .oc-name,
-.onboard-chip:focus-visible .oc-name { color: var(--blue); }
-.oc-desc { font-size: var(--fs-s); color: var(--text2); line-height: 1.35; }
+.welcome-explainers { font-size: var(--fs-m); color: var(--blue); text-decoration: none; }
+.welcome-explainers:hover { color: var(--text); }
+/* Narrow screens: stack the tiles. */
+@media (max-width: 640px) {
+  .welcome-tiles { grid-template-columns: 1fr; height: auto; }
+  .welcome-tile { min-height: 120px; }
+}
 
-/* Spotlight arrow overlay - points from a hovered chip to the real control */
+/* Onboarding arrow overlay - points from the welcome's Connect tile to the real control */
 #onboardArrow {
   position: fixed;
   inset: 0;
@@ -934,7 +846,7 @@ tbody td {
 #oaPath { stroke: var(--blue); stroke-width: 2.5; stroke-linecap: round; }
 #oaHead path { fill: var(--blue); }
 
-/* Pulsing ring on the control the hovered chip points at.
+/* Pulsing ring on the control the arrow points at.
    Outline (not box-shadow) so an ancestor's overflow:hidden can't clip it. */
 .onboard-pulse {
   animation: onboardPulse 1.1s ease-in-out infinite;
@@ -1353,6 +1265,21 @@ label.filter-attention { box-shadow: 0 0 0 1px var(--amber); border-radius: 0; b
 
 .tx-sep { width:1px; background:var(--border); height:18px; margin:0 2px; flex-shrink:0; }
 
+/* Editable TX rows + their one header row share this column template:
+   remove, ID, STD/EXT, RTR, DLC, data, period, enable, send once, status, note. */
+.tx-grid {
+  display: grid;
+  grid-template-columns: 28px 80px 58px 32px 48px 222px 70px 46px 34px 52px minmax(80px, 1fr);
+  column-gap: 8px;
+  align-items: center;
+}
+.tx-head {
+  padding: 2px 12px 0;
+  font-family: var(--sans); font-size: var(--fs-s); color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
+}
+.tx-row input.note-input { font-family: var(--sans); }
+
 /* Automatic (module-driven) message section: collapsible sub-header + rows. */
 #txModuleHeader {
   display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
@@ -1364,7 +1291,6 @@ label.filter-attention { box-shadow: 0 0 0 1px var(--amber); border-radius: 0; b
   font-family: var(--mono); font-size: var(--fs-s); font-weight: 700; color: var(--red);
   background: var(--red-dim); border-radius: var(--r-pill); padding: 0 7px; min-width: 18px; text-align: center;
 }
-.tx-module-subnote { font-family: var(--sans); font-size: var(--fs-s); font-weight: 400; color: var(--text2); margin-left: auto; }
 
 /* Read-only rows mirroring frames sent by other modules (Quick Watch, Fuzzer).
    Tinted with the TX warning colour; not interactive (no inputs). */
@@ -1665,7 +1591,7 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
 .col-g4 { display: flex; flex-direction: column; gap: 4px; }
 .row-g10-mt4 { display: flex; gap: 10px; margin-top: 4px; }
 
-/* Header brand cluster, workspace/FPS box, uppercase tag labels */
+/* Header brand cluster, workspace box, uppercase tag labels */
 .brand-cluster { display: flex; align-items: center; gap: 8px; }
 .theme-toggle-btn { width: var(--ctl-h); height: var(--ctl-h); min-width: var(--ctl-h); padding: 0; justify-content: center; border-color: var(--border2); background: none; }
 .header-cluster-box {
@@ -1677,7 +1603,6 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
   letter-spacing: 0.07em; white-space: nowrap;
 }
 .hdr-tag-gap { gap: 5px; }
-.hdr-tag-gap4 { gap: 4px; }
 .ws-select { max-width: 130px; }
 /* Workspace actions (⋯) overflow button. */
 .ws-menu-btn { padding: 0 9px; font-size: var(--fs-m); line-height: 1; color: var(--text2); }
@@ -1692,16 +1617,14 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
   box-shadow: 0 8px 24px #0006; flex-direction: column;
 }
 .ws-menu { left: 0; padding: 6px; min-width: 150px; gap: 2px; }
+.ws-menu-sec { padding: 0 10px; }
+.ws-menu-field { display: flex; justify-content: space-between; gap: 12px; padding: 0 10px; min-height: 28px; }
 .notch-menu { left: 0; padding: 14px 16px; min-width: 260px; gap: 12px; }
 .menu-divider { height: 1px; background: var(--border); margin: 4px 2px; }
 
 /* Connect popover (#1) - all adapter settings + a confirm Connect button. */
 .connect-popover { left: 0; padding: 14px 16px; min-width: 320px; gap: 11px; }
-.connect-pop-title {
-  font-size: var(--fs-s); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--text2);
-}
-.connect-popover .header-check { justify-content: space-between; }
+.connect-popover .field { display: flex; justify-content: space-between; }
 .connect-pop-divider { height: 1px; background: var(--border); margin: 1px 0; }
 .connect-confirm { justify-content: center; margin-top: 2px; }
 
@@ -1878,6 +1801,7 @@ input.term-input { opacity: 0.4; transition: opacity 0.2s; }
 .tx-module-body { padding: 0 0 4px; max-height: 160px; overflow-y: auto; }
 .tx-body { padding: 4px 0; max-height: 200px; overflow-y: auto; }
 .device-info { font-size: var(--fs-s); color: var(--text2); font-family: var(--mono); }
+.log-panel:not(.expanded) .console-open-only { display: none; }
 
 /* ── Primitives ───────────────────────────────────────────────────────────────
    The shared building blocks every tab is built from. Phases 2-4 of the UI plan

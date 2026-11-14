@@ -15,8 +15,8 @@
 //   sloppycan.js  switchViewTab(): dronecan tab toggle + wrap show/hide + dronecanOnShow()
 //   sloppycan.js  demo base-traffic engine: dronecanDemoStart/Stop + demoInitialBaseTraffic
 //   sloppycan.js  persistence: defaultWorkspaceData/collectSettings/applySettings 'dronecan' key
-//   index.html    view-tabs button + #dronecanWrap content (the config bar, the bench-control bar,
-//                 the gimbal bar, the SERVICE bar, #dc-panes, #dc-log) + <script src="dronecan-core.js"
+//   index.html    view-tabs button + #dronecanWrap content (the config bar, #dc-panes
+//                 with the service buttons in its section headers, #dc-log) + <script src="dronecan-core.js"
 //                 defer> then <script src="dronecan.js" defer> (after carlito-registry.js, where the
 //                 packer and uplink-source registries live)
 //   carlito-bridge.html  dronecan-core.js only: that page has no tab markup and no sloppycan.js.
@@ -28,22 +28,6 @@
 (function () {
   const s = document.createElement('style');
   s.textContent = `
-.dc-config {
-  background:var(--bg2); border-bottom:1px solid var(--border);
-  padding:7px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  flex-shrink:0; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
-}
-.dc-config label { display:flex; align-items:center; gap:5px; }
-.dc-config input[type=text] { width:52px; padding:0 6px; }
-.dc-config .dc-note { color:var(--text2); margin-left:auto; }
-/* The bench-control bar reuses .dc-config; only the colour swatch and the Off button are new. */
-.dc-config select { padding:0 4px; }
-.dc-config input[type=color] { width:34px; height:19px; padding:0; border:1px solid var(--border); background:var(--bg); cursor:pointer; }
-.dc-config button {
-  background:var(--bg); border:1px solid var(--border); color:var(--text2);
-  border-radius:0; padding:1px 8px; cursor:pointer; font-family:var(--sans); font-size:var(--fs-s);
-}
-.dc-config button:hover { background:var(--bg3); color:var(--text); }
 .dc-logbar {
   background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
   padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
@@ -52,10 +36,8 @@
 .dc-logbar .dc-errs { margin-left:auto; font-weight:400; font-size:var(--fs-s); color:var(--text2); }
 .dc-logbar .dc-errs b { color:var(--amber); font-weight:600; }
 .dc-panes { padding:10px 16px 12px; display:flex; flex-direction:column; gap:12px; }
-.dc-grp-title {
-  font-family:var(--sans); font-size:var(--fs-s); font-weight:700; letter-spacing:.06em;
-  text-transform:uppercase; color:var(--text2); margin-bottom:5px;
-}
+.dc-panes .sec-actions { flex-wrap:wrap; }
+#dcFcNode, #dcSvcPeriod { width:52px; padding:0 6px; }
 .dc-tbl { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:var(--fs-s); }
 .dc-tbl th {
   background:var(--bg2); color:var(--text2); font-family:var(--sans); font-size:var(--fs-s);
@@ -70,6 +52,9 @@
 .dc-tbl td.dc-dec  { color:var(--text); white-space:normal; }
 .dc-tbl td.dc-ts   { color:var(--text3); }
 .dc-tbl tr.dc-bad td { color:var(--amber); }
+/* The roster row the Services buttons address. */
+.dc-tbl tr.dc-sel td { background:var(--amber-dim); }
+.dc-tbl .btn { display:inline-flex; height:18px; padding:0 6px; margin-left:6px; font-size:var(--fs-s); }
 .dc-tbl a.dc-seecan { color:var(--blue); text-decoration:none; }
 .dc-chip {
   display:inline-block; padding:1px 6px; border:1px solid var(--border); border-radius:var(--r-pill);
@@ -78,7 +63,6 @@
 .dc-chip.ok   { color:var(--green); border-color:var(--green-dim); }
 .dc-chip.warn { color:var(--amber); border-color:var(--amber); }
 .dc-chip.off  { color:var(--text3); }
-.dc-empty { color:var(--text2); font-family:var(--sans); font-size:var(--fs-m); padding:14px 16px; line-height:1.6; }
 .dc-readout { font-family:var(--mono); font-size:var(--fs-s); color:var(--text2); padding-top:4px; }
 `;
   document.head.appendChild(s);
@@ -439,11 +423,10 @@ function dcParamRequest(destNode, index, value, name, walk) {
   dcSendRequest(11, destNode, dcGetSetEncodeReq(index, value || dcValEmpty(), name || ''), { walk });
 }
 
-function dcSelectedNode() {
-  const el = document.getElementById('dcSvcNode');
-  const v = el ? parseInt(el.value, 10) : NaN;
-  return Number.isFinite(v) ? v : DC_ROSTER[0].id;
-}
+// The roster node the Services buttons address: a click on its row selects it. An index into
+// DC_ROSTER, so it can only ever name a declared node.
+let dcSelIdx = 0;
+function dcSelectedNode() { return DC_ROSTER[dcSelIdx].id; }
 function dronecanGetNodeInfo() {
   const node = dcSelectedNode();
   dcSvcNote = `asking node ${node} who it is...`;
@@ -786,68 +769,6 @@ function dcHexFromRgb565(c) {
   return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-// Read the three bench controls out of the bar. Only a CHANGE latches an indication command -
-// see dcFlushCommands.
-function dronecanCtlChange() {
-  const md = document.getElementById('dcFlightMode');
-  if (md) dcCtl.mode = parseInt(md.value, 10) || 0;
-
-  const col = document.getElementById('dcLedColor');
-  if (col) {
-    const led = dcRgb565FromHex(col.value);
-    if (led !== dcCtl.led) { dcCtl.led = led; (dcCmdPending = dcCmdPending || {}).led = led; }
-  }
-  const bp = document.getElementById('dcBeep');
-  if (bp && !!bp.checked !== dcCtl.beep) {
-    dcCtl.beep = !!bp.checked;
-    (dcCmdPending = dcCmdPending || {}).beep = dcCtl.beep;
-  }
-  const hk = document.getElementById('dcHook');
-  if (hk && !!hk.checked !== dcCtl.hook) {
-    dcCtl.hook = !!hk.checked;
-    (dcCmdPending = dcCmdPending || {}).hook = dcCtl.hook;
-  }
-  // The gimbal's two axes latch ONE command between them: an orientation is both angles, so
-  // sending half of one is sending a lie about the other. Ranges come off the CONTRACT rather
-  // than being typed here, the flight_mode-selector rule - the mount's stops and the signal's
-  // range are one number, declared once.
-  const gp = document.getElementById('dcGimbalPitch');
-  const gy = document.getElementById('dcGimbalYaw');
-  if (gp || gy) {
-    const pitch = dcClampToRange('gimbal_pitch', gp ? parseFloat(gp.value) : dcCtl.gimbalPitch);
-    const yaw = dcClampToRange('gimbal_yaw', gy ? parseFloat(gy.value) : dcCtl.gimbalYaw);
-    if (pitch !== dcCtl.gimbalPitch || yaw !== dcCtl.gimbalYaw) {
-      dcCtl.gimbalPitch = pitch;
-      dcCtl.gimbalYaw = yaw;
-      (dcCmdPending = dcCmdPending || {}).gimbal = { pitch: pitch, yaw: yaw };
-    }
-    dcGimbalReadout();
-  }
-  if (window.dronecanScheduleSave) window.dronecanScheduleSave();
-  dcTab.markDirty();
-}
-// Print the commanded angles beside their sliders. The mount's ACTUAL angles are separate
-// signals and are read off the telemetry in the pane below - a slider showing where the camera
-// IS would hide the slew, which is the whole reason there are two pairs of signals.
-function dcGimbalReadout() {
-  const out = document.getElementById('dcGimbalOut');
-  if (out) out.textContent = `${dcCtl.gimbalPitch >= 0 ? '+' : ''}${dcCtl.gimbalPitch}\u00B0 / ` +
-    `${dcCtl.gimbalYaw >= 0 ? '+' : ''}${dcCtl.gimbalYaw}\u00B0`;
-}
-function dronecanGimbalCentre() {
-  const gp = document.getElementById('dcGimbalPitch');
-  const gy = document.getElementById('dcGimbalYaw');
-  if (gp) gp.value = '0';
-  if (gy) gy.value = '0';
-  dronecanCtlChange();
-}
-function dronecanLedOff() {
-  const col = document.getElementById('dcLedColor');
-  if (col) col.value = '#000000';
-  if (dcCtl.led !== 0) { dcCtl.led = 0; (dcCmdPending = dcCmdPending || {}).led = 0; }
-  if (window.dronecanScheduleSave) window.dronecanScheduleSave();
-  dcTab.markDirty();
-}
 // Failure injection: flip one roster bit of node_fail. A bench SWITCH, not a DroneCAN message and
 // not damage - which is why nothing here reports a fault; the node simply stops publishing and
 // the game does the rest (an offline ESC's mixer command is forced to zero at the motor).
@@ -857,15 +778,10 @@ function dronecanToggleNodeFail(i) {
   dcTab.markDirty(); dcTab.render();
 }
 
-// ── The bench controls, from somewhere that is not the tab ────────────────────
-// drone.js drives the same aircraft from a floating panel, and it does it THROUGH THIS PAIR
-// rather than by keeping its own copy of the switches. One owner per signal is the rule the
-// uplink registry states; a panel with its own arm latch and mode index would be a second
-// owner, and the two would disagree the first time you touched the tab.
-//
-// The tab's widgets are re-read from dcCtl by dronecanOnShow, which switchViewTab already calls
-// on every show - so a panel change reaches them when you next look. The one case that needs
-// pushing is the tab being visible RIGHT NOW, behind the floating window.
+// ── The bench controls, for the Drone Control window ──────────────────────────
+// drone.js's floating Drone Control window is where the drone's switches are set, and it sets
+// them THROUGH THIS PAIR rather than by keeping its own copy. One owner per signal is the rule
+// the uplink registry states: dcCtl owns them, the window is a view over it.
 function dronecanCtl() {
   return {
     mode: dcCtl.mode, led: dcCtl.led, beep: dcCtl.beep, hook: dcCtl.hook,
@@ -874,8 +790,8 @@ function dronecanCtl() {
   };
 }
 
-// Apply a partial patch. Only a CHANGE latches an indication command, the same rule
-// dronecanCtlChange follows - holding a slider still must not spam LightsCommand.
+// Apply a partial patch. Only a CHANGE latches an indication command - holding a slider still
+// must not spam LightsCommand (see dcFlushCommands).
 function dronecanSetCtl(patch) {
   const p = patch || {};
   // No DroneCAN message behind these four (see the dcCtl header): they ride the uplink only.
@@ -896,7 +812,7 @@ function dronecanSetCtl(patch) {
     (dcCmdPending = dcCmdPending || {}).hook = dcCtl.hook;
   }
   // The gimbal's two axes latch ONE command between them - an orientation is both angles, so a
-  // patch carrying either has to send the pair (dronecanCtlChange's rule, and its reason).
+  // patch carrying either has to send the pair.
   if ('gimbalPitch' in p || 'gimbalYaw' in p) {
     const pitch = dcClampToRange('gimbal_pitch', 'gimbalPitch' in p ? p.gimbalPitch : dcCtl.gimbalPitch);
     const yaw = dcClampToRange('gimbal_yaw', 'gimbalYaw' in p ? p.gimbalYaw : dcCtl.gimbalYaw);
@@ -910,13 +826,9 @@ function dronecanSetCtl(patch) {
   dcCtlChanged();
 }
 // The refresh after a dcCtl change, from a panel edit (dronecanSetCtl) or a command that came off
-// the bus (dronecan-core.js's dcUplinkDecode). The tab's widgets are re-read from dcCtl on show;
-// push now only if it is on screen.
-dcCtlChanged = () => {
-  const wrap = document.getElementById('dronecanWrap');
-  if (wrap && wrap.style.display !== 'none') dronecanOnShow();
-  else dcTab.markDirty();
-};
+// the bus (dronecan-core.js's dcUplinkDecode). The tab shows no switch of its own, only what
+// the commands put on the bus, so a redraw is all it needs.
+dcCtlChanged = () => { dcTab.markDirty(); };
 
 // Which pre-arm checks refused, by name. A SET BIT IS A FAILED CHECK, and the seven names are
 // the contract's own bit order (prearm_fail's desc) - the same table the tab's arming pane
@@ -934,46 +846,8 @@ function dronecanRoster() { return DC_ROSTER.map(r => ({ name: r.name, id: r.id 
 function dronecanOnShow() {
   const en = document.getElementById('dcTxEnabled');
   if (en) en.checked = dcCfg.txEnabled;
-  // The service bar's node list comes off DC_ROSTER, never typed into the markup - the roster is
-  // the ONE place a node id is declared, and a hand-written <option> would be a second.
-  const sn = document.getElementById('dcSvcNode');
-  if (sn && !sn.options.length) {
-    sn.innerHTML = DC_ROSTER.map(r => `<option value="${r.id}">${r.id} ${dcEscHtml(r.name)}</option>`).join('');
-  }
   const fc = document.getElementById('dcFcNode');
   if (fc) fc.value = dcCfg.fcNode;
-  const md = document.getElementById('dcFlightMode');
-  if (md) {
-    // Positions and labels come off the CONTRACT's own enum table (built once), never retyped -
-    // the same rule the mode_actual / failsafe readouts follow.
-    if (!md.options.length) {
-      md.innerHTML = dcEnumKeys('flight_mode', 'in')
-        .map(k => `<option value="${k}">${dcEscHtml(dcEnumLabel('flight_mode', 'in', k))}</option>`).join('');
-    }
-    md.value = String(dcCtl.mode);
-  }
-  const col = document.getElementById('dcLedColor');
-  if (col) col.value = dcHexFromRgb565(dcCtl.led);
-  const bp = document.getElementById('dcBeep');
-  if (bp) bp.checked = dcCtl.beep;
-  const hk = document.getElementById('dcHook');
-  if (hk) hk.checked = dcCtl.hook;
-  // Slider bounds come off the CONTRACT's own ranges, never retyped - the same rule the flight
-  // mode selector's options follow. A contract that moves a gimbal stop moves the slider with it.
-  for (const [id, name] of [['dcGimbalPitch', 'gimbal_pitch'], ['dcGimbalYaw', 'gimbal_yaw']]) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    const sig = window.carlitoSig && window.carlitoSig(name, 'in');
-    if (sig && Array.isArray(sig.range) && sig.range.length === 2) {
-      el.min = String(sig.range[0]);
-      el.max = String(sig.range[1]);
-    }
-  }
-  const gp = document.getElementById('dcGimbalPitch');
-  if (gp) gp.value = String(dcCtl.gimbalPitch);
-  const gy = document.getElementById('dcGimbalYaw');
-  if (gy) gy.value = String(dcCtl.gimbalYaw);
-  dcGimbalReadout();
   dcTab.markDirty(); dcTab.render();
 }
 
@@ -983,22 +857,42 @@ function dronecanOnShow() {
 // pointer several times a second, which split clicks and restarted the hover fade.
 function dcPaneSlots(el) {
   if (el._dcSlots) return el._dcSlots;
+  // Section headers are part of this skeleton, so the service buttons in them are built once and
+  // never sit inside a data-slot (a slot's contents are rewritten as the bus changes).
+  const btn = (act, label, tip) => `<button type="button" class="btn" data-dc-act="${act}" title="${tip}">${label}</button>`;
   el.innerHTML =
-    `<div><div class="dc-grp-title">Node roster (uavcan.protocol.NodeStatus, msg 341 - click a row to fail it)</div><div data-slot="roster"></div></div>` +
-    `<div><div class="dc-grp-title">Services (GetNodeInfo 1 · RestartNode 5 · param.GetSet 11)</div><div class="dc-readout" data-slot="svcNote"></div><div data-slot="info"></div><div data-slot="param"></div></div>` +
-    `<div><div class="dc-grp-title">Dynamic node ID allocation (uavcan.protocol.dynamic_node_id.Allocation, msg 1, anonymous)</div><div data-slot="alloc"></div><div data-slot="allocLog"></div></div>` +
-    `<div><div class="dc-grp-title">Flight mode</div><div data-slot="mode"></div></div>` +
-    `<div><div class="dc-grp-title">ESC status (uavcan.equipment.esc.Status, msg 1034)</div><div data-slot="esc"></div></div>` +
-    `<div><div class="dc-grp-title">Arming (uavcan.equipment.safety.ArmingStatus, msg 1100)</div><div data-slot="arm"></div></div>` +
-    `<div><div class="dc-grp-title">Everything else on the bus</div><div data-slot="nodes"></div></div>` +
-    `<div class="dc-readout" data-slot="tx"></div>` +
-    `<div class="dc-readout" style="color:var(--text2)" data-slot="presence">No DroneCAN heard on this bus (no NodeStatus in 5 s, no drone on the Carlito link, not DroneCAN demo): decoding only - service requests and allocations are not answered.</div>`;
+    `<div><div class="sec" title="uavcan.protocol.NodeStatus, msg 341. Click a row to select it for Services.">Nodes</div><div data-slot="roster"></div></div>` +
+    `<div><div class="sec"><span title="GetNodeInfo 1 · RestartNode 5 · param.GetSet 11, asked from node 127 (a maintenance tool). A node that is not publishing does not answer - that silence is the reading.">Services</span><span data-slot="svcTarget"></span><span class="sec-actions">` +
+      btn('info', 'Node info', 'uavcan.protocol.GetNodeInfo (service 1). An EMPTY request - the question is the id - answered with the node&#39;s name, versions, unique id and its current NodeStatus.') +
+      btn('params', 'Parameters', 'uavcan.protocol.param.GetSet (service 11), walked by index until a nameless answer says there are no more. Index access exists only to enumerate; everything found is then addressable by name.') +
+      `<label class="field">Period <input type="text" id="dcSvcPeriod" value="1000" title="uavcan.node.status_period_ms, in ms. A real parameter: it is the rate this node&#39;s NodeStatus is published at, so setting it past 3000 makes the roster row go stale while its neighbours stay green."></label>` +
+      btn('period', 'Set', 'Send a param.GetSet with a VALUE, which is what makes it a set rather than a get.') +
+      btn('restart', 'Restart', 'uavcan.protocol.RestartNode (service 5) with the DSDL&#39;s magic number 0xACCE551B1E. The node acknowledges, then leaves the bus for a moment and comes back at uptime 0.') +
+      btn('badmagic', 'Bad magic', 'The same restart request with the wrong magic number. The DSDL says it must be rejected, and it is - ok=false, and the node keeps flying.') +
+    `</span></div><div class="dc-readout" data-slot="svcNote"></div><div data-slot="info"></div><div data-slot="param"></div></div>` +
+    `<div><div class="sec"><span title="uavcan.protocol.dynamic_node_id.Allocation, msg 1, anonymous">Node ID allocation</span><span class="sec-actions">` +
+      btn('alloc', 'New node asks for an ID', 'Simulate a new device with a unique id and no node id asking for one: three anonymous transfers, six unique-id bytes at a time, and a grant.') +
+    `</span></div><div data-slot="alloc"></div><div data-slot="allocLog"></div></div>` +
+    `<div><div class="sec">Flight mode</div><div data-slot="mode"></div></div>` +
+    `<div><div class="sec" title="uavcan.equipment.esc.Status, msg 1034">ESC status</div><div data-slot="esc"></div></div>` +
+    `<div><div class="sec" title="uavcan.equipment.safety.ArmingStatus, msg 1100">Arming</div><div data-slot="arm"></div></div>` +
+    `<div><div class="sec">Other nodes</div><div data-slot="nodes"></div></div>` +
+    `<div class="dc-readout" data-slot="tx"></div>`;
   const slots = {};
   el.querySelectorAll('[data-slot]').forEach(s => { slots[s.dataset.slot] = s; });
-  // One delegated listener for the roster's click-to-fail rows (data-dc-fail = roster index).
+  // One delegated listener for the whole pane. The Fail button sits INSIDE a roster row, so it is
+  // matched first: failing a node must not also move the selection.
+  const acts = {
+    info: dronecanGetNodeInfo, params: dronecanReadParams, period: dronecanSetPeriod,
+    restart: dronecanRestartNode, badmagic: dronecanRestartBadMagic, alloc: dronecanRequestAllocation,
+  };
   el.addEventListener('click', e => {
-    const tr = e.target.closest('[data-dc-fail]');
-    if (tr) dronecanToggleNodeFail(+tr.dataset.dcFail);
+    const f = e.target.closest('[data-dc-fail]');
+    if (f) { dronecanToggleNodeFail(+f.dataset.dcFail); return; }
+    const a = e.target.closest('[data-dc-act]');
+    if (a) { if (acts[a.dataset.dcAct]) acts[a.dataset.dcAct](); return; }
+    const tr = e.target.closest('tr[data-dc-sel]');
+    if (tr) { dcSelIdx = +tr.dataset.dcSel; dcTab.markDirty(); dcTab.render(); }
   });
   return (el._dcSlots = slots);
 }
@@ -1016,7 +910,7 @@ function dcRenderTop() {
   keyed(slot.esc, {
     tableClass: 'dc-tbl',
     theadHtml: '<tr><th>esc_index</th><th>Node</th><th>RPM</th><th>A</th><th>°C</th><th>V</th><th>Pwr %</th><th>Errors</th></tr>',
-    emptyHtml: `<div class="dc-empty">No esc.Status decoded yet.<br>Fly the <b>drone</b> in the Carlito window, or press <b>Demo</b> with this tab open for a simulated quad - no hardware needed.</div>`,
+    emptyHtml: '<div class="empty">No ESC status yet.</div>',
   }, escNodes, ([node]) => node, ([node, n]) => {
     const v = n.last.vals;
     return { cells: [
@@ -1039,7 +933,7 @@ function dcRenderTop() {
   const nowMs = Date.now();
   keyed(slot.roster, {
     tableClass: 'dc-tbl',
-    theadHtml: '<tr><th>Node</th><th>ID</th><th>Health</th><th>Uptime</th><th>Last seen</th><th>State</th></tr>',
+    theadHtml: '<tr><th>Node</th><th>ID</th><th>Health</th><th>Uptime</th><th>Last seen</th><th>State</th><th></th></tr>',
   }, DC_ROSTER, (r, i) => i, (r, i) => {
     const n = dcNodes.get(r.id);
     const seen = n && n.nsAt;
@@ -1062,9 +956,11 @@ function dcRenderTop() {
     const state = rebooting ? '<span class="dc-chip warn">restarting</span>'
       : killed ? '<span class="dc-chip warn">commanded off</span>'
       : '<span class="dc-chip off">on bus</span>';
+    // Its own cell, so the state chip flipping (a restart ending) never rebuilds the button.
+    const failBtn = `<button type="button" class="btn" data-dc-fail="${i}" title="${killed ? 'Put this node back on the bus' : 'Take this node off the bus'} (contract node_fail bit ${i})">${killed ? 'Restore' : 'Fail'}</button>`;
     return {
-      style: 'cursor:pointer', data: { dcFail: i },
-      title: `Click to take this node off the bus (contract node_fail bit ${i})`,
+      cls: i === dcSelIdx ? 'dc-sel' : '', style: 'cursor:pointer', data: { dcSel: i },
+      title: 'Select for Services',
       cells: [
         { cls: 'dc-node', html: dcEscHtml(r.name) },
         r.id,
@@ -1072,6 +968,7 @@ function dcRenderTop() {
         upt + perNote,
         { cls: 'dc-ts', html: seen ? dcRelTs(seen) : '-' },
         state,
+        failBtn,
       ],
     };
   });
@@ -1080,11 +977,13 @@ function dcRenderTop() {
   // What the roster ANSWERED, kept apart from what it publishes: a service response is not a
   // heartbeat, and a node that answered a question five seconds ago may be off the bus now. So
   // this is a record of exchanges, timestamped, rather than a live view of anything.
-  setHtml(slot.svcNote, dcSvcNote ? dcEscHtml(dcSvcNote) : 'A service is a question addressed to one node, and that node&#39;s answer addressed back - the only two-way traffic on this bus.');
+  const sel = DC_ROSTER[dcSelIdx];
+  setHtml(slot.svcTarget, `&rarr; ${sel.id} ${dcEscHtml(sel.name)}`);
+  setHtml(slot.svcNote, dcSvcNote ? dcEscHtml(dcSvcNote) : '');
   keyed(slot.info, {
     tableClass: 'dc-tbl',
     theadHtml: '<tr><th>Node</th><th>Name</th><th>SW / HW</th><th>Unique ID</th><th>Uptime</th><th>Health</th></tr>',
-    emptyHtml: '<div class="dc-empty">No node has been asked who it is yet.<br>Pick a node in the bar above and press <b>Get node info</b> - the request is an EMPTY transfer, and the answer is the widest one on this bus.</div>',
+    emptyHtml: '<div class="empty">No node info yet.</div>',
   }, [...dcNodeInfo.entries()].sort((a, b) => a[0] - b[0]), ([node]) => node, ([node, v]) => ({ cells: [
     { cls: 'dc-node', html: node },
     { cls: 'dc-msg', html: dcEscHtml(v.nameText) },
@@ -1099,7 +998,7 @@ function dcRenderTop() {
   keyed(slot.param, {
     tableClass: 'dc-tbl',
     theadHtml: '<tr><th>Node</th><th>Parameter</th><th>Value</th><th>Default</th><th>Range</th></tr>',
-    emptyHtml: '<div class="dc-empty">No parameters read yet. <b>Read parameters</b> walks them by index until a nameless answer says there are no more - there is no count to ask for.</div>',
+    emptyHtml: '<div class="empty">No parameters yet.</div>',
   }, params, r => r.node + ':' + r.k, ({ node, p, k }) => ({ cells: [
     { cls: 'dc-node', html: k ? '' : node },
     { cls: 'dc-msg', html: dcEscHtml(p.name) },
@@ -1116,7 +1015,7 @@ function dcRenderTop() {
   ] }));
   setHtml(slot.allocLog, dcAllocLog.length
     ? `<div class="dc-readout">${dcAllocLog.map(e => dcEscHtml(e.text)).join('<br>')}</div>`
-    : '<div class="dc-empty">Nothing has asked for a node id yet.<br>The eight roster ids above are DECLARED - somebody decided the GNSS node is 20. <b>New node asks for an ID</b> plugs in a device that has only a 16-byte unique id, and it has to negotiate one over a bus whose addressing is built out of node ids.</div>');
+    : '<div class="empty">No allocation requests yet.</div>');
 
   // ── The mode triple ─────────────────────────────────────────────────────────
   // THE PAIR IS THE POINT: a request and an actual mode that disagree is the reading, so the two
@@ -1135,20 +1034,19 @@ function dcRenderTop() {
     const fs = dcEnumLabel('failsafe', 'out', dcFlight.fs);
     modeRows = [
       [agree ? 'flight_mode' : 'flight_mode &rarr; mode_actual', modeCell + (agree ? '' : ' <span style="color:var(--text2)">the flight controller is not flying what was asked for</span>')],
-      [{ span: 2, style: 'color:var(--text2)', html: 'The request is THIS BAR\'S selector - with the Carlito window\'s Up link off it is not being sent, and the craft is flying whatever its own Z key selected.' }],
       ['failsafe', `<span class="dc-chip ${dcFlight.fs ? 'warn' : 'off'}">${dcEscHtml(fs)}</span>`],
       ['home_dist', `${Number.isFinite(dcFlight.home) ? dcFlight.home.toFixed(1) + ' m' : '-'} <span style="color:var(--text2)">derived FC state - no DroneCAN message carries it</span>`],
     ];
   }
   keyed(slot.mode, {
     tableClass: 'dc-tbl',
-    emptyHtml: '<div class="dc-empty">No flight mode yet - it arrives with the drone\'s telemetry.</div>',
+    emptyHtml: '<div class="empty">No flight mode yet.</div>',
   }, modeRows, (r, i) => i, cells => ({ cells }));
 
   keyed(slot.nodes, {
     tableClass: 'dc-tbl',
     theadHtml: '<tr><th>Node</th><th>Messages</th><th>Last seen</th></tr>',
-    emptyHtml: '<div class="dc-empty">No DroneCAN nodes seen yet.</div>',
+    emptyHtml: '<div class="empty">No DroneCAN nodes yet.</div>',
   }, [...dcNodes.entries()].sort((a, b) => a[0] - b[0]), ([node]) => node, ([node, n]) => ({ cells: [
     { cls: 'dc-node', html: node },
     { cls: 'dc-msg', html: dcEscHtml([...n.msgs].join(', ')) },
@@ -1184,7 +1082,7 @@ function dcRenderTop() {
   }
   keyed(slot.arm, {
     tableClass: 'dc-tbl',
-    emptyHtml: '<div class="dc-empty">No arming state yet - it arrives with the drone\'s telemetry.</div>',
+    emptyHtml: '<div class="empty">No arming state yet.</div>',
   }, armRows, (r, i) => i, cells => ({ cells }));
 
   const txState = !dcCfg.txEnabled
@@ -1193,16 +1091,20 @@ function dcRenderTop() {
       ? `<span class="dc-chip ok">publishing</span> ${dcTxCount} frames`
       : `<span class="dc-chip off">idle</span> ${dcTxCount} frames${dcLastTx ? ' · last ' + dcRelTs(dcLastTx) : ''}`;
   setHtml(slot.tx, `Publishing to the bus: ${txState}`);
+  const decodeOnly = document.getElementById('dcDecodeOnly');
   const quiet = dcPresent() ? 'none' : '';
-  if (slot.presence.style.display !== quiet) slot.presence.style.display = quiet;
+  if (decodeOnly && decodeOnly.style.display !== quiet) decodeOnly.style.display = quiet;
 
   // Transfer-level errors live on the log bar, next to the log they explain. `orphan` is not a
   // fault - it counts transfers we joined mid-flight, which is normal right after connecting.
   const errEl = document.getElementById('dc-errs');
   if (errEl) {
     const e = dcRx.err;
-    const part = (label, v) => v ? `<b>${label} ${v}</b>` : `${label} ${v}`;
-    setHtml(errEl, `${part('CRC', e.crc)} · ${part('toggle', e.toggle)} · ${part('transfer-id', e.tid)} · ${part('oversize', e.oversize)} · joined mid-transfer ${e.orphan}`);
+    // Only the counters that have counted anything; a clean bus shows nothing here.
+    const parts = [['CRC', e.crc, 1], ['toggle', e.toggle, 1], ['transfer-id', e.tid, 1],
+      ['oversize', e.oversize, 1], ['joined mid-transfer', e.orphan, 0]]
+      .filter(([, v]) => v > 0).map(([label, v, bad]) => bad ? `<b>${label} ${v}</b>` : `${label} ${v}`);
+    setHtml(errEl, parts.join(' · '));
   }
 }
 
@@ -1212,9 +1114,7 @@ dcTab = window.makeStackedLogTab({
   wrapId: 'dronecanWrap', logElId: 'dc-log',
   tableClass: 'dc-tbl', logMax: DC_LOG_MAX,
   theadHtml: '<tr><th>Time</th><th>CAN ID</th><th>Node</th><th>Message</th><th>Frm</th><th>CRC</th><th>Payload</th><th>Decoded</th></tr>',
-  emptyHtml: '<div class="dc-empty">No DroneCAN transfers yet.<br>' +
-    'A 29-bit id splits into priority / message type id / source node; multi-frame transfers are reassembled here and their CRC checked.<br>' +
-    'Press <b>Demo</b> with this tab open for a simulated quad, or fly the drone in the Carlito window.</div>',
+  emptyHtml: '<div class="empty">No DroneCAN transfers yet.</div>',
   renderTop: dcRenderTop,
   row: (e) => {
     const cnt = e.count && e.count > 1 ? ` <span style="color:var(--text3)">×${e.count}</span>` : '';
@@ -1858,8 +1758,6 @@ window.dronecanDemoStart = dcDemoStart;   // demo base-traffic engine starts/sto
 window.dronecanDemoStop = dcDemoStop;
 window.dronecanOnShow = dronecanOnShow;
 window.dronecanCfgChange = dronecanCfgChange;
-window.dronecanCtlChange = dronecanCtlChange;
-window.dronecanLedOff = dronecanLedOff;
 window.dronecanToggleNodeFail = dronecanToggleNodeFail;
 // The bench controls, reachable from the floating Drone Control panel (drone.js). dcCtl stays
 // the single owner of every drone "in" signal; these are its accessors.

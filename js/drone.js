@@ -3,9 +3,9 @@
 // an aircraft instead of a car:
 //   1. Drone Dashboard - renders the Carlito drone's telemetry (arming, mode, pack, GNSS,
 //      heights, the four ESCs, the eight-node bus) straight off the telemetry push.
-//   2. Drone Control - the sticks and switches that fly it. ARM and the climb axis reach the
-//      game nowhere else; the rest are dronecan.js's bench controls, brought to a window you
-//      can watch the aircraft from.
+//   2. Drone Control - the sticks and switches that fly it, and the only place the drone's
+//      "in" signals are set. It opens alone from the DroneCAN tab's Drone controls button, with
+//      no game too: the DroneCAN demo puts its LED / beep / hook / gimbal commands on the bus.
 //
 // WHY THIS EXISTS. While the bridge is fresh the game's InputRouter reads the payload and
 // ignores its own latches, and the touch overlay hides every control it has taken - so with
@@ -14,14 +14,14 @@
 // all, which is why the aircraft could not take off.
 //
 // OWNERSHIP. Every drone "in" signal is owned by dronecan-core.js's dcCtl - this file is a view over
-// it through window.dronecanCtl / dronecanSetCtl, so the DroneCAN tab and this panel are two
-// windows onto one set of switches rather than two sets. The exception is the SHARED axes
-// (accel / brake / steer / key), which carlito.js sources from RAMN state for every vehicle:
+// it through window.dronecanCtl / dronecanSetCtl, never a second set of switches. The exception
+// is the SHARED axes (accel / brake / steer / key), which carlito.js sources from RAMN state for every vehicle:
 // those are CLAIMED through window.carlitoUplinkOverrides while this panel is flying, and
 // handed straight back when it is not.
 //
 // INTEGRATION POINTS - the only changes required in the other files:
-//   index.html         <script src="drone.js" defer>  (after ramn.js + dronecan.js) + #droneBtn, shipped style="display:none"
+//   index.html         <script src="drone.js" defer>  (after ramn.js + dronecan.js) + #droneBtn, shipped style="display:none";
+//                      the DroneCAN tab's Drone controls button → window.droneCtrlToggle
 //   sloppycan.js       _buttonsWrap() id list; switchViewTab('dronecan') →
 //                      window.vehiclePanelRequestForProto('dronecan')
 //   vehicle-panel.js   fan-out, link detection, RAMN handoff, deep link, button visibility, both
@@ -377,6 +377,7 @@
       droneLive = live;
       if (live && !dashOpen() && !ctrlOpen()) { autoOpened = true; setPairOpen(true); }
       else if (!live && autoOpened) { autoOpened = false; setPairOpen(false); }
+      handoffRamn();   // a window opened with no drone claims nothing until one arrives
     }
     markDirty();
   });
@@ -405,9 +406,11 @@
   // ── The RAMN pair steps aside ───────────────────────────────────────────────
   // `takes` 'pair': while this panel is flying it has taken accel/brake/steer off the RAMN
   // controls, so leaving them up is two control surfaces for one aircraft. A road vehicle's
-  // panel takes 'dash' instead. What was up before is remembered in vehicle-panel.js.
+  // panel takes 'dash' instead. What was up before is remembered in vehicle-panel.js. Only with a
+  // drone on the link: Drone Control opened from the DroneCAN tab with a car or truck flying (or
+  // nothing) must not shut that vehicle's panel and the RAMN controls it is driven with.
   function handoffRamn() {
-    if (window.vehiclePanelClaim) window.vehiclePanelClaim('drone', dashOpen() || ctrlOpen(), 'pair');
+    if (window.vehiclePanelClaim) window.vehiclePanelClaim('drone', droneLive && (dashOpen() || ctrlOpen()), 'pair');
   }
 
   // Paired toolbar toggle, ramnToggle's shape: opens both, or closes both once everything is
@@ -418,7 +421,7 @@
     setPairOpen(!allOpen);
   }
   function droneIsOpen() { return dashOpen() || ctrlOpen(); }
-  function droneCtrlToggle() { setCtrlOpen(!ctrlOpen()); }
+  function droneCtrlToggle() { autoOpened = false; setCtrlOpen(!ctrlOpen()); }   // by hand, as droneToggle
 
   // Asking the game for a drone is NOT here: switchViewTab('dronecan') calls
   // vehiclePanelRequestForProto('dronecan'), the entry every protocol view shares.
@@ -433,8 +436,8 @@
       // The arm note reads the LIVE arming state, so it has to follow the telemetry. The rest of
       // the control UI is written on events only - a render tick that reassigned a range input's
       // .value would fight the pointer dragging it - EXCEPT when dcCtl changed behind our back,
-      // which is what happens when the DroneCAN tab's own widgets are used. One owner is only
-      // one owner if both windows show what it says, so an outside edit forces a full sync.
+      // which is what happens when a command comes off the bus (dronecan-core.js's
+      // dcUplinkDecode). This window has to show what the owner says, so an outside edit forces a full sync.
       if (ctrlOpen()) { if (ctlChangedElsewhere()) syncCtrlUI(); else syncArmNote(); }
     });
   }
@@ -570,7 +573,7 @@
     if (!el.armBtn) return;
     const c = ctl();
     lastCtlSig = ctlSig(c);
-    // Adopt a climb the DroneCAN tab (or anything else) set, so the slider is not a second
+    // Adopt a climb something else set, so the slider is not a second
     // opinion. A key HELD wins - it is the more recent instruction and it is still being given.
     if (climbKey === 0 && c.climb !== climbSlider) climbSlider = c.climb;
     el.climb.value = String(climbSlider);
@@ -613,7 +616,7 @@
   }
 
   // dcCtl is written on EDGES only, never per frame: dronecanSetCtl schedules a workspace save
-  // and can push the DroneCAN tab's widgets, neither of which belongs on a 60 Hz path.
+  // and redraws the DroneCAN tab, neither of which belongs on a 60 Hz path.
   function pushClimb() {
     const v = climbNow();
     if (v !== ctl().climb) setCtl({ climb: v });
@@ -649,7 +652,7 @@
   (function wire() {
 
     // Mode positions and labels come off the CONTRACT's enum table, never retyped - the rule the
-    // DroneCAN tab's own selector follows. The help text is keyed by LABEL rather than by index,
+    // DroneCAN tab's mode readouts follow. The help text is keyed by LABEL rather than by index,
     // so a mode the contract grows simply arrives without a tooltip instead of inheriting the
     // wrong one.
     const modeSeg = ctrlWin.querySelector('#dncModeSeg');
@@ -700,8 +703,8 @@
       gimbP: q(ctrlWin, 'dncGimbP'), gimbY: q(ctrlWin, 'dncGimbY'), gimbV: q(ctrlWin, 'dncGimbV'),
     };
 
-    // Gimbal slider bounds come off the CONTRACT's own ranges rather than the markup's - the rule
-    // dronecanOnShow follows, so a contract that moves a stop moves the slider with it.
+    // Gimbal slider bounds come off the CONTRACT's own ranges rather than the markup's, so a
+    // contract that moves a stop moves the slider with it.
     for (const [node, name] of [[el.gimbP, 'gimbal_pitch'], [el.gimbY, 'gimbal_yaw']]) {
       const s = sigDef(name, 'in');
       if (s && Array.isArray(s.range) && s.range.length === 2) { node.min = String(s.range[0]); node.max = String(s.range[1]); }
@@ -732,8 +735,7 @@
     });
     el.hookBtn.addEventListener('click', () => setCtl({ hook: !ctl().hook }));
     el.beepBtn.addEventListener('click', () => setCtl({ beep: !ctl().beep }));
-    // 'change', not 'input' - the DroneCAN tab's own picker uses onchange for the same reason:
-    // a colour input fires continuously while the OS picker is being dragged, and every distinct
+    // 'change', not 'input': a colour input fires continuously while the OS picker is being dragged, and every distinct
     // value would latch another LightsCommand. The commit is the command.
     el.led.addEventListener('change', () =>
       setCtl({ led: window.dronecanRgb565FromHex ? window.dronecanRgb565FromHex(el.led.value) : 0 }));

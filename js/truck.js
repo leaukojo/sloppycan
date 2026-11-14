@@ -2,7 +2,8 @@
 // One floating window, following the Carlito link through vehicle-panel.js. Takes 'dash':
 // a truck is driven with the RAMN controls, so it replaces the cluster and the Control Panel
 // keeps driving. Claims no uplink signal and owns none: its Commands section is a view over the
-// modules that do - isobus.js (pto), cleanopen.js (body_cmd), j1939-flavor.js (retarder).
+// modules that do - isobus.js (pto), cleanopen.js (body_cmd), j1939-flavor.js (retarder),
+// j1939.js (the DM1 and trailer lamps).
 //
 // TELEMETRY ONLY, like boat.js: every instrument is the game's own publish, never
 // window.ramnGetState() (what sloppyCAN COMMANDS - and blank under J1939 traffic, which is exactly
@@ -19,7 +20,7 @@
 
   const style = document.createElement('style');
   style.textContent = `
-/* Commands: views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js) */
+/* Commands: views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js, j1939.js) */
 .truck-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
 .truck-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
 .truck-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
@@ -34,6 +35,10 @@
 .truck-ctl .bus { outline:1px solid var(--amber); outline-offset:1px; }
 .truck-gap { margin-top:7px; }
 .truck-inhib { display:flex; align-items:center; justify-content:center; }
+/* The five lamps, three to a row: a caption over a four-state select keeps the section short. */
+.truck-lamps { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.truck-lamps label { display:flex; flex-direction:column; gap:2px; min-width:0; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
+.truck-lamps select { width:100%; min-width:0; }
 `;
   document.head.appendChild(style);
 
@@ -161,7 +166,7 @@
     </div>
 
     <div class="vp-rule"></div>
-    <div class="truck-ctl" title="The truck's commands, sent to Carlito over the uplink. Each is owned by the module for its bus, and the PTO and body command are also read off the bus: while a frame is holding one it is ringed amber, and touching the control takes it back. The trailer lamps are injected from the J1939 tab, beside the DM1 lamps.">
+    <div class="truck-ctl" title="The truck's commands, sent to Carlito over the uplink. Each is owned by the module for its bus, and the PTO and body command are also read off the bus: while a frame is holding one it is ringed amber, and touching the control takes it back. The lamps are j1939.js's: off, on, or flashing at 1 or 2 Hz.">
       <div class="truck-ctl-cap"><span>Commands</span><span class="bus-key">amber = held by the bus</span></div>
       <div class="truck-ctl-row">
         <span class="lbl">PTO</span>
@@ -173,6 +178,7 @@
       <div class="truck-ctl-row" title="contract retarder - driveline retarder request, 0 released (j1939-flavor.js). Panel only: its J1939 carrier (TSC1 to the retarder) has no decoder here yet.">
         <span class="lbl">Retarder</span><input type="range" id="truckCtlRet" min="0" max="100" value="0"><span class="v" id="truckCtlRetV">0%</span>
       </div>
+      <div id="truckCtlLamps" class="truck-lamps truck-gap"></div>
     </div>
 `;
 
@@ -266,6 +272,7 @@
     ib: window.isobusCtl ? window.isobusCtl() : null,
     co: window.cleanopenCtl ? window.cleanopenCtl() : null,
     jf: window.j1939FlavorCtl ? window.j1939FlavorCtl() : null,
+    lamps: window.j1939LampsCtl ? window.j1939LampsCtl() : null,
   });
   const setCtl = (fn, p) => { if (window[fn]) window[fn](p); markDirty(); };
   function renderCtl() {
@@ -282,7 +289,24 @@
       if (document.activeElement !== el.ret) el.ret.value = c.jf.retarder;
       el.retV.textContent = c.jf.retarder + '%';
     }
+    if (c.lamps) {
+      for (const sel of el.lamps.querySelectorAll('select')) {
+        const v = String(c.lamps[sel.dataset.lamp]);
+        if (document.activeElement !== sel && sel.value !== v) sel.value = v;
+      }
+    }
   }
+
+  // The five lamps j1939.js sources, in J1939-73's four DM1 states. DM1's MIL is not here: it is
+  // the contract's own checkEngine. The trailer pair is not DM1 but takes the same four states.
+  const LAMPS = [
+    ['red_stop', 'Stop', 'contract red_stop (DM1 Red Stop Lamp). The flash states send the bit at that rate; the game mirrors it verbatim, exactly like a turn signal.'],
+    ['amber_warn', 'Warn', 'contract amber_warn (DM1 Amber Warning Lamp).'],
+    ['protect_lamp', 'Protect', 'contract protect_lamp (DM1 Protect Lamp - a non-electronic fault).'],
+    ['trailer_ebs_fault', 'Trl EBS', "contract trailer_ebs_fault - the towed unit's ISO 11992 EBS fault, injected from here. Nothing in the game ever sets this lamp."],
+    ['trailer_abs_lamp', 'Trl ABS', 'contract trailer_abs_lamp - the trailer ABS telltale SAE J2497 carries on the POWER LINE. No CAN frame carries it.'],
+  ];
+  const LAMP_STATES = ['Off', 'On', '1 Hz', '2 Hz'];
 
   // ── Wire ────────────────────────────────────────────────────────────────────
   (function wire() {
@@ -305,6 +329,7 @@
       tIgn: q('truckTellIgn'), tPark: q('truckTellPark'), tLights: q('truckTellLights'), tBrk: q('truckTellBrk'),
       tYaw: q('truckTellYaw'), tRoll: q('truckTellRoll'), tEsc: q('truckTellEsc'), tMove: q('truckTellMove'),
       pto: q('truckCtlPto'), body: q('truckCtlBody'), ret: q('truckCtlRet'), retV: q('truckCtlRetV'),
+      lamps: q('truckCtlLamps'),
     };
 
     // The body command's positions come off the CONTRACT's enum rather than being typed here.
@@ -316,6 +341,17 @@
       b.addEventListener('click', () => setCtl('cleanopenSetCtl', { body_cmd: Number(v) }));
       el.body.appendChild(b);
     }
+    for (const [name, label, tip] of LAMPS) {
+      const cell = document.createElement('label');
+      cell.title = tip;
+      cell.innerHTML = `<span>${label}</span><select data-lamp="${name}">` +
+        LAMP_STATES.map((s, i) => `<option value="${i}">${s}</option>`).join('') + '</select>';
+      el.lamps.appendChild(cell);
+    }
+    el.lamps.addEventListener('change', e => {
+      const sel = e.target.closest('select[data-lamp]');
+      if (sel) setCtl('j1939LampsSetCtl', { [sel.dataset.lamp]: Number(sel.value) });
+    });
     el.pto.addEventListener('click', () => { const c = ctl().ib; setCtl('isobusSetCtl', { pto: c && c.pto ? 0 : 1 }); });
     el.ret.addEventListener('input', () => setCtl('j1939FlavorSetCtl', { retarder: +el.ret.value }));
   })();

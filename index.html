@@ -41,7 +41,7 @@
 <script src="js/carlito.js" defer></script><!-- Carlito game link module -->
 <script src="js/script-link.js" defer></script><!-- Script link: live frames to/from local scripts via scripting/sloppycan_relay.py -->
 </head>
-<body>
+<body class="no-link"><!-- syncLinkState() owns no-link; set here so a fresh load never flashes the chrome -->
 
 <header>
   <div class="brand-cluster">
@@ -62,7 +62,7 @@
       <select id="wsSelect" onchange="switchWorkspace(this.value)" class="hdr-select ws-select"></select>
     </label>
     <div class="menu-anchor">
-      <button class="btn ws-menu-btn" id="wsMenuBtn" onclick="toggleWsMenu()" aria-label="Workspace actions" title="Workspace actions">⋯</button>
+      <button class="btn ws-menu-btn" id="wsMenuBtn" onclick="toggleWsMenu()" aria-label="Menu" title="Menu">⋯</button>
       <div id="wsMenu" class="dropdown-menu ws-menu" style="display:none">
         <button class="ws-item" onclick="newWorkspace();closeWsMenu()">New…</button>
         <button class="ws-item" onclick="renameWorkspace();closeWsMenu()">Rename…</button>
@@ -71,36 +71,44 @@
         <div class="menu-divider"></div>
         <button class="ws-item" onclick="exportWorkspace();closeWsMenu()">Export…</button>
         <button class="ws-item" onclick="document.getElementById('wsImportFile').click();closeWsMenu()">Import…</button>
+        <div class="menu-divider"></div>
+        <!-- Global prefs (collectPrefs / applyPrefs), not per-workspace -->
+        <div class="sec ws-menu-sec">Settings</div>
+        <label class="field ws-menu-field" title="Render refresh cap. Lower = less CPU; Max = render as fast as possible.">
+          Render rate
+          <select id="fpsLimit" onchange="setFpsLimit(parseInt(this.value))" class="hdr-select">
+            <option value="2">2</option>
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="30">30</option>
+            <option value="0">Max</option>
+          </select>
+        </label>
+        <label class="field ws-menu-field" title="Traffic Dump capacity. When full, the oldest frames are dropped.">
+          Buffer size
+          <select id="bufferSizeSelect" onchange="setBufferSize(parseInt(this.value))" class="hdr-select">
+            <option value="10000">10k</option>
+            <option value="50000">50k</option>
+            <option value="100000" selected>100k</option>
+            <option value="500000">500k</option>
+            <option value="1000000">1M</option>
+          </select>
+        </label>
       </div>
       <input type="file" id="wsImportFile" accept="application/json,.json" style="display:none"
         onchange="if(this.files[0]){importWorkspace(this.files[0]);this.value=''}">
     </div>
-    <div class="sep sep-20 sep-mx6"></div>
-    <label class="header-check hdr-tag-gap4" title="Render refresh cap. Lower = less CPU; Max = render as fast as possible.">
-      <span class="hdr-tag">FPS</span>
-      <select id="fpsLimit" onchange="setFpsLimit(parseInt(this.value))" class="hdr-select">
-        <option value="2">2</option>
-        <option value="5">5</option>
-        <option value="10" selected>10</option>
-        <option value="30">30</option>
-        <option value="0">Max</option>
-      </select>
-    </label>
   </div>
   <div class="header-sep"></div>
-  <div class="header-stats" id="headerStats">
-    <button class="hstat-toggle" id="statsToggle" onclick="toggleStatsCollapse()" title="Collapse / expand the live counters" aria-label="Collapse or expand live counters">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>
-    </button>
-    <div class="hstat-group" id="statGroup">
-      <div class="hstat" title="Unique CAN identifiers seen since the last clear."><div class="hstat-val" id="statIds">0</div><div class="hstat-lbl">IDs</div></div>
-      <div class="hstat" title="Total frames received since the last clear."><div class="hstat-val" id="statTotal">0</div><div class="hstat-lbl">Frames</div></div>
-      <div class="hstat" title="Live receive rate - frames per second."><div class="hstat-val" id="statRate">0</div><div class="hstat-lbl">fps</div></div>
-      <div class="hstat" title="CAN / adapter error frames seen."><div class="hstat-val" id="statErrors">0</div><div class="hstat-lbl">Errors</div></div>
-      <div class="hstat" title="Total payload bytes received."><div class="hstat-val" id="statBytes">0</div><div class="hstat-lbl">Bytes</div></div>
-    </div>
+  <!-- IDs + fps always; Errors only when > 0, Memory only at >= 75% (updateStats). Frames and bytes
+       are in the block's tooltip. #statBytes is can-link.js's write target (its host shim), kept hidden. -->
+  <div class="header-stats link-only" id="headerStats">
+    <div class="hstat"><div class="hstat-val" id="statIds">0</div><div class="hstat-lbl">IDs</div></div>
+    <div class="hstat"><div class="hstat-val" id="statRate">0</div><div class="hstat-lbl">fps</div></div>
+    <div class="hstat" id="statErrorsBox" style="display:none" title="CAN / adapter error frames seen."><div class="hstat-val stat-err" id="statErrors">0</div><div class="hstat-lbl">Errors</div></div>
     <div class="hstat" id="statIdsCap" style="display:none" title="ID list capped - oldest IDs dropped"><div class="hstat-lbl" style="color:var(--amber)">IDs capped</div></div>
-    <div class="hstat" title="Traffic Dump memory in use. At 100% the oldest frames are dropped (capacity set under Connect ▸ Buffer size)."><div class="hstat-val" id="statDumpBuf">0%</div><div class="hstat-lbl">Memory</div></div>
+    <div class="hstat" id="statMemBox" style="display:none" title="Traffic Dump memory in use. At 100% the oldest frames are dropped (capacity set under Menu ▸ Buffer size)."><div class="hstat-val" id="statDumpBuf">0%</div><div class="hstat-lbl">Memory</div></div>
+    <span id="statBytes" hidden></span>
   </div>
   <div id="pausedBadge" style="display:none" class="badge-paused">
     <div class="badge-paused-dot"></div> PAUSED
@@ -112,9 +120,8 @@
       <span>Connect</span>
     </button>
     <div id="connectPopover" class="dropdown-menu connect-popover" style="display:none">
-      <div class="connect-pop-title">Adapter settings</div>
-      <label class="header-check" title="Adapter protocol. SLCAN = serial text adapters; gs_usb = candleLight / CANable native (WebUSB).">
-        <span class="hdr-tag">Adapter</span>
+      <label class="field" title="Adapter protocol. SLCAN = serial text adapters; gs_usb = candleLight / CANable native (WebUSB).">
+        Adapter
         <select id="adapterType" class="hdr-select" onchange="updateAdapterSettingsUi()">
           <option value="serial" selected>SLCAN</option>
           <option value="socket">SLCAN (socket tunnel)</option>
@@ -126,8 +133,8 @@
         <span class="hdr-tag">SLCAN socket tunnel (raw, no telnet)</span>
         <input id="socketTunnelUrl" type="text" value="ws://127.0.0.1:29542/" placeholder="socket://host:port or ws://host:port/path">
       </div>
-      <label class="header-check" title="CAN bus bit rate. Must match the bus you're tapping - a mismatch means no frames (or an error storm).">
-        <span class="hdr-tag">Baudrate</span>
+      <label class="field" title="CAN bus bit rate. Must match the bus you're tapping - a mismatch means no frames (or an error storm).">
+        Baudrate
         <select id="baudRate" class="hdr-select">
           <option value="S0">10k</option>
           <option value="S1">20k</option>
@@ -148,16 +155,6 @@
       <label class="header-check" title="Receive only - never transmit on the bus. Safe for tapping an unknown bus.">
         <input type="checkbox" id="listenOnly" onchange="if(window.obdStop)obdUpdateAvailability()">
         <span>Listen-only</span>
-      </label>
-      <label class="header-check" title="Traffic Dump capacity. When full, the oldest frames are dropped.">
-        <span class="hdr-tag">Buffer size</span>
-        <select id="bufferSizeSelect" onchange="setBufferSize(parseInt(this.value))" class="hdr-select">
-          <option value="10000">10k</option>
-          <option value="50000">50k</option>
-          <option value="100000" selected>100k</option>
-          <option value="500000">500k</option>
-          <option value="1000000">1M</option>
-        </select>
       </label>
       <button class="btn primary connect-confirm" id="connectConfirmBtn" onclick="connectSerial()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -211,19 +208,19 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>
     <span>Script</span><span id="scriptLinkStatus" class="sl-dot"></span>
   </button>
-  <div class="sep sep-20"></div>
+  <div class="sep sep-20 link-only"></div>
   <!-- Merged bus/pause button (cycles Open Bus → Pause → Resume) + Clear, moved into the header -->
-  <button class="btn" id="busPauseBtn" onclick="busPauseClick()" disabled
+  <button class="btn link-only" id="busPauseBtn" onclick="busPauseClick()" disabled
     title="Open the CAN bus, then pause / resume frame capture (cycles Open Bus → Pause → Resume).">
     <svg id="busPayIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
     <span id="busPayLabel">Open Bus</span>
   </button>
-  <button class="btn" id="clearMainBtn" onclick="clearFrames()"
+  <button class="btn link-only" id="clearMainBtn" onclick="clearFrames()"
     title="Clear all captured frames, the Traffic Dump, and the counters - resets the live view.">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M8 6V4h8v2"/></svg>
     <span>Clear</span>
   </button>
-  <div class="sep sep-20"></div>
+  <div class="sep sep-20 link-only"></div>
   <button class="btn danger" id="disconnectBtn" onclick="disconnectSerial()" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
     <span>Disconnect</span>
@@ -231,7 +228,7 @@
 </header>
 
 <div id="noSerialBanner" class="no-serial-banner">
-  ⚠ Web Serial API not available. Please use Chrome or Edge (version 89+). This interface requires a Chromium-based browser.
+  Needs Chrome or Edge.
 </div>
 
 <!-- old .toolbar row removed - Pause/Clear moved into the header, filters moved onto the shared toolbar -->
@@ -244,7 +241,7 @@
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="xcpWrap" id="vtab-xcp" onclick="switchViewTab('xcp')">XCP</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="graphWrap" id="vtab-graph" onclick="switchViewTab('graph')">Graph</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="fuzzWrap" id="vtab-fuzz" onclick="switchViewTab('fuzz')">Fuzzing</button>
-  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="termWrap" id="vtab-term" onclick="switchViewTab('term')" disabled title="Raw SLCAN command console - enabled once connected to an SLCAN adapter.">Serial Terminal</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="termWrap" id="vtab-term" onclick="switchViewTab('term')" style="display:none" title="Raw SLCAN command console.">Serial Terminal</button>
   <span class="view-tab-sep" aria-hidden="true"></span>
   <span class="view-tab-beta" title="These tabs are in beta - decoders are still being refined and may change.">beta&nbsp;▸</span>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="j1939Wrap" id="vtab-j1939" onclick="switchViewTab('j1939')">J1939 / N2K</button>
@@ -254,7 +251,7 @@
 </div>
 
 <!-- Shared toolbar - visible for both ID List and Traffic Dump tabs -->
-<div id="sharedToolbar" class="shared-toolbar">
+<div id="sharedToolbar" class="shared-toolbar link-only">
   <!-- Unified Help (#10) - filter syntax + byte colours + Notch workflow + view notes -->
   <div class="menu-anchor">
     <button class="btn btn-sm help-btn" id="helpBtn" onclick="toggleHelp()" title="How to read the tables, byte colours & filters" aria-label="Help">
@@ -407,96 +404,26 @@
 </div>
 
 <div class="table-wrap" id="tableWrap" role="tabpanel" aria-labelledby="vtab-ids">
-  <div class="onboard" id="emptyState">
-    <div class="onboard-inner">
-      <div class="onboard-hero">
-        <div class="onboard-title">Welcome to sloppyCAN</div>
-        <div class="onboard-sub">Read &amp; explore any CAN bus, right in your browser.</div>
-        <div class="onboard-explainers-link">New to automotive systems? <a href="explainers/index.html">Check out our explainers!</a></div>
-        <div class="onboard-cta">
-          <button class="btn primary onboard-connect" onclick="toggleConnectPopover(true);flashEls('connectConfirmBtn');onboardArrowTo(this,'#connectConfirmBtn',3500)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            Select your Hardware
-          </button>
-          <button class="btn onboard-demo demo-accent" onclick="startDemo()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-            Try the Demo
-          </button>
-        </div>
-        <div class="onboard-cta-note">No adapter? The Demo streams simulated traffic - no hardware needed.</div>
-      </div>
-
-      <div class="onboard-cols">
-        <div class="onboard-card carlito" data-target="#carlitoBtn" tabindex="0" role="button"
-             onclick="carlitoToggle()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();carlitoToggle()}"
-             title="Open Carlito (needs a live bus - Connect or Demo first).">
-          <div class="onboard-shot has-img">
-            <img src="assets/carlito_screenshot.png" alt="Carlito driving simulator">
-          </div>
-          <div class="onboard-card-title">🚗 Drive Carlito</div>
-          <div class="onboard-card-desc">Launch the driving simulator - its telemetry streams back as live CAN frames you can watch and decode here. Open it with the <b>Carlito</b> button up top.</div>
-        </div>
-
-        <div class="onboard-guide">
-          <div class="onboard-guide-title">Also worth exploring <span class="onboard-guide-hint">- point at one to find it on screen</span></div>
-          <div class="onboard-chips">
-            <button class="onboard-chip" data-target="#vtab-dump">
-              <span class="oc-name">Tabs</span>
-              <span class="oc-desc">ID List, Dump, Inspector &amp; decoders</span>
-            </button>
-            <button class="onboard-chip" data-target="#filterIds">
-              <span class="oc-name">Filter</span>
-              <span class="oc-desc">Narrow traffic by ID, type or bytes</span>
-            </button>
-            <button class="onboard-chip" data-target="#notchBtn">
-              <span class="oc-name">Notch</span>
-              <span class="oc-desc">Find which byte a control changes</span>
-            </button>
-            <button class="onboard-chip" data-target="#ramnBtn">
-              <span class="oc-name">RAMN dashboard</span>
-              <span class="oc-desc">Floating instrument cluster - Demo can partially emulate a RAMN board</span>
-            </button>
-            <button class="onboard-chip" data-target="#droneBtn">
-              <span class="oc-name">Drone</span>
-              <span class="oc-desc">Arm and fly Carlito's quad - the button is there while a drone is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#truckBtn">
-              <span class="oc-name">Truck</span>
-              <span class="oc-desc">Heavy-vehicle cluster - the button is there while a truck is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#tractorBtn">
-              <span class="oc-name">Tractor</span>
-              <span class="oc-desc">ISOBUS machine cluster - the button is there while a tractor is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#boatBtn">
-              <span class="oc-name">Boat</span>
-              <span class="oc-desc">Wind rose, echo sounder and compass - the button is there while a boat is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#boatPilotBtn">
-              <span class="oc-name">Autopilot</span>
-              <span class="oc-desc">Standby/Auto, heading knob and sheet - the button is there while a boat is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#trainBtn">
-              <span class="oc-name">Train</span>
-              <span class="oc-desc">Pantograph and doors - the button is there while a train is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#planeBtn">
-              <span class="oc-name">Plane</span>
-              <span class="oc-desc">Elevator and flaps - the button is there while a plane is on the link</span>
-            </button>
-            <button class="onboard-chip" data-target="#wsSelect">
-              <span class="oc-name">Workspace</span>
-              <span class="oc-desc">Per-vehicle saved setup</span>
-            </button>
-            <button class="onboard-chip" data-target="#txPanel">
-              <span class="oc-name">TX Scheduler</span>
-              <span class="oc-desc">Send &amp; schedule frames</span>
-            </button>
-          </div>
-        </div>
-      </div>
+  <div class="welcome" id="emptyState">
+    <div class="welcome-title">sloppyCAN</div>
+    <div class="welcome-sub">Read and explore any CAN bus in your browser.</div>
+    <div class="welcome-tiles">
+      <button class="welcome-tile welcome-connect" onclick="toggleConnectPopover(true);flashEls('connectConfirmBtn');onboardArrowTo(this,'#connectConfirmBtn',3500)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        <span>Connect adapter</span>
+      </button>
+      <button class="welcome-tile welcome-demo" onclick="startDemo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        <span>Demo</span>
+      </button>
+      <button class="welcome-tile welcome-carlito" onclick="startDemo();if(!carlitoIsOpen())carlitoToggle()">
+        <img src="assets/carlito_screenshot.png" alt="">
+        <span>Drive Carlito</span>
+      </button>
     </div>
+    <a class="welcome-explainers" href="explainers/index.html">Explainers ↗</a>
   </div>
+  <div class="empty link-only" id="idsNoFrames" style="display:none">No frames yet.</div>
   <div class="filter-empty" id="idsFilterEmpty" style="display:none">
     <div class="empty-icon filter-empty-icon">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3.4c.7 0 1.34.37 1.69.98l8.16 14.13A1.95 1.95 0 0 1 20.16 21.4H3.84a1.95 1.95 0 0 1-1.69-2.89L10.31 4.38A1.95 1.95 0 0 1 12 3.4Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.3v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor"/></svg>
@@ -548,6 +475,7 @@
       <tbody id="dumpBody"></tbody>
     </table>
   </div>
+  <div class="empty" id="dumpNoFrames">No frames yet.</div>
   <div class="filter-empty" id="dumpFilterEmpty" style="display:none">
     <div class="empty-icon filter-empty-icon">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3.4c.7 0 1.34.37 1.69.98l8.16 14.13A1.95 1.95 0 0 1 20.16 21.4H3.84a1.95 1.95 0 0 1-1.69-2.89L10.31 4.38A1.95 1.95 0 0 1 12 3.4Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.3v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor"/></svg>
@@ -712,48 +640,29 @@
     <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-log"  onclick="j1939SubTab('log')">Frame Log</button>
     <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-dm"   onclick="j1939SubTab('dm')">Faults (DM1/DM2)</button>
     <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-addr" onclick="j1939SubTab('addr')">Address Claim</button>
-    <a id="nmea2000LearnLink" href="explainers/nmea2000-explainer.html" target="_blank" rel="noopener"
-      class="learn-link learn-link-pad ml-auto" style="display:none">Learn how NMEA 2000 works ↗</a>
-    <a id="iso11783LearnLink" href="explainers/iso11783-explainer.html" target="_blank" rel="noopener"
-      class="learn-link learn-link-pad ml-auto" style="display:none">Learn how ISO 11783 works ↗</a>
+    <!-- The J1939-21 request client. A handful of parameter groups are sent ON REQUEST rather than
+         periodically, which means the frame does not exist until somebody asks for it - so there is
+         no way to see one without a button like this. The PGN box's datalist holds the groups this
+         side answers; picking one fills only the PGN, and the address stays as typed. -->
+    <div class="j1939-req ml-auto">
+      <label class="field">PGN <input type="text" id="j1939ReqPgn" list="j1939ReqPgnList" placeholder="65261" title="The parameter group to ask for. Decimal, or 0x-prefixed hex; empty asks for 65261. The list holds the request-only groups this side answers out of the game's telemetry.">
+      <datalist id="j1939ReqPgnList">
+        <option value="65261">CCSS - speed_limit (SPN 74)</option>
+        <option value="65253">HOURS - engine_hours (SPN 247)</option>
+        <option value="65258">VW - axle_load (SPN 582), from 0x09</option>
+        <option value="60928">Address Claimed - the implement's NAME, from 0x80</option>
+      </datalist></label>
+      <label class="field">from <input type="text" id="j1939ReqDa" list="j1939ReqDaList" value="255" title="Destination address (0-255, decimal or 0x-prefixed hex). 255 / 0xFF = global broadcast: every ECU is asked.">
+      <datalist id="j1939ReqDaList">
+        <option value="255">every ECU (global / 0xFF)</option>
+        <option value="0x00">0x00 Engine #1</option>
+        <option value="0xF0">0xF0 Tractor ECU</option>
+      </datalist></label>
+      <button type="button" class="btn" onclick="j1939SendRequest()" title="Put a real PGN 59904 request on the bus from the diagnostic tool address 0xF9. The answer arrives as an ordinary broadcast and lands in the PGN Monitor.">Request</button>
+      <span id="j1939ReqStatus" class="j1939-req-status"></span>
+    </div>
     <span id="j1939Badge" class="j1939-badge"></span>
-  </div>
-  <!-- DM1 lamp states, driven into Carlito's cluster. STATIC markup for the reason the DroneCAN
-       bar is: the panes below are rebuilt by innerHTML at ~15 fps and would tear an open
-       dropdown out from under the pointer. The two FLASH states are the whole point - J1939-73
-       carries lamp status as two bits per lamp, and this side owns the rate because the game has
-       no blink timer for any lamp at all. -->
-  <div class="dc-config">
-    <span class="dc-note">DM1 lamps &rarr; Carlito:</span>
-    <label>Red stop <select id="j1939Lamp_red_stop" onchange="j1939LampChange()" title="contract red_stop (DM1 Red Stop Lamp). The two flash states send the bit at that rate; the game mirrors it verbatim, exactly like a turn signal."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
-    <label>Amber warn <select id="j1939Lamp_amber_warn" onchange="j1939LampChange()" title="contract amber_warn (DM1 Amber Warning Lamp)."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
-    <label>Protect <select id="j1939Lamp_protect_lamp" onchange="j1939LampChange()" title="contract protect_lamp (DM1 Protect Lamp - a non-electronic fault)."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
-    <span class="dc-note">DM1's MIL is the contract's own <code>checkEngine</code>, so it is not repeated here.</span>
-    <span class="dc-note">Trailer &rarr; Carlito:</span>
-    <label>EBS fault <select id="j1939Lamp_trailer_ebs_fault" onchange="j1939LampChange()" title="contract trailer_ebs_fault - the towed unit's ISO 11992 EBS fault, injected from here. Not DM1, but the same four states: the game mirrors the bit verbatim and nothing in it ever sets this lamp."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
-    <label>ABS (J2497) <select id="j1939Lamp_trailer_abs_lamp" onchange="j1939LampChange()" title="contract trailer_abs_lamp - the trailer ABS telltale SAE J2497 carries on the POWER LINE, the whole North American trailer protocol in one bit. No CAN frame carries it."><option value="0">off</option><option value="1">on</option><option value="2">flash 1 Hz</option><option value="3">flash 2 Hz</option></select></label>
-  </div>
-  <!-- The J1939-21 request client. A handful of parameter groups are sent ON REQUEST rather than
-       periodically, which means the frame does not exist until somebody asks for it - so there is
-       no way to see one without a button like this. Static markup, same reason as the lamp bar. -->
-  <div class="dc-config">
-    <span class="dc-note">Request a PGN (59904):</span>
-    <label>PGN <input type="text" id="j1939ReqPgn" value="65261" style="width:72px" title="The parameter group to ask for. Decimal, or 0x-prefixed hex."></label>
-    <label>from <input type="text" id="j1939ReqDa" list="j1939ReqDaList" value="255" style="width:140px" title="Destination address (0-255, decimal or 0x-prefixed hex). 255 / 0xFF = global broadcast.">
-    <datalist id="j1939ReqDaList">
-      <option value="255">every ECU (global / 0xFF)</option>
-      <option value="0x00">0x00 Engine #1</option>
-      <option value="0xF0">0xF0 Tractor ECU</option>
-    </datalist></label>
-    <button type="button" onclick="j1939SendRequest()" title="Put a real PGN 59904 request on the bus from the diagnostic tool address 0xF9. The answer arrives as an ordinary broadcast and lands in the PGN Monitor.">Send request</button>
-    <label>Answerable here <select id="j1939ReqPreset" onchange="j1939ReqPreset()" title="The request-only parameter groups this side answers out of the game's telemetry.">
-      <option value="">-</option>
-      <option value="65261">65261 CCSS - speed_limit (SPN 74)</option>
-      <option value="65253">65253 HOURS - engine_hours (SPN 247)</option>
-      <option value="65258">65258 VW - axle_load (SPN 582), from 0x09</option>
-      <option value="60928">60928 Address Claimed - the implement's NAME, from 0x80</option>
-    </select></label>
-    <span id="j1939ReqStatus" class="dc-note"></span>
+    <a id="j1939Learn" href="explainers/j1939-explainer.html" target="_blank" rel="noopener" class="learn">Learn how J1939 works ↗</a>
   </div>
   <div id="j1939-pgn"  class="scroll-pane"></div>
   <div id="j1939-log"  class="log-pane" style="display:none"></div>
@@ -762,8 +671,10 @@
 </div>
 
 <div id="chademoWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-chademo" style="display:none">
-  <div class="chademo-note">
-    <a href="explainers/ev-charging-explainer.html" target="_blank" rel="noopener">Learn how EV charging works ↗</a>
+  <div class="bar">
+    <span id="chademo-state-pill" class="pill" style="display:none"></span>
+    <button type="button" id="chademo-pause-btn" class="btn" style="display:none" onclick="chademoDemoPauseToggle()"></button>
+    <a href="explainers/ev-charging-explainer.html" target="_blank" rel="noopener" class="learn">Learn how EV charging works ↗</a>
   </div>
   <div id="chademo-session" class="session-scroll pad-14-20"></div>
   <div class="log-section-bar">Frame Log</div>
@@ -836,11 +747,18 @@
 </div>
 
 <div id="canopenWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-canopen" style="display:none">
-  <div class="co-config">
-    <label>Node <input id="coNode" value="1" onchange="canopenCfgChange()" oninput="coValNode(this)" class="w48" title="Default node-ID for the SDO/NMT forms"></label>
-    <label>SDO timeout <input id="coSdoTimeout" value="1000" onchange="canopenCfgChange()" oninput="coValTimeout(this)" class="w60" title="ms to wait for an SDO response">ms</label>
-    <label>SDO req <input id="coSdoReq" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" oninput="coClampCob(this)" title="Override SDO request COB-ID (blank = 0x600+node)"></label>
-    <label>SDO rsp <input id="coSdoRsp" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" oninput="coClampCob(this)" title="Override SDO response COB-ID (blank = 0x580+node)"></label>
+  <div class="bar">
+    <label class="field">Node <input id="coNode" value="1" onchange="canopenCfgChange()" oninput="coValNode(this)" class="w48" title="Default node-ID for the SDO/NMT forms"></label>
+    <!-- The SDO overrides are rarely changed, so they sit behind the gear rather than in the bar. -->
+    <div class="menu-anchor">
+      <button type="button" class="btn" id="coCfgBtn" onclick="canopenCfgMenu()" title="SDO timeout and COB-ID overrides" aria-haspopup="true">&#9881;</button>
+      <div id="coCfgMenu" class="dropdown-menu co-cfg-menu" style="display:none">
+        <label class="field">SDO timeout <input id="coSdoTimeout" value="1000" onchange="canopenCfgChange()" oninput="coValTimeout(this)" class="w60" title="ms to wait for an SDO response">ms</label>
+        <label class="field">SDO req <input id="coSdoReq" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" oninput="coClampCob(this)" title="Override SDO request COB-ID (blank = 0x600+node)"></label>
+        <label class="field">SDO rsp <input id="coSdoRsp" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" oninput="coClampCob(this)" title="Override SDO response COB-ID (blank = 0x580+node)"></label>
+      </div>
+    </div>
+    <a href="explainers/canopen-explainer.html" target="_blank" rel="noopener" class="learn">Learn how CANopen works ↗</a>
   </div>
   <div id="co-nodes" class="session-scroll">
     <div id="co-nodemap" class="co-nodes"></div>
@@ -873,52 +791,20 @@
   </div>
   <div class="co-logbar">
     <span>Message Log</span>
-    <a href="explainers/canopen-explainer.html" target="_blank" rel="noopener">Learn how CANopen works ↗</a>
   </div>
   <div id="co-log" class="log-pane"></div>
 </div>
 
 <div id="dronecanWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-dronecan" style="display:none">
-  <div class="dc-config">
-    <label><input type="checkbox" id="dcTxEnabled" checked onchange="dronecanCfgChange()" title="Publish the Carlito drone's telemetry as DroneCAN transfers, and answer service requests and node-id allocations from the bus. Off = listen only."> Transmit (telemetry + replies)</label>
-    <label>FC node <input type="text" id="dcFcNode" value="1" onchange="dronecanCfgChange()" title="Node-ID the FC's own messages (ArmingStatus, LightsCommand, BeepCommand) are published from. The eight bus nodes take their ids from the roster."></label>
-    <span class="dc-note">Publishing rides the Carlito window; decode is always on.</span>
-    <a href="explainers/dronecan-explainer.html" target="_blank" rel="noopener" class="learn-link">Learn how DroneCAN works ↗</a>
-  </div>
-  <!-- Bench controls for the drone's four inbound signals. STATIC markup, deliberately: #dc-panes
-       rewrites its changed cells at ~15 fps, which would tear an open dropdown or colour picker out
-       from under the pointer. Failure injection is a click on a roster row in that pane instead. -->
-  <div class="dc-config">
-    <label>Flight mode <select id="dcFlightMode" onchange="dronecanCtlChange()" title="contract flight_mode - the mode the operator is ASKING for. What the FC is actually in is mode_actual, in the pane below."></select></label>
-    <label>LEDs <input type="color" id="dcLedColor" value="#000000" onchange="dronecanCtlChange()" title="contract led - one RGB565 colour for all four arm tips. Sends a uavcan.equipment.indication.LightsCommand on change."></label>
-    <button type="button" onclick="dronecanLedOff()" title="Command the LEDs off (black)">Off</button>
-    <label><input type="checkbox" id="dcBeep" onchange="dronecanCtlChange()" title="contract beep - sends a uavcan.equipment.indication.BeepCommand on each edge. The airframe has no buzzer sample, so this lights a tell-tale and makes no sound."> Beep</label>
-    <label><input type="checkbox" id="dcHook" onchange="dronecanCtlChange()" title="contract hardpoint_cmd - HOLD the load. Sends a uavcan.equipment.hardpoint.Command on each edge. The latch closes only with a payload under the hook, so hardpoint_state can disagree with this."> Hook</label>
-    <span class="dc-note">These drive the aircraft; while they are being sent the game's own Y and Z keys are overridden.</span>
-  </div>
-  <!-- The gimbal's two axes. Sliders rather than number boxes because the point of the control is
-       to SWEEP it and watch gimbal_*_actual chase, and their bounds come off the contract's own
-       ranges at show time (see dronecanOnShow) rather than being typed here twice. -->
-  <div class="dc-config">
-    <label>Gimbal pitch <input type="range" id="dcGimbalPitch" min="-90" max="30" step="1" value="0" oninput="dronecanCtlChange()" title="contract gimbal_pitch, in degrees, + = up. Sends a uavcan.equipment.camera_gimbal.AngularCommand and an actuator.ArrayCommand on change."></label>
-    <label>yaw <input type="range" id="dcGimbalYaw" min="-120" max="120" step="1" value="0" oninput="dronecanCtlChange()" title="contract gimbal_yaw, in degrees, + = right. Same two commands as pitch - an orientation is both angles."></label>
-    <span id="dcGimbalOut" class="dc-note">+0&deg; / +0&deg;</span>
-    <button type="button" onclick="dronecanGimbalCentre()" title="Command the mount back to looking straight ahead">Centre</button>
-    <span class="dc-note">The mount slews at a finite rate, so gimbal_*_actual chases these rather than matching them.</span>
-  </div>
-  <!-- The service client: a maintenance tool at node 127 asking the roster questions. Static
-       markup for the reason the two bars above are - #dc-panes rewrites its cells at ~15 fps and would
-       tear an open dropdown out from under the pointer. -->
-  <div class="dc-config">
-    <span class="dc-note">Services (from node 127, a maintenance tool):</span>
-    <label>Node <select id="dcSvcNode" title="Which roster node to address. A node that is not publishing does not answer - that silence is the reading."></select></label>
-    <button type="button" onclick="dronecanGetNodeInfo()" title="uavcan.protocol.GetNodeInfo (service 1). An EMPTY request - the question is the id - answered with the node's name, versions, unique id and its current NodeStatus.">Get node info</button>
-    <button type="button" onclick="dronecanReadParams()" title="uavcan.protocol.param.GetSet (service 11), walked by index until a nameless answer says there are no more. Index access exists only to enumerate; everything found is then addressable by name.">Read parameters</button>
-    <label>period <input type="text" id="dcSvcPeriod" value="1000" style="width:56px" title="uavcan.node.status_period_ms, in ms. A real parameter: it is the rate this node's NodeStatus is published at, so setting it past 3000 makes the roster row go stale while its neighbours stay green."></label>
-    <button type="button" onclick="dronecanSetPeriod()" title="Send a param.GetSet with a VALUE, which is what makes it a set rather than a get.">Set</button>
-    <button type="button" onclick="dronecanRestartNode()" title="uavcan.protocol.RestartNode (service 5) with the DSDL's magic number 0xACCE551B1E. The node acknowledges, then leaves the bus for a moment and comes back at uptime 0.">Restart</button>
-    <button type="button" onclick="dronecanRestartBadMagic()" title="The same request with the wrong magic number. The DSDL says it must be rejected, and it is - ok=false, and the node keeps flying.">Restart (bad magic)</button>
-    <button type="button" onclick="dronecanRequestAllocation()" title="Simulate a new device with a unique id and no node id asking for one: three anonymous transfers, six unique-id bytes at a time, and a grant.">New node asks for an ID</button>
+  <div class="bar">
+    <label class="field"><input type="checkbox" id="dcTxEnabled" checked onchange="dronecanCfgChange()" title="Publish the Carlito drone's telemetry as DroneCAN transfers, and answer service requests and node-id allocations from the bus. Off = listen only. Decode is always on."> Transmit</label>
+    <label class="field">FC node <input type="text" id="dcFcNode" value="1" onchange="dronecanCfgChange()" title="Node-ID the FC's own messages (ArmingStatus, LightsCommand, BeepCommand) are published from. The eight bus nodes take their ids from the roster."></label>
+    <!-- The drone's inbound signals (mode, LEDs, beep, hook, gimbal) are set in the Drone Control
+         window (drone.js), the one place they live; it works with no game too, which is how the
+         DroneCAN demo puts LightsCommand / BeepCommand / hardpoint / gimbal transfers on the bus. -->
+    <button type="button" class="btn" onclick="droneCtrlToggle()" title="Open the Drone Control window: flight mode, LEDs, beep, hook and gimbal. Works without the game - the commands still go on this bus.">Drone controls</button>
+    <span id="dcDecodeOnly" class="pill warn" style="display:none" title="No DroneCAN heard on this bus (no NodeStatus in 5 s, no drone on the Carlito link, not DroneCAN demo): decoding only - service requests and allocations are not answered.">Decode only</span>
+    <a href="explainers/dronecan-explainer.html" target="_blank" rel="noopener" class="learn">Learn how DroneCAN works ↗</a>
   </div>
   <div id="dc-panes" class="session-scroll dc-panes"></div>
   <div class="dc-logbar">
@@ -1085,10 +971,10 @@
   </div>
 </div>
 
-<div id="resizeHandle" class="resize-handle" title="Drag to resize"></div>
+<div id="resizeHandle" class="resize-handle link-only" title="Drag to resize"></div>
 
 <!-- TX message scheduler panel -->
-<div id="txPanel" class="tx-panel">
+<div id="txPanel" class="tx-panel link-only">
   <div class="log-header clickable" onclick="toggleTxPanel()">
     <span class="log-title">TX Scheduler</span>
     <span id="txActiveBadge" class="tx-active-badge" style="display:none" title="One or more TX messages are actively transmitting onto the bus.">Transmitting</span>
@@ -1119,7 +1005,6 @@
         <svg id="txModuleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon-sm" style="transform:rotate(180deg)"><path d="M18 15l-6-6-6 6"/></svg>
         <span>Automatic messages</span>
         <span id="txModuleCount" class="tx-module-count">0</span>
-        <span class="tx-module-subnote">sent by modules · read-only</span>
       </div>
       <div id="txModuleBody" class="tx-module-body"></div>
     </div>
@@ -1127,25 +1012,25 @@
   </div>
 </div>
 
-<div class="log-panel" id="logPanel" style="height:28px">
+<div class="log-panel link-only" id="logPanel" style="height:28px">
   <div class="log-header clickable" onclick="toggleConsole()">
     <span class="log-title">Console</span>
     <svg id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon" style="transform:rotate(180deg)"><path d="M18 15l-6-6-6 6"/></svg>
     <div class="log-title-sep"></div>
     <span id="deviceInfo" class="device-info"></span>
     <div class="w8"></div>
-    <label class="chk-inline" title="Open the console automatically whenever an error is logged. Off by default so errors don't pop it open while you work." onclick="event.stopPropagation()">
+    <label class="chk-inline console-open-only" title="Open the console automatically whenever an error is logged. Off by default so errors don't pop it open while you work." onclick="event.stopPropagation()">
       <input type="checkbox" id="autoExpandErr" class="chk-sm ac-blue">
       <span>auto-expand on error</span>
     </label>
-    <button class="btn btn-sm" onclick="event.stopPropagation();document.getElementById('pane-console').innerHTML=''">Clear</button>
+    <button class="btn btn-sm console-open-only" onclick="event.stopPropagation();document.getElementById('pane-console').innerHTML=''">Clear</button>
   </div>
   <div id="pane-console" class="log-body" style="display:none"></div>
 </div>
 
 <div id="toastHost" class="toast-host"></div>
 
-<!-- Onboarding spotlight arrow - drawn from a hovered feature chip to the real control -->
+<!-- Onboarding arrow - drawn from the welcome's Connect tile to the Connect popover's button -->
 <svg id="onboardArrow" aria-hidden="true">
   <defs>
     <marker id="oaHead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">

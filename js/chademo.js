@@ -21,50 +21,16 @@
 (function () {
   const s = document.createElement('style');
   s.textContent = `
-.chademo-note {
-  background:var(--bg2); border-bottom:1px solid var(--border);
-  padding:8px 16px; font-size:var(--fs-s); color:var(--text2); font-family:var(--sans);
-  display:flex; align-items:center; gap:14px; flex-shrink:0; line-height:1.5;
-}
-.chademo-note a { color:var(--blue); text-decoration:none; white-space:nowrap; margin-left:auto; }
 .chademo-tbl a.cm-seecan { color:var(--blue); text-decoration:none; }
-.chademo-state {
-  display:inline-block; padding:4px 14px; border-radius:var(--r-pill); font-size:var(--fs-m);
-  font-weight:600; font-family:var(--sans); background:var(--bg2); color:var(--text2);
-  border:1px solid var(--border);
-}
-.chademo-pause-btn {
-  margin-left:10px; vertical-align:middle; font-size:var(--fs-s); padding:3px 11px;
-  background:var(--bg2); color:var(--text2); border:1px solid var(--border);
-  border-radius:0; cursor:pointer; font-family:var(--sans); white-space:nowrap;
-}
-.chademo-pause-btn:hover { background:var(--bg3); color:var(--text); }
-.chademo-state.charging { background:var(--green-dim); color:var(--green); border-color:transparent; }
-.chademo-state.cap      { background:var(--blue-dim);  color:var(--blue);  border-color:transparent; }
-.chademo-state.stop     { background:var(--amber-dim); color:var(--amber); border-color:transparent; }
+/* The capability-exchange state has no .pill variant of its own. */
+.pill.cap { color:var(--blue); background:var(--blue-dim); border-color:transparent; }
+/* auto-fit, not auto-fill: the seven readouts stretch to fill the row instead of leaving a gap. */
 .chademo-tiles {
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
-  gap:12px; margin:16px 0 8px;
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px; margin:0 0 8px;
 }
-.chademo-tile {
-  background:var(--bg2); border:1px solid var(--border); border-radius:0;
-  padding:12px 14px;
-}
-.chademo-tile .ct-label {
-  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2);
-  font-family:var(--sans); margin-bottom:4px;
-}
-.chademo-tile .ct-val {
-  font-size:var(--fs-xl); color:var(--green); font-family:var(--mono); line-height:1.1;
-}
-.chademo-tile .ct-val.muted { color:var(--text); }
-.chademo-tile .ct-sub {
-  font-size:var(--fs-s); color:var(--text2); font-family:var(--mono); margin-top:3px;
-}
-.chademo-flags-title {
-  font-size:var(--fs-m); font-weight:600; color:var(--text); margin:18px 0 6px;
-  font-family:var(--sans);
-}
+.chademo-tiles .stat-val.live { color:var(--green); }
+.chademo-flags { margin-top:12px; }
 .chademo-chip {
   display:inline-block; padding:2px 9px; margin:3px; border-radius:var(--r-pill);
   font-size:var(--fs-s); font-family:var(--sans); background:var(--bg2);
@@ -73,7 +39,6 @@
 .chademo-chip.on.bad  { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
 .chademo-chip.on.good { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .chademo-chip.on.info { background:var(--amber-dim); color:var(--amber); border-color:transparent; }
-.chademo-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:48px 0; font-family:var(--sans); }
 .chademo-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-m); }
 .chademo-tbl th {
   text-align:left; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em;
@@ -274,10 +239,10 @@ function chademoSessionState() {
 // Session and Frame Log are stacked in one view (Session on top via renderTop, Log below) -
 // both render every tick through the shared factory, like the XCP / CANopen tabs.
 function tile(label, val, sub, muted) {
-  return `<div class="chademo-tile">
-    <div class="ct-label">${label}</div>
-    <div class="ct-val${muted ? ' muted' : ''}">${val}</div>
-    ${sub ? `<div class="ct-sub">${sub}</div>` : ''}
+  return `<div class="stat">
+    <div class="stat-cap">${label}</div>
+    <div class="stat-val${muted ? '' : ' live'}">${val}</div>
+    ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
   </div>`;
 }
 const cmShow = (v, unit = '') => (v == null ? '-' : v + unit);
@@ -289,30 +254,17 @@ function chademoChips(value, defs) {
   }).join('');
 }
 
+const CM_PILL = { charging: 'ok', stop: 'warn', cap: 'cap' };   // session kind → .pill variant
 function chademoRenderSession() {
   const el = document.getElementById('chademo-session');
-  if (!CM.lastIds.size) {
-    el.dataset.built = '';
-    el.innerHTML = '<div class="chademo-empty">No CHAdeMO frames received yet.<br>' +
-      'CHAdeMO uses 11-bit IDs (0x100–0x109) on a dedicated 500 kbit/s charge bus.<br>' +
-      'In <b>Demo</b> mode, open this tab to replay a looping charging session.</div>';
-    return;
-  }
-  // Build the header (state pill + pause button) and dashboard container ONCE so the
-  // button is a stable DOM node - rebuilding innerHTML every tick (~10×/s during the
-  // demo) would tear the button down and make it impossible to click.
-  if (el.dataset.built !== '1') {
-    el.innerHTML =
-      '<div style="margin-bottom:4px">' +
-      '<span id="chademo-state-pill" class="chademo-state"></span>' +
-      '<button id="chademo-pause-btn" class="chademo-pause-btn" style="display:none" onclick="chademoDemoPauseToggle()"></button>' +
-      '</div><div id="chademo-dash"></div>';
-    el.dataset.built = '1';
-  }
+  // The state pill and the pause button are static markup in the tab's bar (index.html), so the
+  // button stays a stable node the ~10 Hz demo redraw cannot tear out from under the pointer.
   const st = chademoSessionState();
   const pill = document.getElementById('chademo-state-pill');
-  pill.className = 'chademo-state' + (st.kind ? ' ' + st.kind : '');
-  pill.textContent = st.label;
+  const pillCls = 'pill' + (CM_PILL[st.kind] ? ' ' + CM_PILL[st.kind] : '');
+  if (pill.className !== pillCls) pill.className = pillCls;
+  if (pill.textContent !== st.label) pill.textContent = st.label;
+  pill.style.display = CM.lastIds.size ? '' : 'none';
   const btn = document.getElementById('chademo-pause-btn');
   if (chademoDemoTimer) {
     btn.style.display = '';
@@ -320,6 +272,15 @@ function chademoRenderSession() {
     if (btn.textContent !== label) btn.textContent = label;
   } else {
     btn.style.display = 'none';
+  }
+  if (!CM.lastIds.size) {
+    el.dataset.built = '';
+    window.setHtmlIfChanged(el, '<div class="empty">No CHAdeMO frames yet.</div>');
+    return;
+  }
+  if (el.dataset.built !== '1') {
+    el.innerHTML = el._html = '<div id="chademo-dash"></div>';
+    el.dataset.built = '1';
   }
 
   const remain = CM.remainMin != null && CM.remainMin !== 0xFF ? CM.remainMin + ' min'
@@ -334,11 +295,11 @@ function chademoRenderSession() {
       ${tile('Protocol #', 'V ' + cmShow(CM.protoV), 'charger ' + cmShow(CM.protoC), true)}
       ${tile('Connector', (CM.cStatus & 0x04) ? 'Locked' : 'Unlocked', null, true)}
     </div>
-    <div class="chademo-flags-title">Vehicle faults <span style="color:var(--text2);font-weight:400">(0x102 byte 4)</span></div>
+    <div class="sec chademo-flags" title="0x102 byte 4">Vehicle faults</div>
     <div>${chademoChips(CM.vFaults, CM_FAULT_BITS)}</div>
-    <div class="chademo-flags-title">Vehicle status <span style="color:var(--text2);font-weight:400">(0x102 byte 5)</span></div>
+    <div class="sec chademo-flags" title="0x102 byte 5">Vehicle status</div>
     <div>${chademoChips(CM.vStatus, CM_VSTATUS_BITS)}</div>
-    <div class="chademo-flags-title">Charger status <span style="color:var(--text2);font-weight:400">(0x109 byte 5)</span></div>
+    <div class="sec chademo-flags" title="0x109 byte 5">Charger status</div>
     <div>${chademoChips(CM.cStatus, CM_CSTATUS_BITS)}</div>`);
 }
 
@@ -402,7 +363,7 @@ const chademoTab = window.makeStackedLogTab({
   wrapId: 'chademoWrap', logElId: 'chademo-log',
   tableClass: 'chademo-tbl', logMax: CHADEMO_LOG_MAX,
   theadHtml: '<tr><th>Time</th><th>ID</th><th>Message</th><th>Bytes</th><th>Decoded</th></tr>',
-  emptyHtml: '<div class="chademo-empty">No CHAdeMO frames in log yet.</div>',
+  emptyHtml: '<div class="empty">No CHAdeMO frames yet.</div>',
   renderTop: chademoRenderSession,
   row: (e) => {
     const m = CHADEMO_MSGS[e.id];

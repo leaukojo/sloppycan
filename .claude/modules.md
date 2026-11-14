@@ -108,7 +108,8 @@ producer.
 PGN 59904 (RQST, a 3-byte little-endian PGN, to one address or 0xFF) asks for a group whose
 J1939-71 rate is "On request".
 
-- **Client:** the request bar (`#j1939ReqPgn` / `#j1939ReqDa` / `#j1939ReqPreset`) →
+- **Client:** the request controls at the right of the sub-tab bar (`#j1939ReqPgn` with its
+  datalist of answerable groups, `#j1939ReqDa`) →
   `j1939SendRequest()`, from **0xF9** (J1939-81 Off-Board Diagnostic-Service Tool #1) through
   `window.canForward`, so the answer really comes back through `ingestFrame`.
 - **Server:** `j1939ServeRequest`, called from `j1939IngestFrame` **before** the per-mode branches
@@ -183,7 +184,7 @@ the CANopen tab.
   `vehiclePanelProtoTable()` (`demoOnTelemetry`).
 - **Panels** (`drone.js`, `truck.js`, `tractor.js`, `boat.js`, `boat-pilot.js`, `train.js`,
   `plane.js`): a script tag after `vehicle-panel.js` + `ramn.js` (`drone.js` also after
-  `dronecan.js`), a toolbar button and onboarding chip, the id in `sloppycan.js`'s `_buttonsWrap`
+  `dronecan.js`), a toolbar button, the id in `sloppycan.js`'s `_buttonsWrap`
   list. Everything else through `window.vehiclePanel*` and the uplink registries. Not loaded on
   `carlito-bridge.html` (`carlito-bridge.js` sets `window.droneIsOpen = () => true`).
 
