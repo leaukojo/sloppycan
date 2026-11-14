@@ -1,9 +1,9 @@
 // ── Truck dashboard ─────────────────────────────────────────────────────────
 // One floating window, following the Carlito link through vehicle-panel.js. Takes 'dash':
-// a truck is driven with the RAMN controls, so it replaces the cluster and the Control Panel
-// keeps driving. Claims no uplink signal and owns none: its Commands section is a view over the
-// modules that do - isobus.js (pto), cleanopen.js (body_cmd), j1939-flavor.js (retarder),
-// j1939.js (the DM1 and trailer lamps).
+// a truck is driven with the RAMN controls, so it replaces the cluster and the Control panel
+// keeps driving. Claims no uplink signal and owns none: its commands are a section of the
+// Control panel (vehiclePanelSection), a view over the modules that own them - isobus.js (pto),
+// cleanopen.js (body_cmd), j1939-flavor.js (retarder), j1939.js (the DM1 and trailer lamps).
 //
 // TELEMETRY ONLY, like boat.js: every instrument is the game's own publish, never
 // window.ramnGetState() (what sloppyCAN COMMANDS - and blank under J1939 traffic, which is exactly
@@ -20,7 +20,7 @@
 
   const style = document.createElement('style');
   style.textContent = `
-/* Commands: views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js, j1939.js) */
+/* Commands (the Control panel section): views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js, j1939.js) */
 .truck-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
 .truck-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
 .truck-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
@@ -165,9 +165,12 @@
       <div class="vp-tell" id="truckTellMove" data-color="green" title="contract status bit 'moving'.">Moving</div>
     </div>
 
-    <div class="vp-rule"></div>
+`;
+
+  // ── Commands: a section of the Control panel ─────────────────────────────────
+  const CTL = `
     <div class="truck-ctl" title="The truck's commands, sent to Carlito over the uplink. Each is owned by the module for its bus, and the PTO and body command are also read off the bus: while a frame is holding one it is ringed amber, and touching the control takes it back. The lamps are j1939.js's: off, on, or flashing at 1 or 2 Hz.">
-      <div class="truck-ctl-cap"><span>Commands</span><span class="bus-key">amber = held by the bus</span></div>
+      <div class="truck-ctl-cap"><span>Truck commands</span><span class="bus-key">amber = held by the bus</span></div>
       <div class="truck-ctl-row">
         <span class="lbl">PTO</span>
         <button id="truckCtlPto" title="contract pto - the chassis PTO that drives the body. Shared with the tractor and owned with it by isobus.js. Bus: PGN 65090 SPN 1894.">Engage</button>
@@ -188,12 +191,13 @@
     id: 'truck', family: 'truck', label: 'truck',
     variant: 'semi',                  // VehicleCatalog.VARIANTS id, not the family
     btn: 'truckBtn', takes: 'dash', follow: true,
-    cssPrefix: 'truck', title: 'Truck dashboard', baseW: 320,
-    headerTip: "The truck's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a truck appears on the Carlito link and takes the RAMN dashboard's place while it is up; the RAMN Control Panel stays, because a truck is driven with the same pedals and gearbox. Drag to move, grip the bottom-right corner to resize.",
+    cssPrefix: 'truck', title: 'Dashboard (Truck)', baseW: 320,
+    headerTip: "The truck's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a truck appears on the Carlito link and takes the RAMN dashboard's place while it is up; the Control panel stays, because a truck is driven with the same pedals and gearbox, and the truck's own commands are a section of it. Drag to move, grip the bottom-right corner to resize.",
     bodyHtml: BODY,
     render: (t) => render(t || {}),
   });
-  const markDirty = panel.markDirty;
+  const section = window.vehiclePanelSection({ family: 'truck', where: 'ctrl', html: CTL, render: () => renderCtl() });
+  const markDirty = section.markDirty;
 
   // ── Render ──────────────────────────────────────────────────────────────────
   // `t` is {} with no truck on the link: the resting panel, not the last one's readings frozen.
@@ -258,16 +262,13 @@
     setTell(el.tRoll, bit(ST.roll));
     setTell(el.tEsc, bit(ST.escOff));
     setTell(el.tMove, bit(ST.moving));
-
-    renderCtl();
   }
 
   // ── Commands ────────────────────────────────────────────────────────────────
   // A view over the modules that own the truck's commands: the PTO is isobus.js's (shared with
   // the tractor), the body command cleanopen.js's, the retarder j1939-flavor.js's. The first two
   // are also read off the bus - a control a frame is holding right now is ringed amber, and
-  // touching it takes it back. Rendered with the instruments, on the telemetry push and after
-  // every click.
+  // touching it takes it back. Rendered by the section, on the telemetry push and after every click.
   const ctl = () => ({
     ib: window.isobusCtl ? window.isobusCtl() : null,
     co: window.cleanopenCtl ? window.cleanopenCtl() : null,
@@ -328,9 +329,12 @@
       armBar: q('truckArmBar'), armV: q('truckArmV'), hopBar: q('truckHopBar'), hopV: q('truckHopV'),
       tIgn: q('truckTellIgn'), tPark: q('truckTellPark'), tLights: q('truckTellLights'), tBrk: q('truckTellBrk'),
       tYaw: q('truckTellYaw'), tRoll: q('truckTellRoll'), tEsc: q('truckTellEsc'), tMove: q('truckTellMove'),
-      pto: q('truckCtlPto'), body: q('truckCtlBody'), ret: q('truckCtlRet'), retV: q('truckCtlRetV'),
-      lamps: q('truckCtlLamps'),
     };
+    const c = section.q;
+    Object.assign(el, {
+      pto: c('truckCtlPto'), body: c('truckCtlBody'), ret: c('truckCtlRet'), retV: c('truckCtlRetV'),
+      lamps: c('truckCtlLamps'),
+    });
 
     // The body command's positions come off the CONTRACT's enum rather than being typed here.
     const bodySig = window.vehiclePanelUtil.sigDef('body_cmd', 'in');

@@ -1,8 +1,9 @@
 // ── Tractor dashboard ─────────────────────────────────────────────────────────
 // One floating window, following the Carlito link through vehicle-panel.js. Takes 'dash':
-// a tractor is driven with the RAMN controls, so it replaces the cluster and the Control Panel
-// keeps driving. Claims no uplink signal and owns none: its Commands section is a view over
-// isobus.js, which owns the tractor's eight commands and also reads them off the bus.
+// a tractor is driven with the RAMN controls, so it replaces the cluster and the Control panel
+// keeps driving. Claims no uplink signal and owns none: its commands are a section of the
+// Control panel (vehiclePanelSection), a view over isobus.js, which owns the tractor's eight
+// commands and also reads them off the bus.
 //
 // TELEMETRY ONLY, like boat.js: every instrument is the game's own publish, never
 // window.ramnGetState() (what sloppyCAN COMMANDS - and blank under ISO 11783 traffic, which is
@@ -30,7 +31,7 @@
 .tractor-slip.over > i.gap { background:var(--red); }
 .tractor-gap { margin-top:7px; }
 
-/* Commands: views over isobus.js, which owns them */
+/* Commands (the Control panel section): views over isobus.js, which owns them */
 .tractor-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
 .tractor-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
 .tractor-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
@@ -137,9 +138,12 @@
       <div class="vp-tell" id="tractorTellStab" data-color="amber" title="contract status bit 'esc' - stability control acting.">Stab</div>
     </div>
 
-    <div class="vp-rule"></div>
+`;
+
+  // ── Commands: a section of the Control panel ─────────────────────────────────
+  const CTL = `
     <div class="tractor-ctl" title="The tractor's commands, sent to Carlito over the uplink. isobus.js owns them and ALSO reads the real ISO 11783-7 command frames off the bus (65090 hitch/PTO, 44288 guidance, 65072 aux valve 0): while a frame is holding one it is ringed amber, and touching the control takes it back.">
-      <div class="tractor-ctl-cap"><span>Commands</span><span class="bus-key">amber = held by the bus</span></div>
+      <div class="tractor-ctl-cap"><span>Tractor commands</span><span class="bus-key">amber = held by the bus</span></div>
       <div class="tractor-ctl-row" title="contract hitch_pos - requested rear hitch position, 0 lowered (working) to 100 raised (transport). Bus: PGN 65090 SPN 1875.">
         <span class="lbl">Hitch</span><input type="range" id="tractorCtlHitch" min="0" max="100" value="100"><span class="v" id="tractorCtlHitchV">100%</span>
       </div>
@@ -174,12 +178,13 @@
     id: 'tractor', family: 'tractor', label: 'tractor',
     variant: 'tractor-kenney',        // VehicleCatalog.VARIANTS id, not the family
     btn: 'tractorBtn', takes: 'dash', follow: true,
-    cssPrefix: 'tractor', title: 'Tractor dashboard', baseW: 320,
-    headerTip: "The tractor's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a tractor appears on the Carlito link and takes the RAMN dashboard's place while it is up; the RAMN Control Panel stays, because a tractor is driven with the same pedals and gearbox. Drag to move, grip the bottom-right corner to resize.",
+    cssPrefix: 'tractor', title: 'Dashboard (Tractor)', baseW: 320,
+    headerTip: "The tractor's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a tractor appears on the Carlito link and takes the RAMN dashboard's place while it is up; the Control panel stays, because a tractor is driven with the same pedals and gearbox, and the tractor's own commands are a section of it. Drag to move, grip the bottom-right corner to resize.",
     bodyHtml: BODY,
     render: (t) => render(t || {}),
   });
-  const markDirty = panel.markDirty;
+  const section = window.vehiclePanelSection({ family: 'tractor', where: 'ctrl', html: CTL, render: () => renderCtl() });
+  const markDirty = section.markDirty;
 
   // ── Render ──────────────────────────────────────────────────────────────────
   // `t` is {} with no tractor on the link: the resting panel, not the last one's readings frozen.
@@ -237,15 +242,13 @@
     setTell(el.tPark, bit(ST.park));
     setTell(el.tLights, bit(ST.lights));
     setTell(el.tStab, bit(ST.stab));
-
-    renderCtl();
   }
 
   // ── Commands ────────────────────────────────────────────────────────────────
   // A view over isobus.js, which owns all eight tractor commands and also takes them off the bus
   // (window.isobusCtl / isobusSetCtl). A control a frame is holding right now is ringed amber and
-  // its slider follows the frame; touching the control takes it back. Rendered with the
-  // instruments, on the telemetry push and after every click.
+  // its slider follows the frame; touching the control takes it back. Rendered by the section, on
+  // the telemetry push and after every click.
   const ibc = () => (window.isobusCtl ? window.isobusCtl() : null);
   const ibSet = (p) => { if (window.isobusSetCtl) window.isobusSetCtl(p); markDirty(); };
   function renderCtl() {
@@ -293,13 +296,16 @@
       burn: q('tractorBurn'), ratio: q('tractorRatio'), hours: q('tractorHours'),
       axleBar: q('tractorAxleBar'), axleV: q('tractorAxleV'),
       tIgn: q('tractorTellIgn'), tPark: q('tractorTellPark'), tLights: q('tractorTellLights'), tStab: q('tractorTellStab'),
-      hitch: q('tractorCtlHitch'), hitchCtlV: q('tractorCtlHitchV'), pto: q('tractorCtlPto'),
-      m540: q('tractorCtl540'), m1000: q('tractorCtl1000'),
-      hand: q('tractorCtlHand'), handV: q('tractorCtlHandV'),
-      diff: q('tractorCtlDiff'), fwd: q('tractorCtlFwd'),
-      guide: q('tractorCtlGuide'), curv: q('tractorCtlCurv'), curvV: q('tractorCtlCurvV'),
-      scv: q('tractorCtlScv'), scvV: q('tractorCtlScvV'),
     };
+    const c = section.q;
+    Object.assign(el, {
+      hitch: c('tractorCtlHitch'), hitchCtlV: c('tractorCtlHitchV'), pto: c('tractorCtlPto'),
+      m540: c('tractorCtl540'), m1000: c('tractorCtl1000'),
+      hand: c('tractorCtlHand'), handV: c('tractorCtlHandV'),
+      diff: c('tractorCtlDiff'), fwd: c('tractorCtlFwd'),
+      guide: c('tractorCtlGuide'), curv: c('tractorCtlCurv'), curvV: c('tractorCtlCurvV'),
+      scv: c('tractorCtlScv'), scvV: c('tractorCtlScvV'),
+    });
 
     el.hitch.addEventListener('input', () => ibSet({ hitch_pos: +el.hitch.value }));
     el.pto.addEventListener('click', () => { const c = ibc(); ibSet({ pto: c && c.pto ? 0 : 1 }); });

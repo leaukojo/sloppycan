@@ -5,6 +5,11 @@
 // (makeVehiclePanel; vehiclePanelWindow alone for drone.js's two-window pair), and the contract
 // readers + instrument widgets every dashboard draws with are vehiclePanelUtil.
 //
+// THE RULE: what the user OPERATES is in the Control panel, what shows STATE is on a dashboard.
+// The RAMN pair is the vehicle's own Dashboard / Control panel, named after the machine on the
+// link ("Control panel (Truck)"); a machine's commands are a vehiclePanelSection mounted into it,
+// never a widget on its dashboard.
+//
 // Integration: index.html (script after carlito_contract.js, before every panel; every panel
 // button ships style="display:none") · ramn.js (ramnSetDashOpen) · j1939.js + sloppycan.js
 // (vehiclePanelRequestForProto, reflowHeader) · carlito.js (carlitoOnTelemetry, owned here).
@@ -27,6 +32,7 @@
   window.carlitoOnTelemetry = function (t) {
     lastTel = t;
     syncButtons();
+    syncTitles();
     for (const fn of subs) {
       try { fn(t); }
       catch (e) {
@@ -41,6 +47,7 @@
   function register(p) {
     if (!p || !p.id) return;
     panels.set(p.id, p);
+    if (p.family) families.add(p.family);
     syncButtons();
   }
 
@@ -65,6 +72,19 @@
       if (p._btnEl) p._btnEl.style.display = show ? '' : 'none';
     }
     if (window.reflowHeader) window.reflowHeader();
+  }
+
+  // ── The RAMN pair's titles ──────────────────────────────────────────────────
+  // "Dashboard (Truck)" / "Control panel (Truck)" while a known machine is on the link, (RAMN)
+  // otherwise - a car is the RAMN board's own machine. Decided before written, like syncButtons.
+  const families = new Set();
+  let titleShown = null;
+  function syncTitles() {
+    let label = 'RAMN';
+    for (const f of families) if (isFamily(f, lastTel)) { label = f[0].toUpperCase() + f.slice(1); break; }
+    if (label === titleShown || !window.ramnSetTitles) return;
+    titleShown = label;
+    window.ramnSetTitles(label);
   }
 
   // ── The RAMN handoff + one panel at a time ──────────────────────────────────
@@ -135,7 +155,7 @@
   // (j1939-flavor.js); NMEA 2000 carries only its steer, as a rudder order, so the game's keyboard
   // drives the throttle; DroneCAN carries none, and the drone flies from Drone Control or falls
   // back to the keyboard.
-  const J1939_DRIVES = ' Under this traffic the RAMN Control Panel drives it through J1939 frames' +
+  const J1939_DRIVES = ' Under this traffic the Control panel drives it through J1939 frames' +
                        ' (EEC2 / EBC1 / VDC2 / TC1 / CCVS).';
   const PROTO_PANEL = {
     dronecan: ['drone', 'The DroneCAN tab decodes the drone’s bus, and a car publishes none of it.' +
@@ -147,7 +167,7 @@
     iso11783: ['tractor', 'ISO 11783 is the tractor-implement bus: hitch, PTO, wheel and ground ' +
                           'speed, and the implement’s own address claim.' + J1939_DRIVES],
     nmea2000: ['boat', 'NMEA 2000 is a marine bus - heading, rudder and trim. Under this traffic ' +
-                       'the RAMN Control Panel’s steer orders the rudder (PGN 127245) and the ' +
+                       'the Control panel’s steer orders the rudder (PGN 127245) and the ' +
                        'game’s own keyboard drives the throttle.'],
   };
   function requestForProto(mode) {
@@ -254,6 +274,7 @@
 }
 
 .vp-hidden { display:none !important; }
+.vp-section { border-top:1px solid var(--border); padding-top:9px; }
 .vp-dim { opacity:.4; }
 .vp-rule { height:1px; background:var(--border); margin:9px 0 8px; }
 .vp-sec-lbl {
@@ -434,6 +455,45 @@
     return { q: w.q, toggle, markDirty, tel: () => tel };
   }
 
+  // ── One section of the RAMN pair ────────────────────────────────────────────
+  // { family, where: 'ctrl' | 'dash', html, render(t) } → { q, markDirty, tel }
+  // A machine's commands ('ctrl', the Control panel) or read-backs ('dash', the RAMN dashboard, for
+  // a machine that keeps it), shown only while that family is on the link. render(t) runs on the
+  // telemetry push, rAF-batched, and after markDirty (a click); `t` is the live payload.
+  function vehiclePanelSection(o) {
+    injectCss();
+    const slots = window.ramnVehicleSlots ? window.ramnVehicleSlots() : null;
+    const sec = document.createElement('div');
+    sec.className = 'ramn-sec vp-section vp-hidden';
+    sec.innerHTML = o.html || '';
+    if (slots) slots[o.where].appendChild(sec);
+    else console.warn('Vehicle panels: ramnVehicleSlots is missing - load ramn.js before the panels.');
+    families.add(o.family);
+    let tel = null, live = false, rafPending = false;
+    function markDirty() {
+      if (rafPending || !live) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (!live) return;
+        if (o.render) o.render(tel);
+        if (slots) slots.refit();
+      });
+    }
+    subs.push(function (t) {
+      tel = t;
+      const now = !!isFamily(o.family, t);
+      if (now !== live) {
+        live = now;
+        sec.classList.toggle('vp-hidden', !live);
+        if (slots) slots.refit();
+      }
+      markDirty();
+    });
+    return { q: (id) => sec.querySelector('#' + id), markDirty, tel: () => tel };
+  }
+
+  window.vehiclePanelSection = vehiclePanelSection;
   window.vehiclePanelSubscribe = (fn) => { if (typeof fn === 'function') subs.push(fn); };
   window.vehiclePanelIsFamily = isFamily;
   window.vehiclePanelRegister = register;

@@ -535,10 +535,16 @@ const panels = await page.evaluate(async (P) => {
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const shown = (id) => { const b = document.getElementById(id); return !!b && getComputedStyle(b).display !== 'none'; };
   const open = (id) => { const w = document.getElementById(id); return !!w && w.classList.contains('open'); };
+  // The machine's commands are a shown section of the Control panel, which is named after it.
+  const ctrlSec = (id, label) => {
+    const c = document.querySelector('#ramnCtrlWindow #' + id);
+    return !!c && !c.closest('.vp-hidden') &&
+      document.querySelector('#ramnCtrlWindow .ramn-title').textContent === 'Control panel (' + label + ')';
+  };
   const CASES = [
     ['drone', () => open('droneWindow') && open('droneCtrlWindow')],
-    ['truck', () => open('truckWindow') && document.getElementById('truckRpmV').textContent === '1400'],
-    ['tractor', () => open('tractorWindow') && document.getElementById('tractorGroundV').textContent === '7.6 km/h'],
+    ['truck', () => open('truckWindow') && document.getElementById('truckRpmV').textContent === '1400' && ctrlSec('truckCtlPto', 'Truck')],
+    ['tractor', () => open('tractorWindow') && document.getElementById('tractorGroundV').textContent === '7.6 km/h' && ctrlSec('tractorCtlPto', 'Tractor')],
     ['boat', () => open('boatWindow') && document.getElementById('boatSog').textContent === '6.8'],
     ['train', () => shown('trainBtn')],
     ['plane', () => shown('planeBtn')],

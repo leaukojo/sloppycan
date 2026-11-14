@@ -136,7 +136,7 @@
 .ramn-joypad button.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
 /* Traffic off: the simulated frames stop, so the controls that feed them grey out. */
 .ramn-header .ramn-dot.ctrl.off { background:var(--text3); }
-.ramn-ctrl-off .ramn-sec:not(.ramn-traffic-sec):not(.ramn-uplink-sec), .ramn-sec.ramn-sec-off { opacity:.35; pointer-events:none; }
+.ramn-ctrl-off .ramn-sec:not(.ramn-traffic-sec):not(.ramn-uplink-sec):not(.vp-section), .ramn-sec.ramn-sec-off { opacity:.35; pointer-events:none; }
 .ramn-base-note { margin-top:6px; font-size:var(--fs-s); color:var(--amber); }
 .ramn-hint {
   margin-top:6px; padding-top:9px; border-top:1px solid var(--border);
@@ -233,7 +233,7 @@ win.id = 'ramnWindow';
 win.innerHTML = `
   <div class="ramn-header" id="ramnHeader">
     <span class="ramn-dot"></span>
-    <span class="ramn-title">RAMN dashboard</span>
+    <span class="ramn-title">Dashboard (RAMN)</span>
     <button class="ramn-close" id="ramnCloseBtn" title="Close (Esc)">✕</button>
   </div>
   <div class="ramn-scaleouter" id="ramnScaleOuter">
@@ -329,6 +329,7 @@ win.innerHTML = `
         <span class="lbl">Check</span>
       </div>
     </div>
+    <div id="ramnDashVehicle"></div><!-- vehicle-panel.js sections: the machine's own read-backs -->
    </div>
   </div>
   <div class="ramn-resize" id="ramnResize"></div>
@@ -342,7 +343,7 @@ ctrlWin.style.left = '410px';
 ctrlWin.innerHTML = `
   <div class="ramn-header" id="ramnCtrlHeader">
     <span class="ramn-dot ctrl"></span>
-    <span class="ramn-title">RAMN Control</span>
+    <span class="ramn-title">Control panel (RAMN)</span>
     <button class="ramn-close" id="ramnCtrlCloseBtn" title="Close (Esc)">✕</button>
   </div>
   <div class="ramn-scaleouter" id="ramnCtrlScaleOuter">
@@ -392,6 +393,7 @@ ctrlWin.innerHTML = `
         <div class="ramn-toggle" id="ramnCtrlEscOff" title="Stability control off (contract esc_off, cars and trucks) - traction control goes off with it. RAMN has no frame for it, so it goes straight into the game's uplink - and stays live while traffic is off.">ESC off</div>
       </div>
     </div>
+    <div id="ramnCtrlVehicle"></div><!-- vehicle-panel.js sections: the machine's own commands -->
     <div class="ramn-hint">
       <b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
       <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.<br>
@@ -617,6 +619,19 @@ function setDashOpen(open) {
   win.classList.toggle('open', open);
   if (el.btn) el.btn.classList.toggle('active', open);
   if (open) { dashScale(win.offsetWidth || BASE_W); dirty = true; requestAnimationFrame(renderDashboard); }
+}
+
+// makeFloating fixes the scale wrapper's height in pixels, so a body that grew or shrank needs
+// its scale again; only when the height actually moved.
+const fitH = new WeakMap();
+function refitWindows() {
+  for (const [w, scale] of [[win, dashScale], [ctrlWin, ctrlScale]]) {
+    if (!w.classList.contains('open')) continue;
+    const body = w.querySelector('.ramn-body');
+    if (fitH.get(w) === body.offsetHeight) continue;
+    scale(w.offsetWidth || BASE_W);
+    fitH.set(w, body.offsetHeight);
+  }
 }
 
 function setCtrlOpen(open) {
@@ -874,6 +889,18 @@ window.ramnCtrlToggle = ramnCtrlToggle;
 window.ramnSetPairOpen = ramnSetPairOpen;   // ← used by drone.js to hand the vehicle over
 // The DASHBOARD alone - vehicle-panel.js's 'dash' handoff, for a machine the RAMN controls fit.
 window.ramnSetDashOpen = setDashOpen;
+// The two windows are the vehicle's own Dashboard / Control panel: vehicle-panel.js mounts a
+// machine's sections into these slots and names the windows after it ("Dashboard (Truck)").
+// `refit` re-applies an open window's scale after a section changed its body's height.
+window.ramnVehicleSlots = () => ({
+  dash: win.querySelector('#ramnDashVehicle'),
+  ctrl: ctrlWin.querySelector('#ramnCtrlVehicle'),
+  refit: refitWindows,
+});
+window.ramnSetTitles = (label) => {
+  win.querySelector('.ramn-title').textContent = 'Dashboard (' + label + ')';
+  ctrlWin.querySelector('.ramn-title').textContent = 'Control panel (' + label + ')';
+};
 window.makeFloating = makeFloating;         // ← shared window mechanics (vehicle-panel.js reuses them)
 window.makeDraggable = makeDraggable;       // ← the drag half alone (carlito.js)
 window.ramnDemoStarted = ramnDemoStarted;

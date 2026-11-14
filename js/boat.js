@@ -259,8 +259,8 @@
     id: 'boat', family: 'boat', label: 'boat',
     variant: 'boat-speed-a',          // VehicleCatalog.VARIANTS id, not the family
     btn: 'boatBtn', takes: 'dash', follow: true,
-    cssPrefix: 'boat', title: 'Boat instruments', baseW: 320,
-    headerTip: "The boat's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a boat appears on the Carlito link and takes the RAMN dashboard's place while it is up; the RAMN Control Panel stays, because a boat is driven on the same axes and it already shows what you are commanding. Drag to move, grip the bottom-right corner to resize.",
+    cssPrefix: 'boat', title: 'Dashboard (Boat)', baseW: 320,
+    headerTip: "The boat's instruments, read off the game's own publish at ~20 Hz. Opens by itself when a boat appears on the Carlito link and takes the RAMN dashboard's place while it is up; the Control panel stays, because a boat is driven on the same axes and it already shows what you are commanding. Drag to move, grip the bottom-right corner to resize.",
     bodyHtml: BODY,
     onTelemetry: sampleDepth,
     render: (t) => render(t || {}),

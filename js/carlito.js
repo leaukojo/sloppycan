@@ -996,7 +996,7 @@
     lastChallenge = ch;
     if (window.ramnSetTraffic) window.ramnSetTraffic(!ch);
     if (window.log && window.demoIsActive && window.demoIsActive()) window.log(ch
-      ? 'Carlito: challenge started - RAMN demo traffic disabled (re-enable it in RAMN Control)'
+      ? 'Carlito: challenge started - RAMN demo traffic disabled (re-enable it in the Control panel)'
       : 'Carlito: challenge ended - RAMN demo traffic re-enabled');
   }
 

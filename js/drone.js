@@ -249,7 +249,7 @@
   // ── Dashboard window DOM ────────────────────────────────────────────────────
   // vehicle-panel.js builds both windows (chrome, makeFloating); the pair logic below is this file's.
   const dash = window.vehiclePanelWindow({
-    winId: 'droneWindow', cssPrefix: 'drone', title: 'Drone dashboard', baseW: BASE_W,
+    winId: 'droneWindow', cssPrefix: 'drone', title: 'Dashboard (Drone)', baseW: BASE_W,
     dot: 'var(--cyan)', pad: '12px 14px 14px',
     headerTip: "The drone's telemetry, read off the game's own publish at ~20 Hz. Opens by itself when a drone appears on the Carlito link and takes the RAMN dashboard's place while it is up, because a car's cluster describes nothing about a quadcopter. Drag to move, grip the bottom-right corner to resize.",
     bodyHtml: `
@@ -311,7 +311,7 @@
 
   // ── Control window DOM ──────────────────────────────────────────────────────
   const ctrl = window.vehiclePanelWindow({
-    winId: 'droneCtrlWindow', cssPrefix: 'drone', title: 'Drone control', baseW: BASE_W, left: 430,
+    winId: 'droneCtrlWindow', cssPrefix: 'drone', title: 'Control panel (Drone)', baseW: BASE_W, left: 430,
     dot: 'var(--amber)', pad: '12px 14px 14px',
     headerTip: "The sticks and switches that fly the drone. While this window is open it CLAIMS accel / brake / steer / key from the RAMN controls, and hands them straight back the moment you close it. The game's own ARM, MODE, HOOK and climb pads are hidden while sloppyCAN has the link - these replace them.",
     bodyHtml: `
