@@ -138,6 +138,9 @@
   font-size:var(--fs-s); color:var(--text2); line-height:1.5;
 }
 .drone-hint b { color:var(--text2); font-weight:600; }
+.drone-hint summary { color:var(--blue); cursor:pointer; width:max-content; list-style:none; }
+.drone-hint summary::-webkit-details-marker { display:none; }
+.drone-hint summary:hover { text-decoration:underline; }
 `;
   document.head.appendChild(style);
 
@@ -362,12 +365,12 @@
       <div class="drone-nodes ctl" id="dncNodes"></div>
     </div>
 
-    <div class="drone-hint">
+    <details class="drone-hint"><summary>Keyboard controls</summary>
       <b>Keys</b> (panel open): <b>W</b>/<b>S</b> pitch &middot; <b>A</b>/<b>D</b> yaw &middot;
       <b>R</b>/<b>F</b> climb &middot; <b>T</b> arm &middot; <b>Z</b> next mode.<br>
       Pitch and yaw spring back; the climb stick does not, like a real transmitter &mdash; and the
       FC refuses to arm until it is centred.
-    </div>
+    </details>
 `,
   });
   const ctrlWin = ctrl.win;

@@ -33,7 +33,6 @@
 
 /* Commands (the Control panel section): views over isobus.js, which owns them */
 .tractor-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
-.tractor-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
 .tractor-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
 .tractor-ctl-row .lbl { width:52px; flex-shrink:0; }
 .tractor-ctl-row input[type=range] { flex:1; min-width:0; }
@@ -143,7 +142,7 @@
   // ── Commands: a section of the Control panel ─────────────────────────────────
   const CTL = `
     <div class="tractor-ctl" title="The tractor's commands, sent to Carlito over the uplink. isobus.js owns them and ALSO reads the real ISO 11783-7 command frames off the bus (65090 hitch/PTO, 44288 guidance, 65072 aux valve 0): while a frame is holding one it is ringed amber, and touching the control takes it back.">
-      <div class="tractor-ctl-cap"><span>Tractor commands</span><span class="bus-key">amber = held by the bus</span></div>
+      <div class="tractor-ctl-cap"><span>Tractor commands</span></div>
       <div class="tractor-ctl-row" title="contract hitch_pos - requested rear hitch position, 0 lowered (working) to 100 raised (transport). Bus: PGN 65090 SPN 1875.">
         <span class="lbl">Hitch</span><input type="range" id="tractorCtlHitch" min="0" max="100" value="100"><span class="v" id="tractorCtlHitchV">100%</span>
       </div>

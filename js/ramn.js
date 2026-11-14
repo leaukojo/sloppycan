@@ -150,6 +150,11 @@
 .ramn-hint b { color:var(--text2); font-weight:600; }
 .ramn-hint a { color:var(--blue); text-decoration:none; }
 .ramn-hint a:hover { text-decoration:underline; }
+/* Key help: collapsed behind a small link. */
+.ramn-hint details { margin-bottom:4px; }
+.ramn-hint summary { color:var(--blue); cursor:pointer; width:max-content; list-style:none; }
+.ramn-hint summary::-webkit-details-marker { display:none; }
+.ramn-hint summary:hover { text-decoration:underline; }
 `;
   document.head.appendChild(s);
 })();
@@ -400,8 +405,9 @@ ctrlWin.innerHTML = `
     </div>
     <div id="ramnCtrlVehicle"></div><!-- vehicle-panel.js sections: the machine's own commands -->
     <div class="ramn-hint">
-      <span class="ramn-drive-hint"><b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
-      <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.<br></span>
+      <details class="ramn-drive-hint"><summary>Keyboard controls</summary>
+      <b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
+      <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.</details>
       <a href="https://github.com/ToyotaInfoTech/RAMN" target="_blank" rel="noopener">Learn more about RAMN ↗</a>
     </div>
    </div>
@@ -703,9 +709,9 @@ function syncCtrlUI() {
 // Steer as a PGN 127245 rudder order (nmea2000.js) and keeps the RAMN drive frames (sloppycan.js
 // DEMO_N2K_RAMN_IDS). A base traffic missing here carries none.
 const BASE_CARRIES = {
-  j1939:    { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'], via: 'EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD' },
-  iso11783: { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'], via: 'EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD' },
-  nmea2000: { ctl: ['brake', 'accel', 'steer'], via: 'RAMN 0x024 / 0x039 / 0x062 and the PGN 127245 rudder order' },
+  j1939:    { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'] },   // EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD
+  iso11783: { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'] },   // same groups
+  nmea2000: { ctl: ['brake', 'accel', 'steer'] },   // RAMN 0x024 / 0x039 / 0x062 + the PGN 127245 rudder order
 };
 
 function syncTrafficUI() {
@@ -725,12 +731,9 @@ function syncTrafficUI() {
   cel.brake.disabled = allOff || !live('brake');
   cel.accel.disabled = allOff || !live('accel');
   cel.steer.disabled = allOff || !live('steer');
-  cel.baseNote.style.display = baseNotRamn ? '' : 'none';
-  if (baseNotRamn) {
-    cel.baseNote.textContent = carries
-      ? 'The base traffic is ' + window.demoBaseTrafficLabel() + ' - the live controls drive through ' + carries.via + '.'
-      : 'RAMN traffic is off - the base traffic is ' + window.demoBaseTrafficLabel() + '.';
-  }
+  // Only a base traffic that carries none of the controls gets a note: everything is greyed out.
+  cel.baseNote.style.display = baseNotRamn && !carries ? '' : 'none';
+  if (baseNotRamn && !carries) cel.baseNote.textContent = 'RAMN traffic is off - the base traffic is ' + window.demoBaseTrafficLabel() + '.';
 }
 
 function ramnSetTraffic(on) {

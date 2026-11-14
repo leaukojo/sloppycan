@@ -22,7 +22,6 @@
   style.textContent = `
 /* Commands (the Control panel section): views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js, j1939.js) */
 .truck-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
-.truck-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
 .truck-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
 .truck-ctl-row .lbl { width:52px; flex-shrink:0; }
 .truck-ctl-row input[type=range] { flex:1; min-width:0; }
@@ -170,7 +169,7 @@
   // ── Commands: a section of the Control panel ─────────────────────────────────
   const CTL = `
     <div class="truck-ctl" title="The truck's commands, sent to Carlito over the uplink. Each is owned by the module for its bus, and the PTO and body command are also read off the bus: while a frame is holding one it is ringed amber, and touching the control takes it back. The lamps are j1939.js's: off, on, or flashing at 1 or 2 Hz.">
-      <div class="truck-ctl-cap"><span>Truck commands</span><span class="bus-key">amber = held by the bus</span></div>
+      <div class="truck-ctl-cap"><span>Truck commands</span></div>
       <div class="truck-ctl-row">
         <span class="lbl">PTO</span>
         <button id="truckCtlPto" title="contract pto - the chassis PTO that drives the body. Shared with the tractor and owned with it by isobus.js. Bus: PGN 65090 SPN 1894.">Engage</button>
