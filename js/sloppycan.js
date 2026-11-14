@@ -97,7 +97,7 @@ function refreshFrameColorInDump(key) {
   const color = frameColors.get(key) || '';
   dumpRowEls.forEach(tr => {
     if (tr.dataset.frameKey !== key) return;
-    tr.style.borderLeft = `3px solid ${color || 'transparent'}`;
+    tr.style.boxShadow = `inset 3px 0 0 ${color || 'transparent'}`;
     tr.cells[1].style.color = color || 'var(--amber)';
   });
 }
@@ -845,7 +845,7 @@ function resetConnectionState() {
 function syncDataPlaceholder() {
   const el = document.getElementById('filterData');
   if (!el) return;
-  el.placeholder = 'FILTER DATA';
+  el.placeholder = 'Data bytes';
 }
 
 function getFilter() {
@@ -2139,7 +2139,9 @@ function dumpBuildRow(e) {
   const fk = frameKey(e);
   const dumpColor = frameColors.get(fk) || '';
   const isNewDump = notchSnapshot !== null && !notchSnapshot.has(fk);
-  tr.style.cssText = `position:absolute;width:100%;cursor:pointer;border-left:3px solid ${dumpColor || 'transparent'}`;
+  // The colour stripe is an inset shadow, not a border: a border would narrow the row's columns by
+  // 3px against the header's (see the #dumpTable tr rule in sloppycan.css).
+  tr.style.cssText = `position:absolute;width:100%;cursor:pointer;box-shadow:inset 3px 0 0 ${dumpColor || 'transparent'}`;
   if (isNewDump) tr.classList.add('new-id');
   tr.title = 'Click to inspect';
   tr.dataset.frameKey = fk;
@@ -2149,7 +2151,7 @@ function dumpBuildRow(e) {
     <td><span class="td-type ${typeClass}">${typeLabel}</span>${dirBadge}</td>
     <td style="color:var(--text2);text-align:center">${e.dlc}</td>
     <td class="td-data">${formatDumpData(e, fk)}</td>
-    <td style="color:var(--text2);font-family:var(--sans);font-size:var(--fs-s);font-style:italic;padding:3px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${escHtml(frameNotes.get(frameKey(e)) || '')}</td>
+    <td style="color:var(--text2);font-family:var(--sans);font-size:var(--fs-s);font-style:italic">${escHtml(frameNotes.get(frameKey(e)) || '')}</td>
   `;
   tr.addEventListener('click', () => inspectFrame(e));
   return tr;
@@ -2296,7 +2298,8 @@ function inspectFrame(f) {
         const extra = f.cls === 'id' ? 'id' : f.cls === 'ctrl' ? 'ctrl' : f.cls === 'data' ? 'data-b' : f.cls === 'crc' ? 'crc-b' : '';
         return `<div class="bf-bit ${cls} ${extra}">${b}</div>`;
       }).join('');
-      return `<div class="bf-field"><div class="bf-label ${f.cls}">${escHtml(f.label)}</div><div class="bf-bits">${bitsHtml}</div></div>`;
+      // Width follows the bit count, so the 11-bit ID isn't crammed into a 1-bit field's width.
+      return `<div class="bf-field" style="flex-grow:${f.bits.length}"><div class="bf-label ${f.cls}">${escHtml(f.label)}</div><div class="bf-bits">${bitsHtml}</div></div>`;
     }).join('')}</div>`;
   }
 
@@ -2364,9 +2367,8 @@ function inspectFrame(f) {
       </div>
       <span class="td-type ${isRtr ? 'rtr' : isExt ? 'ext' : 'std'}">${isRtr ? 'RTR' : isExt ? 'EXT' : 'STD'}</span>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap" title="Sets the highlight colour for this ID across the ID List, Traffic Dump, and Graph tabs.">
-        <span style="font-size:var(--fs-s);color:var(--text2);font-family:var(--sans)">ID Color</span>
         ${['#f87171','#fb923c','#f59e0b','#a3e635','#00e87a','#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6'].map(c =>
-          `<span title="${c}" onclick="setFrameColor('${noteKey}','${c}')"
+          `<span title="ID colour ${c}" onclick="setFrameColor('${noteKey}','${c}')"
             style="width:14px;height:14px;border-radius:0;background:${c};cursor:pointer;flex-shrink:0;${currentColor===c?'outline:2px solid #fff;outline-offset:1px':'opacity:0.75'}"></span>`
         ).join('')}
         <input type="color" value="${colorPickerVal}"
@@ -2376,7 +2378,6 @@ function inspectFrame(f) {
       </div>
     </div>
 
-    <div class="inspect-title">Notes</div>
     <input id="inspectNoteArea" type="text"
       style="width:100%;margin-bottom:8px;background:var(--bg2);border:1px solid var(--border2);border-radius:0;color:var(--text);font-family:var(--sans);font-size:var(--fs-m);padding:0 12px;outline:none;box-sizing:border-box"
       placeholder="Add notes about this frame ID…"
@@ -2388,13 +2389,14 @@ function inspectFrame(f) {
       ${fieldHtml}
     </div>
 
-    <div class="inspect-title">Bitstream with Bit Stuffing
-      <span style="font-size:var(--fs-s);font-weight:400;color:var(--text2);letter-spacing:0;text-transform:none">
-        - ${stuffed.length} bits total, ${stuffCount} stuff bit${stuffCount !== 1 ? 's' : ''} inserted
+    <div class="inspect-title">Bitstream
+      <span style="font-size:var(--fs-s);font-weight:400;color:var(--text2);letter-spacing:0;text-transform:none"
+        title="With bit stuffing: after five equal bits the transmitter inserts one opposite bit.">
+        ${stuffed.length} bits, ${stuffCount} stuffed
       </span>
       <a href="explainers/can-signals-explainer.html?bits=${stuffed.map(s => s.bit).join('')}" target="_blank"
         style="font-size:var(--fs-s);font-weight:400;color:var(--accent,#60a5fa);text-decoration:none;letter-spacing:0;text-transform:none;margin-left:8px"
-        title="See these bits as CAN_H / CAN_L oscilloscope waveforms">↗ View as oscilloscope signals</a>
+        title="See these bits as CAN_H / CAN_L oscilloscope waveforms">Oscilloscope ↗</a>
     </div>
     <div class="stuff-wrap">
       ${legendHtml}
@@ -2459,13 +2461,15 @@ function updateTerminalTab() {
 
 // Serial-tab warning (#9): show whenever live traffic is streaming - an open bus (RX) and/or
 // Carlito telemetry - while not paused, since that muddies the raw command console.
-// Called from updateTerminalTab() + on Carlito open/close.
+// Called from updateTerminalTab() (so on every bus-state change), on tab switch, and on Carlito open/close.
 function updateTermTrafficWarn() {
   const warn = document.getElementById('termTrafficWarn');
   if (!warn) return;
   const carlitoOpen = window.carlitoIsOpen && window.carlitoIsOpen();
   const live = !paused && (busIsOpen || carlitoOpen);
-  warn.style.display = live ? 'block' : 'none';
+  warn.style.display = live ? 'flex' : 'none';
+  // Pause bus only while the bus is what's streaming: busPauseClick on a closed bus would open it.
+  document.getElementById('termPauseBtn').style.display = busIsOpen ? '' : 'none';
 }
 window.updateTermTrafficWarn = updateTermTrafficWarn;
 
@@ -2520,12 +2524,9 @@ function updateNotchBtn() {
 }
 
 function clearInspector() {
-  document.getElementById('inspectContent').innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:200px;gap:14px;color:var(--text2)">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M9 5v14"/></svg>
-      <div style="font-size:var(--fs-l);font-weight:500;color:var(--text2)">No frame selected</div>
-      <div style="font-size:var(--fs-m);">Click a frame in the ID List or Traffic Dump to inspect it here.</div>
-    </div>`;
+  // Same markup as #inspectEmpty in index.html.
+  document.getElementById('inspectContent').innerHTML =
+    '<div id="inspectEmpty" class="empty" title="Click a frame in the ID List or Traffic Dump.">No frame selected.</div>';
 }
 
 function clearFrames() {
@@ -3796,7 +3797,7 @@ function isotpShowTimeoutBanner() {
   el.innerHTML =
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` +
     `<span style="flex:1">No response received - the ECU did not reply within ${ISOTP_TIMEOUT} ms. Check IDs, addressing mode, and that the bus is not paused.</span>` +
-    `<button onclick="clearIsotpLog()" style="background:var(--red);border:none;color:#fff;border-radius:0;padding:3px 9px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear Window</button>` +
+    `<button onclick="clearIsotpLog()" style="background:var(--red);border:none;color:#fff;border-radius:0;padding:3px 9px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear</button>` +
     `<button onclick="this.closest('.isotp-timeout-banner').remove()" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:0;padding:3px 7px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans)">✕</button>`;
   log.insertBefore(el, log.firstChild);
 }
@@ -3860,10 +3861,6 @@ function isotpAddrModeChanged() {
   document.getElementById('isotpAddrByteWrap').style.display = ext ? 'flex' : 'none';
 }
 
-function isotpExplainerLink(e) {
-  document.getElementById('isotpLearnLink').href = 'explainers/isotp-explainer.html';
-}
-
 // Clamp the Tx/Rx ID fields to range/width (red when empty) and flag a broadcast Tx (orange Rx + hint).
 function isotpIdInput() {
   const txEl = document.getElementById('isotpTxId');
@@ -3892,7 +3889,7 @@ function isotpProtoSwitchWarn() {
     + 'font-size:var(--fs-s);color:var(--amber)';
   el.innerHTML =
     `<span style="flex:1">⚠ Protocol switched - earlier entries above were decoded under a different protocol and may read incorrectly.</span>` +
-    `<button onclick="clearIsotpLog()" style="background:var(--amber);border:none;color:#000;border-radius:0;padding:3px 9px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear Window</button>` +
+    `<button onclick="clearIsotpLog()" style="background:var(--amber);border:none;color:#000;border-radius:0;padding:3px 9px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear</button>` +
     `<button onclick="this.closest('.isotp-proto-warn').remove()" style="background:transparent;border:1px solid var(--amber);color:var(--amber);border-radius:0;padding:3px 7px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans)">✕</button>`;
   log.insertBefore(el, log.firstChild);
 }
@@ -4064,10 +4061,10 @@ function isotpSetProtoMode(mode) {
     obdProtoMode === 'obd' ? 'OBD' : obdProtoMode === 'kwp' ? 'KWP' : 'UDS';
   // Per-mode example in the terminal input - match each protocol's own frame format.
   document.getElementById('isotpInput').placeholder =
-    obdProtoMode === 'obd' ? 'hex bytes - e.g.  01 0C  or  03'
-    : obdProtoMode === 'kwp' ? 'hex bytes - e.g.  21 F0  or  3E'
-    : 'hex bytes - e.g.  22 F1 84  or  3E 00';
-  // Active-protocol explainer link lives in the config strip (next to the ISO-TP one).
+    obdProtoMode === 'obd' ? '01 0C'
+    : obdProtoMode === 'kwp' ? '21 F0'
+    : '22 F1 84';
+  // The bar's one learn link follows the protocol.
   const protoLink = document.getElementById('isotpProtoLearnLink');
   const protoInfo = obdProtoMode === 'obd' ? ['explainers/obd2-explainer.html', 'Learn how OBD-II works ↗']
     : obdProtoMode === 'kwp' ? ['explainers/kwp2000-explainer.html', 'Learn how KWP2000 works ↗']
@@ -5066,6 +5063,29 @@ function toggleHelp() {
       document.addEventListener('click', close);
     }, 0);
   }
+}
+
+// A popover anchored to its button: toggles (or forces open / closed), and closes on a click
+// outside both. toggleNotchPanel's shape: the old listener is always dropped first, so open/close
+// cycles never stack them. Not named togglePopover: an inline onclick resolves names on the element
+// first, so that would call the button's own HTMLElement.togglePopover() and throw.
+const _popoverClosers = new Map();
+function toggleDropdown(menuId, btnId, open) {
+  const menu = _el(menuId);
+  if (!menu) return;
+  if (open === undefined) open = menu.style.display === 'none';
+  const old = _popoverClosers.get(menuId);
+  if (old) { document.removeEventListener('click', old); _popoverClosers.delete(menuId); }
+  menu.style.display = open ? 'flex' : 'none';
+  if (!open) return;
+  setTimeout(() => {
+    const close = (e) => {
+      if (menu.contains(e.target) || e.target.closest('#' + btnId)) return;
+      toggleDropdown(menuId, btnId, false);
+    };
+    _popoverClosers.set(menuId, close);
+    document.addEventListener('click', close);
+  }, 0);
 }
 
 // Connect popover - holds all adapter settings + a confirm Connect button (#1).

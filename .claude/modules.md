@@ -77,7 +77,7 @@ discarded and a mode's last valid IDs return with it.
 
 ## J1939 tab modes (`j1939.js`)
 
-`.obd-proto-toggle` buttons (`#j1939ProtoJ1939` / `#j1939ProtoNmea2000` / `#j1939ProtoIso11783`)
+`.seg` buttons (`#j1939ProtoJ1939` / `#j1939ProtoNmea2000` / `#j1939ProtoIso11783`)
 → `j1939ProtoClick(mode)` → `j1939SetProto`, which swaps the dictionary (`j1939ActiveDb()`:
 `J1939_DB` / `NMEA2K_DB` / `ISOBUS_DB`, all in `j1939-tables.js`), clears live state and persists.
 In demo the click routes through `demoMaybeSwitch` (switches the base traffic, prompted). Outside

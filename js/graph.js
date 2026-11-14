@@ -26,16 +26,6 @@
 (function () {
   const s = document.createElement('style');
   s.textContent = `
-.graph-toolbar {
-  background:var(--bg2); border-bottom:1px solid var(--border); padding:5px 12px;
-  display:flex; align-items:center; gap:7px; flex-shrink:0; flex-wrap:wrap;
-}
-.graph-toolbar .graph-lbl { font-family:var(--sans); font-size:var(--fs-s); color:var(--text2); }
-.graph-sel, .graph-toolbar select {
-  background:var(--bg3); color:var(--text); border:1px solid var(--border2);
-  border-radius:0; font-family:var(--sans); font-size:var(--fs-m); padding:0 6px; outline:none;
-}
-.graph-sep { width:1px; height:18px; background:var(--border2); margin:0 3px; }
 .graph-add-warn { color:var(--red); font-family:var(--sans); font-size:var(--fs-s); }
 .graph-signed-lbl {
   display:flex; align-items:center; gap:4px; font-family:var(--sans);
@@ -43,6 +33,7 @@
 }
 .graph-stage { flex:1; min-height:0; position:relative; }
 #graphCanvas { width:100%; height:100%; display:block; }
+.graph-empty { position:absolute; inset:0; }  /* takes the pointer, so its title hint shows */
 .graph-legend {
   flex-shrink:0; display:flex; flex-wrap:wrap; gap:6px 16px; padding:7px 12px;
   border-top:1px solid var(--border); background:var(--bg2);
@@ -519,12 +510,11 @@ function drawGraph() {
 
   const plotL = 10, plotR = W - 10, plotT = 10, plotB = H - 22;
 
-  // Empty state
+  // Empty state: the one-line .empty over the blank canvas.
+  const emptyEl = document.getElementById('graphEmpty');
+  const emptyShow = graphSignals.length ? 'none' : '';
+  if (emptyEl && emptyEl.style.display !== emptyShow) emptyEl.style.display = emptyShow;
   if (!graphSignals.length) {
-    ctx.fillStyle = COL.text3;
-    ctx.font = '13px ' + sans;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('Add a signal above to start graphing - or right-click an ID List row.', W / 2, H / 2);
     graphLegendHtml();
     return;
   }

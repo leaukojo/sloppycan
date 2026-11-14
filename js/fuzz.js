@@ -37,8 +37,22 @@ function fuzzDefaultCfg() {
   };
 }
 
+// The mode switches are .seg groups: <div class="seg" data-fuzz="fuzzIdMode"> holding
+// <button data-v="range">. The active button is the group's value.
+const fuzzSegGet = n => { const b = document.querySelector(`.seg[data-fuzz="${n}"] button.active`); return b ? b.dataset.v : undefined; };
+function fuzzSegSet(n, v) {
+  document.querySelectorAll(`.seg[data-fuzz="${n}"] button`).forEach(b => b.classList.toggle('active', b.dataset.v === v));
+}
+
 // ── One-time dynamic UI build ──
 function fuzzInitUI() {
+  // One delegated listener for every .seg group.
+  document.getElementById('fuzzWrap').addEventListener('click', e => {
+    const b = e.target.closest('.seg[data-fuzz] button');
+    if (!b) return;
+    fuzzSegSet(b.parentElement.dataset.fuzz, b.dataset.v);
+    fuzzCfgChange();
+  });
   // Random-mode byte checkboxes
   const rb = document.getElementById('fuzzRandomBytes');
   rb.innerHTML = '';
@@ -94,7 +108,7 @@ function fuzzCycleCell(r, c, cell) {
 
 // ── Read DOM → fuzzCfg, refresh visibility, persist ──
 function fuzzCfgChange() {
-  const radio = n => (document.querySelector(`input[name="${n}"]:checked`) || {}).value;
+  const radio = fuzzSegGet;
   fuzzCfg.idMode  = radio('fuzzIdMode') || 'range';
   fuzzCfg.isExt   = document.getElementById('fuzzIsExt').value === '1';
   fuzzCfg.idStart = window.clampIdInput(document.getElementById('fuzzIdStart'), fuzzCfg.isExt);
@@ -127,8 +141,9 @@ function fuzzCfgChange() {
   document.getElementById('fuzzObservedOpts').style.display = fuzzCfg.idMode === 'observed' ? 'flex' : 'none';
   document.getElementById('fuzzRandomOpts').style.display   = fuzzCfg.payMode === 'random'  ? 'flex' : 'none';
   document.getElementById('fuzzMaskOpts').style.display     = fuzzCfg.payMode === 'mask'    ? 'block' : 'none';
-  document.getElementById('fuzzBitgridOpts').style.display  = fuzzCfg.payMode === 'bitgrid' ? 'block' : 'none';
+  document.getElementById('fuzzBitgridOpts').style.display  = fuzzCfg.payMode === 'bitgrid' ? 'flex' : 'none';
 
+  fuzzUpdateObservedNote();
   if (window.fuzzScheduleSave) window.fuzzScheduleSave();
 }
 
@@ -269,8 +284,9 @@ function fuzzTxReady() {
 function fuzzUpdateIndicator() {
   const startBtn = document.getElementById('fuzzStartBtn');
   if (startBtn) {
-    startBtn.textContent = fuzzRunning ? 'Stop fuzzing' : 'Start fuzzing';
+    startBtn.textContent = fuzzRunning ? 'Stop' : 'Start';
     startBtn.classList.toggle('running', fuzzRunning);
+    startBtn.classList.toggle('primary', !fuzzRunning);
   }
   // Only ever hide the hint here (when ready or running); it's revealed on attempt in fuzzToggleRun,
   // so it isn't shown before the user tries to start fuzzing.
@@ -300,12 +316,16 @@ window.fuzzModuleSummary = function () {
 };
 
 // ── Tab show + persistence hooks ──
-window.fuzzOnShow = function () {
-  // Refresh observed-ID note count so the user knows the target pool.
+// The observed-ID count, so the user knows the target pool. Follows the Std / Ext select.
+function fuzzUpdateObservedNote() {
   const note = document.getElementById('fuzzObservedNote');
   if (note && window.fuzzObservedIds) {
-    note.textContent = `Cycles through the ${window.fuzzObservedIds(fuzzCfg.isExt).length} ${fuzzCfg.isExt ? 'extended' : 'standard'} ID(s) currently in the ID List.`;
+    note.textContent = `${window.fuzzObservedIds(fuzzCfg.isExt).length} ${fuzzCfg.isExt ? 'ext' : 'std'} IDs`;
   }
+}
+
+window.fuzzOnShow = function () {
+  fuzzUpdateObservedNote();
   fuzzUpdateIndicator();   // refresh the TX-disabled hint for the current bus state
 };
 
@@ -357,7 +377,7 @@ window.fuzzApply = function (cfg) {
 
 // Push fuzzCfg back into the form controls (used by fuzzApply + init).
 function fuzzWriteToDOM() {
-  const setRadio = (n, v) => { const el = document.querySelector(`input[name="${n}"][value="${v}"]`); if (el) el.checked = true; };
+  const setRadio = fuzzSegSet;
   const hex = (v, w) => (v >>> 0).toString(16).toUpperCase().padStart(w, '0');
   setRadio('fuzzIdMode', fuzzCfg.idMode);
   document.getElementById('fuzzIsExt').value = fuzzCfg.isExt ? '1' : '0';
@@ -387,7 +407,7 @@ function fuzzWriteToDOM() {
   document.getElementById('fuzzObservedOpts').style.display = fuzzCfg.idMode === 'observed' ? 'flex' : 'none';
   document.getElementById('fuzzRandomOpts').style.display   = fuzzCfg.payMode === 'random'  ? 'flex' : 'none';
   document.getElementById('fuzzMaskOpts').style.display     = fuzzCfg.payMode === 'mask'    ? 'block' : 'none';
-  document.getElementById('fuzzBitgridOpts').style.display  = fuzzCfg.payMode === 'bitgrid' ? 'block' : 'none';
+  document.getElementById('fuzzBitgridOpts').style.display  = fuzzCfg.payMode === 'bitgrid' ? 'flex' : 'none';
 }
 
 // ── Init (deferred: DOM is ready) ──

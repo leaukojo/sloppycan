@@ -28,60 +28,13 @@
 (function () {
   const s = document.createElement('style');
   s.textContent = `
-.xcp-config {
-  background:var(--bg2); border-bottom:1px solid var(--border);
-  padding:7px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  flex-shrink:0; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
-}
-.xcp-config label { display:flex; align-items:center; gap:5px; }
-.xcp-config input, .xcp-config select {
-  background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 6px; outline:none;
-}
-.xcp-config input { width:64px; }
 .xcp-controls {
-  padding:14px 20px; display:flex; flex-direction:column; gap:12px;
-  border-bottom:1px solid var(--border); flex-shrink:0;
+  padding:14px 20px 0; display:flex; flex-direction:column; gap:12px; flex-shrink:0;
 }
-.xcp-controls .xcp-config { background:transparent; border:none; padding:0; }
-.xcp-controls:not(.xcp-connected) .xcp-hide-until-connected { display:none; }
-/* Before connecting, make Connect the obvious primary action (solid green + glow). */
-.xcp-controls:not(.xcp-connected) #xcpConnectBtn {
-  background:var(--green); color:#000; border-color:var(--green); font-weight:700;
-  box-shadow:0 0 0 3px var(--green-dim);
-}
-.xcp-controls:not(.xcp-connected) #xcpConnectBtn:hover:not(:disabled) { background:#00cc6a; color:#000; }
-.xcp-log-bar {
-  background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
-  padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
-  font-family:var(--sans); font-size:var(--fs-m); font-weight:600; color:var(--text);
-}
-.xcp-log-bar a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:400; margin-left:auto; font-size:var(--fs-s); }
-.xcp-log-bar button { font-size:var(--fs-s); padding:3px 10px; }
-.xcp-btn-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.xcp-btn {
-  font-size:var(--fs-m); padding:5px 12px; background:var(--bg2); color:var(--text2);
-  border:1px solid var(--border); border-radius:0; cursor:pointer;
-  font-family:var(--sans); white-space:nowrap; transition:background .15s,color .15s;
-}
-.xcp-btn:hover:not(:disabled) { background:var(--bg3); color:var(--text); }
-.xcp-btn:disabled { opacity:.4; cursor:not-allowed; }
-.xcp-btn.go     { background:var(--green-dim); color:var(--green); border-color:transparent; }
-.xcp-btn.danger { background:var(--red-dim);   color:var(--red);   border-color:var(--red); }
-.xcp-btn.danger:hover:not(:disabled) { background:var(--red); color:#000; }
-.xcp-form {
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
-}
-.xcp-form label { display:flex; align-items:center; gap:5px; }
-.xcp-form input {
-  background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 7px; outline:none;
-}
-.xcp-form .grp-title {
-  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2);
-  min-width:auto;
-}
+#xcpWrap:not(.xcp-connected) .xcp-hide-until-connected { display:none; }
+.xcp-log-bar { background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:0 16px; flex-shrink:0; }
+.xcp-form { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.xcp-msgs { padding:0 20px; }
 .xcp-readout {
   font-family:var(--mono); font-size:var(--fs-s); color:var(--green); padding:2px 0 0;
   word-break:break-all; min-height:14px;
@@ -114,7 +67,6 @@
   color:var(--text3); border:1px solid var(--border);
 }
 .xcp-chip.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
-.xcp-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:40px 0; font-family:var(--sans); line-height:1.6; }
 .xcp-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-m); }
 .xcp-tbl th {
   text-align:left; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em;
@@ -546,10 +498,13 @@ function xcpCfgChange() {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
-// Reveal the action buttons only after Connect; Disconnect / bus close collapses.
+// Reveal the action buttons only after Connect; Disconnect / bus close collapses. Until then
+// Connect is the primary action.
 function xcpUpdateConnectUI() {
-  const c = document.getElementById('xcp-controls');
+  const c = document.getElementById('xcpWrap');
   if (c) c.classList.toggle('xcp-connected', xcpConnectedUI);
+  const btn = document.getElementById('xcpConnectBtn');
+  if (btn) btn.classList.toggle('primary', !xcpConnectedUI);
 }
 
 function xcpClearLog() { xcpTab.clearLog(); xcpTab.render(); }
@@ -572,9 +527,7 @@ function xcpRenderSession() {
   const el = document.getElementById('xcp-sessioninfo');
   if (!el) return;
   if (!XCP.connected) {
-    window.setHtmlIfChanged(el, '<div class="xcp-empty">Not connected.<br>' +
-      'Set the CRO/DTO IDs above, then click <b>Connect</b>.<br>' +
-      'With <b>Demo</b> mode on, a simulated XCP slave answers - no hardware needed.</div>');
+    window.setHtmlIfChanged(el, '<div class="empty">Not connected.</div>');
     return;
   }
   const res = XCP_RESOURCE.map(r => `<span class="xcp-chip${(XCP.resource & (1 << r.bit)) ? ' on' : ''}">${r.label}</span>`).join('');
@@ -610,7 +563,7 @@ const xcpTab = window.makeStackedLogTab({
   readoutElId: 'xcp-readout', txHintElId: 'xcp-tx-hint',
   tableClass: 'xcp-tbl',
   theadHtml: '<tr><th>Time</th><th>Dir</th><th>ID</th><th>Type</th><th>Bytes</th><th>Decoded</th></tr>',
-  emptyHtml: '<div class="xcp-empty">No XCP frames yet.<br>Commands ride the CRO ID, responses + DAQ ride the DTO ID.</div>',
+  emptyHtml: '<div class="empty" title="Commands ride the CRO ID, responses + DAQ ride the DTO ID.">No XCP frames yet.</div>',
   onTick: xcpUpdateButtons,
   renderTop: xcpRenderSession,
   // Coalesce a fast DAQ stream into one updating row so it can't flood the DOM.

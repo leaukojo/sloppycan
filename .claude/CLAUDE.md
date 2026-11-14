@@ -60,7 +60,9 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
   `textContent` before any `innerHTML`. `log()` escapes its message already.
 - **Live tables update in place** (`renderKeyedTable` / `renderKeyedRows` / `setHtmlIfChanged`),
   never a whole-table `innerHTML`, which restarts the hover fade, splits clicks and wipes
-  selection. Generated rows use `data-*` + one delegated listener, never inline `onclick`. Tables
+  selection. Generated rows use `data-*` + one delegated listener, never inline `onclick`. An inline
+  handler resolves names on its element first: never name a global after an element method
+  (`togglePopover`, `close`, `remove`…), and test popovers by clicking, not by calling the function. Tables
   keyed by bus ids are capped (`FRAMES_MAX`, `J1939_PGN_MAX`, DroneCAN's reassembly caps).
 - **Flavored contract signals are packed by their flavor module, not `CAN_MAP`.** A module pushes
   `{ flavor, signals, pack(t, slow) }` (+ optional `unpackable`, `onRequest`, `mirrors`,

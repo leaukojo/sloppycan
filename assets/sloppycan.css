@@ -484,7 +484,18 @@ input[type=number] { width: 80px; }
 
 /* ── Traffic Dump fixed-width columns ────────────────────────────────────────
    Both #dumpHeaderTable th and #dumpTable td use the same widths and padding
-   so the pinned header and virtual-scroll body stay aligned.                */
+   so the pinned header and virtual-scroll body stay aligned. Data (5th) is the
+   one flexible column in both.
+
+   The virtual-scroll rows are position:absolute, which takes them out of the
+   table's layout: each row then lays out as its own anonymous auto-width
+   table and ignores these widths. So each row is made a fixed-layout table of
+   its own, laid out exactly like the header table. Both the header and the
+   body reserve the scrollbar gutter, so their widths match whether the body
+   has a scrollbar or not.                                                    */
+#dumpTable tr { display: table; table-layout: fixed; border-collapse: collapse; }
+#dumpHeader, #dumpWrap { scrollbar-gutter: stable; }
+#dumpHeader { overflow: hidden; }
 #dumpHeaderTable th,
 #dumpTable td {
   padding: 4px 8px;
@@ -495,11 +506,13 @@ input[type=number] { width: 80px; }
 #dumpHeaderTable th:nth-child(1), #dumpTable td:nth-child(1) { width:80px;  min-width:80px;  max-width:80px;  }
 #dumpHeaderTable th:nth-child(2), #dumpTable td:nth-child(2) { width:112px; min-width:112px; max-width:112px; }
 #dumpHeaderTable th:nth-child(3), #dumpTable td:nth-child(3) { width:114px; min-width:114px; max-width:114px; }
-#dumpHeaderTable th:nth-child(4), #dumpTable td:nth-child(4) { width:34px;  min-width:34px;  max-width:34px;  text-align:center; }
+#dumpHeaderTable th:nth-child(4), #dumpTable td:nth-child(4) { width:44px;  min-width:44px;  max-width:44px;  text-align:center; }
 #dumpHeaderTable th:nth-child(6), #dumpTable td:nth-child(6) { width:160px; min-width:160px; max-width:160px; }
 
 /* ID List: fixed-width ID column to accommodate 0x + 8-digit EXT IDs */
 .td-id { min-width:112px; }
+/* ID List: every column but Notes shrinks to its content; Notes takes the rest. */
+#frameTable thead th:not(.th-checkbox):not(:last-child) { width: 1%; white-space: nowrap; }
 
 table {
   width: 100%;
@@ -695,65 +708,29 @@ tbody td {
 
 .td-count {
   color: var(--text2);
+  font-size: var(--fs-m);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .td-rate {
   color: var(--text2);
+  font-size: var(--fs-m);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .td-age {
   color: var(--text3);
-  font-size: var(--fs-s);
+  font-size: var(--fs-m);
   text-align: right;
-  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .td-age.fresh { color: var(--green); }
 
-/* Empty state */
-.empty-icon {
-  width: 56px;
-  height: 56px;
-  border: 2px dashed var(--border2);
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.empty-icon svg { width: 28px; height: 28px; }
-
-.empty-title {
-  font-family: var(--sans);
-  font-size: var(--fs-l);
-  font-weight: 500;
-  color: var(--text2);
-}
-
-.empty-sub {
-  font-family: var(--sans);
-  font-size: var(--fs-m);
-  color: var(--text2);
-  text-align: center;
-  max-width: 320px;
-  line-height: 1.6;
-}
-
-/* "All frames filtered out" notice - reuses .empty-state layout, amber accent */
-.filter-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 80px 24px;
-  color: var(--text2);
-}
-.filter-empty-icon { border-color: var(--amber); color: var(--amber); }
+/* "All frames filtered out" notice: a one-line .empty, amber because a filter is the cause */
+.empty.filter-empty { color: var(--amber); }
 /* Dump view is virtual-scrolled - overlay the notice over the (empty) scroll area */
 #dumpFilterEmpty { position: absolute; inset: 0; z-index: 1; background: var(--bg); }
 #dumpNoFrames { position: absolute; top: 28px; left: 0; right: 0; }
@@ -1354,6 +1331,11 @@ label.filter-attention { box-shadow: 0 0 0 1px var(--amber); border-radius: 0; b
 }
 .pin-btn:hover { opacity: 1; color: var(--text2); }
 .pin-btn.pinned { opacity: 1; color: var(--amber); }
+/* With a mouse, the pin shows only on the hovered row (and stays on a pinned one). */
+@media (hover: hover) {
+  .pin-btn:not(.pinned) { opacity: 0; }
+  tbody tr:hover .pin-btn, .pin-btn:focus-visible { opacity: 1; }
+}
 
 tbody tr.pinned-row { background: var(--amber-dim); }
 tbody tr.pinned-row:hover { background: var(--amber-dim); }
@@ -1425,18 +1407,24 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
 }
 
 /* ── Fuzzing tab (remove with fuzz.js to revert) ──────────────────────────────── */
+/* A top .bar (Start / Stop, counter, warning) over a two-column form: Target + Payload left,
+   DLC + Timing right. Below 900px the columns stack. */
 .fuzz-warn {
-  font-size: var(--fs-m); color: var(--amber);
-  background: var(--amber-dim); border: 1px solid var(--amber);
-  border-radius: 0; padding: 8px 12px; line-height: 1.4;
+  margin-left: auto; font-family: var(--sans); font-size: var(--fs-m); color: var(--amber); white-space: nowrap;
 }
-.fuzz-sec { border: 1px solid var(--border); border-radius: 0; padding: 12px 14px; background: var(--bg2); }
-.fuzz-sec-title { font-size: var(--fs-s); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2); margin-bottom: 10px; }
-.fuzz-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
-.fuzz-row:last-child { margin-bottom: 0; }
-.fuzz-radio, .fuzz-inline, .fuzz-bytechk { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-m); color: var(--text); cursor: pointer; }
+.fuzz-form {
+  display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 32px;
+  padding: 8px 20px 16px; align-items: start;
+}
+@media (max-width: 900px) { .fuzz-form { grid-template-columns: minmax(0, 1fr); } }
+.fuzz-col { display: flex; flex-direction: column; gap: 6px; }
+.fuzz-sec { display: flex; flex-direction: column; gap: 8px; }
+.fuzz-cap { min-width: 64px; }  /* lines the section switches up */
+.fuzz-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fuzz-bytechk { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-m); color: var(--text); cursor: pointer; }
 .fuzz-note { font-size: var(--fs-m); color: var(--text2); }
-.fuzz-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
+.fuzz-bitgrid-opts { gap: 20px; align-items: flex-start; }
+.fuzz-bitgrid-opts .fuzz-col { gap: 8px; align-items: flex-start; }
 .fuzz-sel, .fuzz-hex, .fuzz-num {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
   border-radius: 0; padding: 0 7px; font-size: var(--fs-m); font-family: var(--mono);
@@ -1452,11 +1440,11 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
 .fuzz-mask .fuzz-hex { width: 38px; padding: 0 4px; }
 .fuzz-mask .fuzz-sel { padding: 0 4px; }
 
-.fuzz-grid { display: inline-flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.fuzz-grid { display: inline-flex; flex-direction: column; gap: 3px; }
 .fuzz-grid-row { display: flex; align-items: center; gap: 3px; }
 .fuzz-grid-tag { width: 22px; font-size: var(--fs-s); color: var(--text2); font-family: var(--mono); }
 .fuzz-cell {
-  width: 22px; height: 22px; border-radius: 0; cursor: pointer;
+  width: 20px; height: 20px; border-radius: 0; cursor: pointer;
   border: 1px solid var(--border); box-sizing: border-box;
 }
 .fuzz-cell.never  { background: var(--bg); }
@@ -1487,15 +1475,6 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
 .fuzz-stop-btn:hover { background: var(--amber-dim); }
 
 /* ── OBD-II sub-mode (ISO-TP tab) - remove with the obd2 feature to revert ──── */
-.obd-proto-toggle { display: inline-flex; border: 1px solid var(--border2); border-radius: 0; overflow: hidden; }
-.obd-proto-toggle button {
-  background: transparent; border: none; color: var(--text2);
-  font-family: var(--sans); font-size: var(--fs-s); font-weight: 600; letter-spacing: 0.04em;
-  padding: 4px 12px; cursor: pointer; transition: all 0.15s;
-}
-.obd-proto-toggle button.active { background: var(--green-dim); color: var(--green); }
-.obd-proto-toggle button:not(.active):hover { background: var(--bg3); color: var(--text); }
-
 .obd-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
 .obd-btn {
@@ -1589,7 +1568,6 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
 .row-between { display: flex; justify-content: space-between; align-items: center; }
 .col-g10 { display: flex; flex-direction: column; gap: 10px; }
 .col-g4 { display: flex; flex-direction: column; gap: 4px; }
-.row-g10-mt4 { display: flex; gap: 10px; margin-top: 4px; }
 
 /* Header brand cluster, workspace box, uppercase tag labels */
 .brand-cluster { display: flex; align-items: center; gap: 8px; }
@@ -1678,15 +1656,13 @@ tbody tr.pinned-row + tr:not(.pinned-row) {
 }
 .fuzz-wrap {
   flex-direction: column; flex: 1; overflow: auto; min-height: 0;
-  border-top: 1px solid var(--border); padding: 16px 20px; gap: 18px;
+  border-top: 1px solid var(--border);
 }
 
-/* ISO-TP config strip */
-.cfg-strip {
-  background: var(--bg2); border-bottom: 1px solid var(--border); padding: 8px 16px;
-  display: flex; align-items: center; flex-wrap: wrap; gap: 12px; flex-shrink: 0;
-}
-.cfg-field { display: flex; align-items: center; gap: 6px; }
+/* ISO-TP config bar + its Transport popover */
+.isotp-transport-menu { left: 0; padding: 10px 12px; gap: 8px; min-width: 220px; }
+.isotp-transport-menu .field { justify-content: space-between; }
+.isotp-stmin { display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: normal; }
 input.hex-input { font-family: var(--mono); font-size: var(--fs-m); padding: 0 7px; }
 .stmin-label { font-size: var(--fs-s); color: var(--text2); white-space: nowrap; }
 .broadcast-hint { align-items: center; gap: 5px; font-size: var(--fs-s); color: var(--amber); cursor: help; }
@@ -1697,8 +1673,6 @@ input.hex-input { font-family: var(--mono); font-size: var(--fs-m); padding: 0 7
 }
 .sel-sm { font-size: var(--fs-s); padding: 0 6px; }
 .mw320 { max-width: 320px; }
-.learn-link { font-size: var(--fs-s); color: var(--blue); text-decoration: none; white-space: nowrap; }
-.learn-link-pad { padding: 0 10px; }
 
 /* Diagnostic sub-mode panels (UDS / OBD / KWP) */
 .submode-panel {
@@ -1713,7 +1687,11 @@ input.hex-input { font-family: var(--mono); font-size: var(--fs-m); padding: 0 7
 }
 .qw-title { font-size: var(--fs-s); font-weight: 700; color: var(--text2); }
 
-/* ISO-TP / terminal conversation log + input row */
+/* ISO-TP / terminal conversation log + input row. An empty ISO-TP log gives its space to the
+   one-line empty state instead. */
+#isotpLog:empty { display: none; }
+#isotpLog:not(:empty) + .isotp-empty { display: none; }
+.isotp-empty { flex: 1; }
 .isotp-log {
   flex: 1; overflow-y: auto; padding: 14px 20px;
   font-family: var(--mono); font-size: var(--fs-m); line-height: 1.7;
@@ -1732,7 +1710,7 @@ input.term-input { opacity: 0.4; transition: opacity 0.2s; }
 .term-body { flex: 1; overflow-y: auto; padding: 8px 16px; }
 /* Serial-tab warning banner shown while Carlito streams traffic (#9). */
 .term-traffic-warn {
-  flex-shrink: 0;
+  flex-shrink: 0; align-items: center; gap: 10px;
   background: var(--amber-dim); border-bottom: 1px solid var(--amber);
   color: var(--amber); font-size: var(--fs-m); font-weight: 500; line-height: 1.4;
   padding: 8px 16px;
@@ -1759,10 +1737,6 @@ input.term-input { opacity: 0.4; transition: opacity 0.2s; }
   padding: 6px 16px; flex-shrink: 0; font-family: var(--sans); font-size: var(--fs-m);
   font-weight: 600; color: var(--text);
 }
-.mono-select {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  border-radius: 0; font-family: var(--mono); font-size: var(--fs-s); padding: 0 5px;
-}
 
 /* Input width utilities. Plain classes now that the global input[type=text] width default is gone
    (.w140 is the former 140px default, opt-in). */
@@ -1778,14 +1752,8 @@ input.term-input { opacity: 0.4; transition: opacity 0.2s; }
 .w140 { width: 140px; }
 .w200 { width: 200px; }
 
-/* Frame Inspector empty state */
+/* Frame Inspector */
 .inspect-wrap { flex: 1; overflow: auto; padding: 24px; min-height: 0; }
-.inspect-empty {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 100%; min-height: 200px; gap: 14px; color: var(--text2);
-}
-.inspect-empty-title { font-size: var(--fs-l); font-weight: 500; color: var(--text2); }
-.inspect-empty-sub { font-size: var(--fs-m); }
 
 /* Resize handle between the main view and the TX panel */
 .resize-handle {

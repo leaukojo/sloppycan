@@ -283,6 +283,10 @@
         <div class="help-note">Click <b>Notch</b> to listen for a moment - every byte that changed gets marked noisy (amber), the rest stable (grey). Then wiggle a control: the byte that reacts lights up green, so you can pin down which byte a button or pedal drives.</div>
       </div>
       <div class="help-sec">
+        <div class="help-title">Graph</div>
+        <div class="help-note">Right-click an ID List row to graph one of its bytes. On the graph, drag to pan and use the wheel to zoom.</div>
+      </div>
+      <div class="help-sec">
         <div class="help-title">ID List vs Traffic Dump</div>
         <div class="help-note"><b>ID List</b> shows one row per CAN ID with its latest payload - best for spotting which bytes change. <b>Traffic Dump</b> is the raw, time-ordered log of every frame - best for following sequences and exporting.</div>
       </div>
@@ -345,8 +349,7 @@
   <div class="sep sep-20"></div>
   <!-- Filter IDs / Frame / Data / Display moved here from the old toolbar row (apply to ID List + Traffic Dump only) -->
   <div class="toolbar-group tg-gap6">
-    <span class="toolbar-label">Filter IDs</span>
-    <span class="flt-resize"><input type="text" id="filterIds" placeholder="e.g. 024, 000-02F" aria-label="Filter IDs" class="flt-control"
+    <span class="flt-resize"><input type="text" id="filterIds" placeholder="IDs: 024, 100-1FF" aria-label="Filter IDs" class="flt-control"
       oninput="validateFilterIds();onFilterChange()"></span>
     <label class="chk-inline">
       <input type="checkbox" id="filterIdsExclude" class="chk-sm ac-red"
@@ -356,28 +359,25 @@
   </div>
   <div class="sep sep-20"></div>
   <div class="toolbar-group tg-gap6">
-    <span class="toolbar-label">Frame</span>
     <select id="filterFrameType" onchange="onFilterChange()" class="flt-control" aria-label="Filter by frame type" title="Filter by frame format: STD = 11-bit identifier, EXT = 29-bit extended.">
-      <option value="all">ALL</option>
+      <option value="all">STD + EXT</option>
       <option value="std">STD</option>
       <option value="ext">EXT</option>
     </select>
     <select id="filterDataType" onchange="onFilterChange()" class="flt-control" aria-label="Filter by data type" title="Filter by frame kind: DATA = carries a payload, RTR = remote request (no data).">
-      <option value="all">ALL</option>
+      <option value="all">DATA + RTR</option>
       <option value="data">DATA</option>
       <option value="rtr">RTR</option>
     </select>
   </div>
   <div class="sep sep-20"></div>
   <div class="toolbar-group tg-gap6">
-    <span class="toolbar-label">Data</span>
-    <input type="text" id="filterData" placeholder="FILTER DATA" class="flt-control w120"
+    <input type="text" id="filterData" placeholder="Data bytes" class="flt-control w120"
       aria-label="Filter by data bytes"
       title="Show only frames whose payload contains these bytes - match by hex or ASCII."
       oninput="onFilterChange()">
   </div>
   <div class="toolbar-group tg-gap6">
-    <span class="toolbar-label">Display</span>
     <select id="byteFormat" onchange="onByteFormatChange()" aria-label="Byte display format" title="How payload bytes are shown in the tables.">
       <option value="hex">Hex</option>
       <option value="hexascii" selected>Hex + ASCII</option>
@@ -390,15 +390,16 @@
     <div class="sep sep-20"></div>
     <button class="btn btn-sm" id="dumpScrollBtn" onclick="toggleDumpScroll()">⏸ Pause scroll</button>
     <div class="sep sep-20"></div>
-    <span class="toolbar-label">Export</span>
-    <button class="btn btn-sm" onclick="exportDumpCSV(false)" title="Export the frames matching the current filters to a CSV file.">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ico-13"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Save filtered
-    </button>
-    <button class="btn btn-sm" onclick="exportDumpCSV(true)" title="Export the entire Traffic Dump buffer to a CSV file, ignoring filters.">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ico-13"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Save all
-    </button>
+    <div class="menu-anchor">
+      <button class="btn btn-sm" id="dumpExportBtn" onclick="toggleDropdown('dumpExportMenu','dumpExportBtn')" title="Save the Traffic Dump to a CSV file." aria-haspopup="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ico-13"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export ▾
+      </button>
+      <div id="dumpExportMenu" class="dropdown-menu ws-menu" style="display:none">
+        <button class="ws-item" onclick="exportDumpCSV(false);toggleDropdown('dumpExportMenu','dumpExportBtn',false)" title="Only the frames matching the current filters.">Filtered</button>
+        <button class="ws-item" onclick="exportDumpCSV(true);toggleDropdown('dumpExportMenu','dumpExportBtn',false)" title="The whole Traffic Dump buffer, ignoring filters.">All</button>
+      </div>
+    </div>
     <span id="dumpExportCount" class="note-sans"></span>
   </div>
 </div>
@@ -424,16 +425,7 @@
     <a class="welcome-explainers" href="explainers/index.html">Explainers ↗</a>
   </div>
   <div class="empty link-only" id="idsNoFrames" style="display:none">No frames yet.</div>
-  <div class="filter-empty" id="idsFilterEmpty" style="display:none">
-    <div class="empty-icon filter-empty-icon">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3.4c.7 0 1.34.37 1.69.98l8.16 14.13A1.95 1.95 0 0 1 20.16 21.4H3.84a1.95 1.95 0 0 1-1.69-2.89L10.31 4.38A1.95 1.95 0 0 1 12 3.4Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.3v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor"/></svg>
-    </div>
-    <div class="empty-title">All frames are hidden by the active filter</div>
-    <div class="empty-sub">Frames are arriving, but the filters above are matching none of them. Adjust them to see traffic, or clear them to show everything again.</div>
-    <div class="row-g10-mt4">
-      <button class="btn" onclick="clearAllFilters()">Clear filters</button>
-    </div>
-  </div>
+  <div class="empty filter-empty" id="idsFilterEmpty" style="display:none" title="Frames are arriving, but the filters above match none of them.">Filters hide every frame. <button class="btn" onclick="clearAllFilters()">Clear filters</button></div>
   <table id="frameTable" style="display:none">
     <thead>
       <tr>
@@ -476,90 +468,75 @@
     </table>
   </div>
   <div class="empty" id="dumpNoFrames">No frames yet.</div>
-  <div class="filter-empty" id="dumpFilterEmpty" style="display:none">
-    <div class="empty-icon filter-empty-icon">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3.4c.7 0 1.34.37 1.69.98l8.16 14.13A1.95 1.95 0 0 1 20.16 21.4H3.84a1.95 1.95 0 0 1-1.69-2.89L10.31 4.38A1.95 1.95 0 0 1 12 3.4Z" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.3v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.05" fill="currentColor"/></svg>
-    </div>
-    <div class="empty-title">All frames are hidden by the active filter</div>
-    <div class="empty-sub">Frames are arriving, but the filters above are matching none of them. Adjust them to see traffic, or clear them to show everything again.</div>
-    <div class="row-g10-mt4">
-      <button class="btn" onclick="clearAllFilters()">Clear filters</button>
-    </div>
-  </div>
+  <div class="empty filter-empty" id="dumpFilterEmpty" style="display:none" title="Frames are arriving, but the filters above match none of them.">Filters hide every frame. <button class="btn" onclick="clearAllFilters()">Clear filters</button></div>
 </div>
 
 <!-- ISO-TP / UDS tab -->
 <div id="isotpWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-isotp" style="display:none">
 
-  <!-- Config strip -->
-  <div class="cfg-strip">
-    <div class="obd-proto-toggle">
+  <!-- Config bar: the protocol and the IDs. The set-once ISO-TP transport values sit behind the gear. -->
+  <div class="bar">
+    <div class="seg">
       <button id="isotpModeUds" class="active" onclick="isotpSetProtoMode('uds')">UDS</button>
       <button id="isotpModeObd" onclick="isotpSetProtoMode('obd')">OBD-II</button>
       <button id="isotpModeKwp" onclick="isotpSetProtoMode('kwp')">KWP2000</button>
     </div>
     <div class="sep sep-20"></div>
-    <div class="cfg-field">
-      <span class="toolbar-label">Tx ID (HEX)</span>
+    <label class="field">Tx ID
       <input type="text" id="isotpTxId" value="7DF" maxlength="8" class="hex-input w70"
         title="CAN ID this tool sends requests on (hex). 7DF = OBD-II functional broadcast."
         oninput="isotpIdInput()">
-    </div>
-    <div class="cfg-field">
-      <span class="toolbar-label">Rx ID (HEX)</span>
+    </label>
+    <label class="field">Rx ID
       <input type="text" id="isotpRxId" value="7E9" maxlength="8" class="hex-input w70"
         title="CAN ID the ECU replies on (hex). The response is matched against this ID."
         oninput="isotpIdInput()">
-    </div>
+    </label>
     <span id="isotpBroadcastHint" class="broadcast-hint" style="display:none"
       title="Broadcast Tx (0x7DF 11-bit / 0x18DB33F1 29-bit) - many ECUs may answer. The Rx ID just prioritizes one; if it doesn't respond, the first observed responder is used.">
       <span class="hint-badge">?</span>broadcast</span>
-    <div class="cfg-field">
-      <span class="toolbar-label">CAN</span>
+    <label class="field">CAN
       <select id="isotpCanType" class="sel-sm" onchange="isotpIdInput()">
         <option value="std">STD (11-bit)</option>
         <option value="ext">EXT (29-bit)</option>
       </select>
+    </label>
+    <div class="menu-anchor">
+      <button type="button" class="btn" id="isotpTransportBtn" onclick="toggleDropdown('isotpTransportMenu','isotpTransportBtn')" title="ISO-TP addressing, flow control and padding" aria-haspopup="true">&#9881; Transport</button>
+      <div id="isotpTransportMenu" class="dropdown-menu isotp-transport-menu" style="display:none">
+        <label class="field">Addressing
+          <select id="isotpAddrMode" class="sel-sm" onchange="isotpAddrModeChanged()">
+            <option value="normal">Normal</option>
+            <option value="extended">Extended</option>
+          </select>
+        </label>
+        <label id="isotpAddrByteWrap" class="field" style="display:none">Addr byte
+          <input type="text" id="isotpAddrByte" value="F1" maxlength="2" class="hex-input w38"
+            title="Source address byte prepended to each TX frame (Extended addressing)">
+        </label>
+        <label class="field">Block size (hex)
+          <input type="text" id="isotpBlockSize" value="00" maxlength="2" class="hex-input w38" title="00 = unlimited (send all CFs without waiting for intermediate FC). 01–FF = max CFs before Flow Control."
+            oninput="isotpValidateHex2('isotpBlockSize')">
+        </label>
+        <label class="field">STmin (hex)
+          <span class="isotp-stmin">
+            <input type="text" id="isotpStmin" value="00" maxlength="2" class="hex-input w38"
+              title="ISO 15765-2: 00–7F = 0–127 ms, F1–F9 = 100–900 µs"
+              oninput="isotpUpdateStminLabel()">
+            <span id="isotpStminLabel" class="stmin-label">0 ms</span>
+          </span>
+        </label>
+        <label class="field">Padding
+          <input type="text" id="isotpPadding" placeholder="none" maxlength="2" class="hex-input w46"
+            title="Hex byte to pad frames to 8 bytes (e.g. AA). Empty = no padding."
+            oninput="const v=this.value.trim();this.classList.toggle('invalid',v.length>0&&!/^[0-9A-Fa-f]{1,2}$/.test(v))">
+        </label>
+      </div>
     </div>
-    <div class="cfg-field">
-      <span class="toolbar-label">Addressing</span>
-      <select id="isotpAddrMode" class="sel-sm" onchange="isotpAddrModeChanged()">
-        <option value="normal">Normal</option>
-        <option value="extended">Extended</option>
-      </select>
-    </div>
-    <div id="isotpAddrByteWrap" class="cfg-field" style="display:none">
-      <span class="toolbar-label">Addr byte</span>
-      <input type="text" id="isotpAddrByte" value="F1" maxlength="2" class="hex-input w38"
-        title="Source address byte prepended to each TX frame (Extended addressing)">
-    </div>
-    <div class="sep sep-20"></div>
-    <div class="cfg-field">
-      <span class="toolbar-label">Block size (hex)</span>
-      <input type="text" id="isotpBlockSize" value="00" maxlength="2" class="hex-input w38" title="00 = unlimited (send all CFs without waiting for intermediate FC). 01–FF = max CFs before Flow Control."
-        oninput="isotpValidateHex2('isotpBlockSize')">
-    </div>
-    <div class="cfg-field">
-      <span class="toolbar-label">STmin (hex)</span>
-      <input type="text" id="isotpStmin" value="00" maxlength="2" class="hex-input w38"
-        title="ISO 15765-2: 00–7F = 0–127 ms, F1–F9 = 100–900 µs"
-        oninput="isotpUpdateStminLabel()">
-      <span id="isotpStminLabel" class="stmin-label">0 ms</span>
-    </div>
-    <div class="cfg-field">
-      <span class="toolbar-label">Padding</span>
-      <input type="text" id="isotpPadding" placeholder="none" maxlength="2" class="hex-input w46"
-        title="Hex byte to pad frames to 8 bytes (e.g. AA). Empty = no padding."
-        oninput="const v=this.value.trim();this.classList.toggle('invalid',v.length>0&&!/^[0-9A-Fa-f]{1,2}$/.test(v))">
-    </div>
-    <a id="isotpLearnLink" href="explainers/isotp-explainer.html" target="_blank" rel="noopener"
-      class="learn-link ml-auto"
-      onclick="isotpExplainerLink(event)">Learn how ISO-TP works ↗</a>
+    <button class="btn btn-xs" onclick="clearIsotpLog()">Clear</button>
+    <!-- Follows the protocol (isotpSetProtoMode). The ISO-TP explainer is linked from each log entry. -->
     <a id="isotpProtoLearnLink" href="explainers/uds-explainer.html" target="_blank" rel="noopener"
-      class="learn-link">Learn how UDS works ↗</a>
-    <button class="btn btn-xs" onclick="clearIsotpLog()">
-      Clear Window
-    </button>
+      class="learn">Learn how UDS works ↗</a>
   </div>
 
   <!-- UDS sub-mode panel (shown only in UDS mode) -->
@@ -616,12 +593,13 @@
 
   <!-- Conversation log -->
   <div id="isotpLog" class="isotp-log"></div>
+  <div class="empty isotp-empty">No requests yet.</div>
 
   <!-- Input row -->
   <div class="term-input-row">
     <span id="isotpInputLabel" class="isotp-input-label">UDS</span>
     <input type="text" id="isotpInput"
-      placeholder="hex bytes - e.g.  22 F1 84  or  3E 00"
+      placeholder="22 F1 84"
       class="bare-input isotp-input"
       onkeydown="isotpKeydown(event)" onblur="isotpFmtHex(this)">
     <button class="btn input-send-btn" onclick="isotpSend()">Send</button>
@@ -630,7 +608,7 @@
 
 <div id="j1939Wrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-j1939" style="display:none">
   <div role="tablist" aria-label="J1939 view" class="subtab-bar">
-    <div class="obd-proto-toggle" title="Protocol dictionary + transport">
+    <div class="seg" title="Protocol dictionary + transport">
       <button id="j1939ProtoJ1939"    class="active" onclick="j1939ProtoClick('j1939')">J1939</button>
       <button id="j1939ProtoNmea2000"           onclick="j1939ProtoClick('nmea2000')">NMEA2000</button>
       <button id="j1939ProtoIso11783"           onclick="j1939ProtoClick('iso11783')">ISO 11783</button>
@@ -682,33 +660,33 @@
 </div>
 
 <div id="xcpWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-xcp" style="display:none">
+  <div class="bar">
+    <label class="field">CRO <input id="xcpCro" value="552" oninput="xcpCfgChange()" class="hex-input w60" title="Command Receive Object ID (master→slave), hex"></label>
+    <label class="field">DTO <input id="xcpDto" value="553" oninput="xcpCfgChange()" class="hex-input w60" title="Data Transmit Object ID (slave→master), hex"></label>
+    <label class="field">CAN
+      <select id="xcpCanType" onchange="xcpCfgChange()">
+        <option value="std">11-bit</option>
+        <option value="ext">29-bit</option>
+      </select>
+    </label>
+    <label class="field">Byte order
+      <select id="xcpByteOrder" onchange="xcpCfgChange()" title="Auto = learn from CONNECT; override for pre-CONNECT decode">
+        <option value="auto">auto</option>
+        <option value="le">little</option>
+        <option value="be">big</option>
+      </select>
+    </label>
+    <button class="btn primary xcp-tx-btn" id="xcpConnectBtn" onclick="xcpConnect()">Connect</button>
+    <button class="btn danger xcp-tx-btn xcp-hide-until-connected" onclick="xcpDisconnect()">Disconnect</button>
+    <a href="explainers/xcp-explainer.html" target="_blank" rel="noopener" class="learn">Learn how XCP works ↗</a>
+  </div>
   <div id="xcp-session" class="session-scroll">
-    <div class="xcp-controls" id="xcp-controls">
-      <div class="xcp-config">
-        <label>CRO (HEX) <input id="xcpCro" value="552" oninput="xcpCfgChange()" title="Command Receive Object ID (master→slave), hex"></label>
-        <label>DTO (HEX) <input id="xcpDto" value="553" oninput="xcpCfgChange()" title="Data Transmit Object ID (slave→master), hex"></label>
-        <label>CAN
-          <select id="xcpCanType" onchange="xcpCfgChange()">
-            <option value="std">11-bit</option>
-            <option value="ext">29-bit</option>
-          </select>
-        </label>
-        <label>Byte order
-          <select id="xcpByteOrder" onchange="xcpCfgChange()" title="Auto = learn from CONNECT; override for pre-CONNECT decode">
-            <option value="auto">auto</option>
-            <option value="le">little</option>
-            <option value="be">big</option>
-          </select>
-        </label>
-        <button class="xcp-btn go xcp-tx-btn" id="xcpConnectBtn" onclick="xcpConnect()">Connect</button>
-        <button class="xcp-btn danger xcp-tx-btn xcp-hide-until-connected" onclick="xcpDisconnect()">Disconnect</button>
-      </div>
-      <div id="xcp-tx-hint" class="xcp-tx-hint" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</div>
-      <div class="xcp-btn-row xcp-hide-until-connected">
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpGetStatus()">Get Status</button>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpCommModeInfo()">Get Comm Mode Info</button>
-        <label class="xcp-form gap5">Get ID
-          <select id="xcpIdType" class="mono-select">
+    <div class="xcp-controls xcp-hide-until-connected">
+      <div class="xcp-form">
+        <button class="btn xcp-tx-btn" onclick="xcpGetStatus()">Get Status</button>
+        <button class="btn xcp-tx-btn" onclick="xcpCommModeInfo()">Get Comm Mode Info</button>
+        <label class="field">Get ID
+          <select id="xcpIdType">
             <option value="0">ASCII</option>
             <option value="1">MC2 filename</option>
             <option value="2">MC2 path</option>
@@ -716,32 +694,33 @@
             <option value="4">A2L upload</option>
           </select>
         </label>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpGetId()">Get ID</button>
+        <button class="btn xcp-tx-btn" onclick="xcpGetId()">Get ID</button>
         <span class="xcp-divider"></span>
-        <span class="grp-title">DAQ</span>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpGetDaqInfo()" title="GET_DAQ_PROCESSOR_INFO">Get DAQ Info</button>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpDaqStart()" title="START_STOP_SYNCH start">Start</button>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpDaqStop()" title="START_STOP_SYNCH stop">Stop</button>
+        <span class="field">DAQ</span>
+        <button class="btn xcp-tx-btn" onclick="xcpGetDaqInfo()" title="GET_DAQ_PROCESSOR_INFO">Get DAQ Info</button>
+        <button class="btn xcp-tx-btn" onclick="xcpDaqStart()" title="START_STOP_SYNCH start">Start</button>
+        <button class="btn xcp-tx-btn" onclick="xcpDaqStop()" title="START_STOP_SYNCH stop">Stop</button>
       </div>
-      <div class="xcp-form xcp-hide-until-connected">
-        <span class="grp-title">Set MTA</span>
-        <label>addr <input id="xcpMtaAddr" value="0x00000000" oninput="xcpValAddr(this)" class="w104"></label>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpSetMta()" title="SET_MTA">Set MTA</button>
+      <div class="xcp-form">
+        <label class="field">MTA <input id="xcpMtaAddr" value="0x00000000" oninput="xcpValAddr(this)" class="hex-input w104"></label>
+        <button class="btn xcp-tx-btn" onclick="xcpSetMta()" title="SET_MTA">Set MTA</button>
         <span class="xcp-divider"></span>
-        <label>read length <input id="xcpReadLen" type="text" value="8" oninput="xcpValLen(this)" class="w44"></label>
-        <button class="xcp-btn xcp-tx-btn" onclick="xcpReadMemMta()" title="UPLOAD @MTA (chunked)">Read</button>
+        <label class="field">Read length <input id="xcpReadLen" type="text" value="8" oninput="xcpValLen(this)" class="hex-input w44"></label>
+        <button class="btn xcp-tx-btn" onclick="xcpReadMemMta()" title="UPLOAD @MTA (chunked)">Read</button>
         <span class="xcp-divider"></span>
-        <label>write data <input id="xcpWriteData" placeholder="DE AD BE EF …" oninput="xcpValData(this)" class="w200"></label>
-        <button class="xcp-btn danger xcp-tx-btn" onclick="xcpWriteMem()" title="DOWNLOAD @MTA (chunked)">Write ⚠</button>
+        <label class="field">Write data <input id="xcpWriteData" placeholder="DE AD BE EF …" oninput="xcpValData(this)" class="hex-input w200"></label>
+        <button class="btn danger xcp-tx-btn" onclick="xcpWriteMem()" title="DOWNLOAD @MTA (chunked)">Write ⚠</button>
       </div>
+    </div>
+    <div class="xcp-msgs">
+      <div id="xcp-tx-hint" class="xcp-tx-hint" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</div>
       <div id="xcp-readout" class="xcp-readout"></div>
     </div>
     <div id="xcp-sessioninfo" class="xcp-sess"></div>
   </div>
-  <div class="xcp-log-bar">
-    <span>Message Log</span>
-    <a href="explainers/xcp-explainer.html" target="_blank" rel="noopener">Learn how XCP works ↗</a>
-    <button class="xcp-btn" onclick="xcpClearLog()">Clear Window</button>
+  <div class="sec xcp-log-bar">
+    Message Log
+    <span class="sec-actions"><button class="btn btn-xs" onclick="xcpClearLog()">Clear</button></span>
   </div>
   <div id="xcp-log" class="log-pane"></div>
 </div>
@@ -815,17 +794,17 @@
 </div>
 
 <div id="graphWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-graph" style="display:none">
-  <div class="graph-toolbar">
-    <span class="graph-lbl">Signal</span>
-    <select id="graphPickId" class="graph-sel" title="Frame ID to graph"></select>
+  <div class="bar">
+    <span class="field">Signal</span>
+    <select id="graphPickId" title="Frame ID to graph"></select>
     <span id="graphPickNote" class="graph-pick-note" style="display:none"></span>
-    <select id="graphPickByte" class="graph-sel" title="Byte index"></select>
-    <select id="graphPickWidth" class="graph-sel" title="Sample width">
+    <select id="graphPickByte" title="Byte index"></select>
+    <select id="graphPickWidth" title="Sample width">
       <option value="1">8-bit</option>
       <option value="2">16-bit</option>
       <option value="4">32-bit</option>
     </select>
-    <select id="graphPickEndian" class="graph-sel" title="Byte order" style="display:none">
+    <select id="graphPickEndian" title="Byte order" style="display:none">
       <option value="be" selected>BE</option>
       <option value="le">LE</option>
     </select>
@@ -833,123 +812,125 @@
     <button class="btn" id="graphAddBtn">Add</button>
     <button class="btn" id="graphClearBtn" title="Remove all graphed signals">Clear all</button>
     <span id="graphAddWarn" class="graph-add-warn" style="display:none"></span>
-    <span class="graph-sep"></span>
-    <span class="graph-lbl">Window</span>
-    <select id="graphWindowSel" class="graph-sel" title="Visible time window">
-      <option value="10000">10s</option>
-      <option value="30000" selected>30s</option>
-      <option value="60000">60s</option>
-    </select>
-    <button class="btn" id="graphPauseBtn" title="Pause freezes the view. Resume follows the live edge again while keeping your current zoom level.">Pause</button>
-    <button class="btn" id="graphLiveBtn" title="Jump to the live edge AND reset zoom/pan to the default window (unlike Resume, which keeps your zoom).">Live ⟲</button>
-    <span class="graph-lbl ml-auto">drag = pan · wheel = zoom</span>
+    <div class="sep sep-20"></div>
+    <label class="field">Window
+      <select id="graphWindowSel" title="Visible time window">
+        <option value="10000">10s</option>
+        <option value="30000" selected>30s</option>
+        <option value="60000">60s</option>
+      </select>
+    </label>
+    <button class="btn" id="graphPauseBtn" title="Freeze the view; Resume keeps your zoom.">Pause</button>
+    <button class="btn" id="graphLiveBtn" title="Jump to the live edge and reset the zoom.">Live</button>
   </div>
-  <div class="graph-stage"><canvas id="graphCanvas"></canvas></div>
+  <div class="graph-stage">
+    <canvas id="graphCanvas" title="Drag to pan, wheel to zoom."></canvas>
+    <div id="graphEmpty" class="empty graph-empty" title="Add one above, or right-click an ID List row.">No signals.</div>
+  </div>
   <div id="graphLegend" class="graph-legend"></div>
 </div>
 <div id="graphCtxMenu" class="graph-ctx" style="display:none"></div>
 
 <div id="fuzzWrap" class="fuzz-wrap" role="tabpanel" aria-labelledby="vtab-fuzz" style="display:none">
+  <div class="bar">
+    <button class="btn primary fuzz-start" id="fuzzStartBtn" onclick="fuzzToggleRun()">Start</button>
+    <span class="fuzz-counter" id="fuzzCounter">0 frames sent</span>
+    <span id="fuzzTxHint" class="tx-hint-amber" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</span>
+    <span class="fuzz-warn">⚠ Sends crafted frames. Use only on a bench bus.</span>
+  </div>
 
-  <div class="fuzz-warn">⚠ Fuzzing transmits crafted frames onto the bus. On a live vehicle this can trigger unintended ECU behaviour. Only run on a bench/test bus you control.</div>
+  <!-- Radio groups are .seg buttons: data-fuzz names the fuzzCfg field, data-v the value. -->
+  <div class="fuzz-form">
+    <div class="fuzz-col">
+      <section class="fuzz-sec">
+        <div class="sec"><span class="fuzz-cap">Target</span>
+          <div class="seg" data-fuzz="fuzzIdMode">
+            <button data-v="range" class="active">Range</button><button data-v="observed">Observed</button><button data-v="single">Single</button>
+          </div>
+          <select id="fuzzIsExt" class="fuzz-sel" onchange="fuzzCfgChange()" aria-label="Frame format">
+            <option value="0">Std (11-bit)</option>
+            <option value="1">Ext (29-bit)</option>
+          </select>
+        </div>
+        <div class="fuzz-row" id="fuzzRangeOpts">
+          <label class="field">Start <input type="text" id="fuzzIdStart" class="fuzz-hex" value="000" maxlength="8" oninput="fuzzCfgChange()"></label>
+          <label class="field">End <input type="text" id="fuzzIdEnd" class="fuzz-hex" value="7FF" maxlength="8" oninput="fuzzCfgChange()"></label>
+          <div class="seg" data-fuzz="fuzzIdScan">
+            <button data-v="seq" class="active">Sequential</button><button data-v="rand">Random</button>
+          </div>
+        </div>
+        <div class="fuzz-row" id="fuzzSingleOpts" style="display:none">
+          <label class="field">ID <input type="text" id="fuzzSingleId" class="fuzz-hex" value="7DF" maxlength="8" oninput="fuzzCfgChange()"></label>
+        </div>
+        <div class="fuzz-row" id="fuzzObservedOpts" style="display:none">
+          <span class="fuzz-note" id="fuzzObservedNote" title="The IDs currently in the ID List."></span>
+          <div class="seg" data-fuzz="fuzzObsScan">
+            <button data-v="seq" class="active">Sequential</button><button data-v="rand">Random</button>
+          </div>
+        </div>
+      </section>
 
-  <!-- ID targeting -->
-  <section class="fuzz-sec">
-    <div class="fuzz-sec-title">Target ID</div>
-    <div class="fuzz-row">
-      <label class="fuzz-radio"><input type="radio" name="fuzzIdMode" value="range" checked onchange="fuzzCfgChange()"> ID range</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzIdMode" value="observed" onchange="fuzzCfgChange()"> From observed IDs</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzIdMode" value="single" onchange="fuzzCfgChange()"> Single ID</label>
-      <span class="fuzz-sep"></span>
-      <label class="fuzz-inline">Frame
-        <select id="fuzzIsExt" class="fuzz-sel" onchange="fuzzCfgChange()">
-          <option value="0">Std (11-bit)</option>
-          <option value="1">Ext (29-bit)</option>
-        </select>
-      </label>
+      <section class="fuzz-sec">
+        <div class="sec"><span class="fuzz-cap">Payload</span>
+          <div class="seg" data-fuzz="fuzzPayMode">
+            <button data-v="random" class="active">Random bytes</button><button data-v="mask">Per-byte mask</button><button data-v="bitgrid">Bit grid</button>
+          </div>
+        </div>
+        <!-- Random: choose which byte indices vary -->
+        <div class="fuzz-row" id="fuzzRandomOpts">
+          <span class="field">Bytes</span>
+          <span id="fuzzRandomBytes" class="fuzz-bytesel"></span>
+        </div>
+        <!-- Mask: per-byte fixed/random/increment -->
+        <div id="fuzzMaskOpts" style="display:none">
+          <table class="fuzz-mask"><thead><tr>
+            <th>Byte</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th>
+          </tr></thead><tbody id="fuzzMaskBody"></tbody></table>
+        </div>
+        <!-- Bit grid: 8x8, click cycles never→always→fuzz. Its controls sit beside it, not above,
+             so the tab fits a 768px-high screen. -->
+        <div id="fuzzBitgridOpts" class="fuzz-bitgrid-opts" style="display:none">
+          <div id="fuzzBitgrid" class="fuzz-grid" title="Click a bit to cycle it. MSB left."></div>
+          <div class="fuzz-col">
+            <span class="field">Pattern</span>
+            <div class="seg" data-fuzz="fuzzBitPat">
+              <button data-v="rand" class="active">Random</button><button data-v="seq">Sequential</button><button data-v="sweep">Sweep</button>
+            </div>
+            <span class="fuzz-note" title="Click a bit to cycle it. MSB left."><span class="fuzz-swatch fuzz-cell never"></span>never &nbsp; <span class="fuzz-swatch fuzz-cell always"></span>always &nbsp; <span class="fuzz-swatch fuzz-cell fuzz"></span>fuzz</span>
+          </div>
+        </div>
+      </section>
     </div>
-    <div class="fuzz-row" id="fuzzRangeOpts">
-      <label class="fuzz-inline">Start <input type="text" id="fuzzIdStart" class="fuzz-hex" value="000" maxlength="8" oninput="fuzzCfgChange()"></label>
-      <label class="fuzz-inline">End <input type="text" id="fuzzIdEnd" class="fuzz-hex" value="7FF" maxlength="8" oninput="fuzzCfgChange()"></label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzIdScan" value="seq" checked onchange="fuzzCfgChange()"> Sequential</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzIdScan" value="rand" onchange="fuzzCfgChange()"> Random</label>
-    </div>
-    <div class="fuzz-row" id="fuzzSingleOpts" style="display:none">
-      <label class="fuzz-inline">ID <input type="text" id="fuzzSingleId" class="fuzz-hex" value="7DF" maxlength="8" oninput="fuzzCfgChange()"></label>
-    </div>
-    <div class="fuzz-row" id="fuzzObservedOpts" style="display:none">
-      <span class="fuzz-note" id="fuzzObservedNote">Cycles through IDs currently in the ID List.</span>
-      <label class="fuzz-radio"><input type="radio" name="fuzzObsScan" value="seq" checked onchange="fuzzCfgChange()"> Sequential</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzObsScan" value="rand" onchange="fuzzCfgChange()"> Random</label>
-    </div>
-  </section>
 
-  <!-- DLC -->
-  <section class="fuzz-sec">
-    <div class="fuzz-sec-title">Data length (DLC)</div>
-    <div class="fuzz-row">
-      <label class="fuzz-radio"><input type="radio" name="fuzzDlcMode" value="fixed" checked onchange="fuzzCfgChange()"> Fixed</label>
-      <select id="fuzzDlcFixed" class="fuzz-sel" onchange="fuzzCfgChange()">
-        <option>0</option><option>1</option><option>2</option><option>3</option>
-        <option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option>
-      </select>
-      <label class="fuzz-radio"><input type="radio" name="fuzzDlcMode" value="rand" onchange="fuzzCfgChange()"> Random</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzDlcMode" value="inc" onchange="fuzzCfgChange()"> Increment</label>
-    </div>
-  </section>
+    <div class="fuzz-col">
+      <section class="fuzz-sec">
+        <div class="sec"><span class="fuzz-cap">DLC</span>
+          <div class="seg" data-fuzz="fuzzDlcMode">
+            <button data-v="fixed" class="active">Fixed</button><button data-v="rand">Random</button><button data-v="inc">Increment</button>
+          </div>
+          <select id="fuzzDlcFixed" class="fuzz-sel" onchange="fuzzCfgChange()" aria-label="Fixed DLC">
+            <option>0</option><option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option>
+          </select>
+        </div>
+      </section>
 
-  <!-- Payload -->
-  <section class="fuzz-sec">
-    <div class="fuzz-sec-title">Payload</div>
-    <div class="fuzz-row">
-      <label class="fuzz-radio"><input type="radio" name="fuzzPayMode" value="random" checked onchange="fuzzCfgChange()"> Random bytes</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzPayMode" value="mask" onchange="fuzzCfgChange()"> Per-byte mask</label>
-      <label class="fuzz-radio"><input type="radio" name="fuzzPayMode" value="bitgrid" onchange="fuzzCfgChange()"> Bit grid</label>
+      <section class="fuzz-sec">
+        <div class="sec">Timing</div>
+        <div class="fuzz-row">
+          <label class="field">Gap (ms) <input type="number" id="fuzzGap" class="fuzz-num" min="1" value="50" oninput="fuzzCfgChange()" onchange="fuzzGapCommit()"></label>
+          <label class="field">Frames per tick <input type="number" id="fuzzBurst" class="fuzz-num" min="1" max="500" value="1" oninput="fuzzCfgChange()"></label>
+        </div>
+      </section>
     </div>
-    <!-- Random: choose which byte indices vary -->
-    <div class="fuzz-row" id="fuzzRandomOpts">
-      <span class="fuzz-note">Fuzz bytes:</span>
-      <span id="fuzzRandomBytes" class="fuzz-bytesel"></span>
-    </div>
-    <!-- Mask: per-byte fixed/random/increment -->
-    <div id="fuzzMaskOpts" style="display:none">
-      <table class="fuzz-mask"><thead><tr>
-        <th>Byte</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th>
-      </tr></thead><tbody id="fuzzMaskBody"></tbody></table>
-    </div>
-    <!-- Bit grid: 8x8, click cycles never→always→fuzz -->
-    <div id="fuzzBitgridOpts" style="display:none">
-      <div class="fuzz-row">
-        <span class="fuzz-note">Pattern for fuzzed bits:</span>
-        <label class="fuzz-radio"><input type="radio" name="fuzzBitPat" value="rand" checked onchange="fuzzCfgChange()"> Random</label>
-        <label class="fuzz-radio"><input type="radio" name="fuzzBitPat" value="seq" onchange="fuzzCfgChange()"> Sequential</label>
-        <label class="fuzz-radio"><input type="radio" name="fuzzBitPat" value="sweep" onchange="fuzzCfgChange()"> Sweep</label>
-        <span class="fuzz-sep"></span>
-        <span class="fuzz-note"><span class="fuzz-swatch fuzz-cell never"></span>never &nbsp; <span class="fuzz-swatch fuzz-cell always"></span>always &nbsp; <span class="fuzz-swatch fuzz-cell fuzz"></span>fuzz &nbsp;- click to cycle, MSB left</span>
-      </div>
-      <div id="fuzzBitgrid" class="fuzz-grid"></div>
-    </div>
-  </section>
-
-  <!-- Timing + run -->
-  <section class="fuzz-sec">
-    <div class="fuzz-sec-title">Timing</div>
-    <div class="fuzz-row">
-      <label class="fuzz-inline">Gap (ms) <input type="number" id="fuzzGap" class="fuzz-num" min="1" value="50" oninput="fuzzCfgChange()" onchange="fuzzGapCommit()"></label>
-      <label class="fuzz-inline">Frames per tick <input type="number" id="fuzzBurst" class="fuzz-num" min="1" max="500" value="1" oninput="fuzzCfgChange()"></label>
-    </div>
-    <div class="fuzz-row mt6">
-      <button class="btn fuzz-start" id="fuzzStartBtn" onclick="fuzzToggleRun()">Start fuzzing</button>
-      <span class="fuzz-counter" id="fuzzCounter">0 frames sent</span>
-      <span id="fuzzTxHint" class="tx-hint-amber" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</span>
-    </div>
-  </section>
+  </div>
 </div>
 
 <!-- Serial terminal main view -->
 <div id="termWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-term" style="display:none">
-  <div id="termTrafficWarn" class="term-traffic-warn" style="display:none">
-    ⚠ Live traffic is streaming on the bus - it will clutter this raw console. Pause the bus (and close Carlito if it's running) to use the serial terminal cleanly.
+  <div id="termTrafficWarn" class="term-traffic-warn" style="display:none" title="Pause the bus, and close Carlito if it's running, to use the terminal cleanly.">
+    <span>⚠ Live traffic will clutter this console.</span>
+    <button class="btn btn-xs" id="termPauseBtn" onclick="busPauseClick()">Pause bus</button>
   </div>
   <div class="log-body term-body" id="termBody"></div>
   <div class="term-input-row">
@@ -963,11 +944,7 @@
 
 <div id="inspectWrap" class="inspect-wrap" role="tabpanel" aria-labelledby="vtab-inspect" style="display:none">
   <div id="inspectContent">
-    <div id="inspectEmpty" class="inspect-empty">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M9 5v14"/></svg>
-      <div class="inspect-empty-title">No frame selected</div>
-      <div class="inspect-empty-sub">Click a frame in the ID List or Traffic Dump to inspect it here.</div>
-    </div>
+    <div id="inspectEmpty" class="empty" title="Click a frame in the ID List or Traffic Dump.">No frame selected.</div>
   </div>
 </div>
 
