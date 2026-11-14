@@ -31,34 +31,34 @@
 .dc-config {
   background:var(--bg2); border-bottom:1px solid var(--border);
   padding:7px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  flex-shrink:0; font-family:var(--sans); font-size:11px; color:var(--text2);
+  flex-shrink:0; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
 }
 .dc-config label { display:flex; align-items:center; gap:5px; }
 .dc-config input[type=text] { width:52px; padding:0 6px; }
-.dc-config .dc-note { color:var(--text3); margin-left:auto; }
+.dc-config .dc-note { color:var(--text2); margin-left:auto; }
 /* The bench-control bar reuses .dc-config; only the colour swatch and the Off button are new. */
-.dc-config select { padding:1px 4px; }
+.dc-config select { padding:0 4px; }
 .dc-config input[type=color] { width:34px; height:19px; padding:0; border:1px solid var(--border); background:var(--bg); cursor:pointer; }
 .dc-config button {
   background:var(--bg); border:1px solid var(--border); color:var(--text2);
-  border-radius:4px; padding:1px 8px; cursor:pointer; font-family:var(--sans); font-size:11px;
+  border-radius:0; padding:1px 8px; cursor:pointer; font-family:var(--sans); font-size:var(--fs-s);
 }
 .dc-config button:hover { background:var(--bg3); color:var(--text); }
 .dc-logbar {
   background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
   padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
-  font-family:var(--sans); font-size:12px; font-weight:600; color:var(--text);
+  font-family:var(--sans); font-size:var(--fs-m); font-weight:600; color:var(--text);
 }
-.dc-logbar .dc-errs { margin-left:auto; font-weight:400; font-size:11px; color:var(--text3); }
+.dc-logbar .dc-errs { margin-left:auto; font-weight:400; font-size:var(--fs-s); color:var(--text2); }
 .dc-logbar .dc-errs b { color:var(--amber); font-weight:600; }
 .dc-panes { padding:10px 16px 12px; display:flex; flex-direction:column; gap:12px; }
 .dc-grp-title {
-  font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:.06em;
-  text-transform:uppercase; color:var(--text3); margin-bottom:5px;
+  font-family:var(--sans); font-size:var(--fs-s); font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--text2); margin-bottom:5px;
 }
-.dc-tbl { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+.dc-tbl { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:var(--fs-s); }
 .dc-tbl th {
-  background:var(--bg2); color:var(--text3); font-family:var(--sans); font-size:10px;
+  background:var(--bg2); color:var(--text2); font-family:var(--sans); font-size:var(--fs-s);
   font-weight:700; letter-spacing:.05em; text-transform:uppercase;
   text-align:left; padding:4px 8px; position:sticky; top:0; z-index:1;
 }
@@ -72,14 +72,14 @@
 .dc-tbl tr.dc-bad td { color:var(--amber); }
 .dc-tbl a.dc-seecan { color:var(--blue); text-decoration:none; }
 .dc-chip {
-  display:inline-block; padding:1px 6px; border:1px solid var(--border); border-radius:2px;
-  font-family:var(--sans); font-size:10px; font-weight:600; color:var(--text2);
+  display:inline-block; padding:1px 6px; border:1px solid var(--border); border-radius:var(--r-pill);
+  font-family:var(--sans); font-size:var(--fs-s); font-weight:600; color:var(--text2);
 }
 .dc-chip.ok   { color:var(--green); border-color:var(--green-dim); }
 .dc-chip.warn { color:var(--amber); border-color:var(--amber); }
 .dc-chip.off  { color:var(--text3); }
-.dc-empty { color:var(--text3); font-family:var(--sans); font-size:12px; padding:14px 16px; line-height:1.6; }
-.dc-readout { font-family:var(--mono); font-size:11px; color:var(--text3); padding-top:4px; }
+.dc-empty { color:var(--text2); font-family:var(--sans); font-size:var(--fs-m); padding:14px 16px; line-height:1.6; }
+.dc-readout { font-family:var(--mono); font-size:var(--fs-s); color:var(--text2); padding-top:4px; }
 `;
   document.head.appendChild(s);
 })();
@@ -992,7 +992,7 @@ function dcPaneSlots(el) {
     `<div><div class="dc-grp-title">Arming (uavcan.equipment.safety.ArmingStatus, msg 1100)</div><div data-slot="arm"></div></div>` +
     `<div><div class="dc-grp-title">Everything else on the bus</div><div data-slot="nodes"></div></div>` +
     `<div class="dc-readout" data-slot="tx"></div>` +
-    `<div class="dc-readout" style="color:var(--text3)" data-slot="presence">No DroneCAN heard on this bus (no NodeStatus in 5 s, no drone on the Carlito link, not DroneCAN demo): decoding only - service requests and allocations are not answered.</div>`;
+    `<div class="dc-readout" style="color:var(--text2)" data-slot="presence">No DroneCAN heard on this bus (no NodeStatus in 5 s, no drone on the Carlito link, not DroneCAN demo): decoding only - service requests and allocations are not answered.</div>`;
   const slots = {};
   el.querySelectorAll('[data-slot]').forEach(s => { slots[s.dataset.slot] = s; });
   // One delegated listener for the roster's click-to-fail rows (data-dc-fail = roster index).
@@ -1134,10 +1134,10 @@ function dcRenderTop() {
       : `<span class="dc-chip">${dcEscHtml(req)}</span> <b style="color:var(--amber)">&rarr;</b> <span class="dc-chip warn">${dcEscHtml(act)}</span>`;
     const fs = dcEnumLabel('failsafe', 'out', dcFlight.fs);
     modeRows = [
-      [agree ? 'flight_mode' : 'flight_mode &rarr; mode_actual', modeCell + (agree ? '' : ' <span style="color:var(--text3)">the flight controller is not flying what was asked for</span>')],
-      [{ span: 2, style: 'color:var(--text3)', html: 'The request is THIS BAR\'S selector - with the Carlito window\'s Up link off it is not being sent, and the craft is flying whatever its own Z key selected.' }],
+      [agree ? 'flight_mode' : 'flight_mode &rarr; mode_actual', modeCell + (agree ? '' : ' <span style="color:var(--text2)">the flight controller is not flying what was asked for</span>')],
+      [{ span: 2, style: 'color:var(--text2)', html: 'The request is THIS BAR\'S selector - with the Carlito window\'s Up link off it is not being sent, and the craft is flying whatever its own Z key selected.' }],
       ['failsafe', `<span class="dc-chip ${dcFlight.fs ? 'warn' : 'off'}">${dcEscHtml(fs)}</span>`],
-      ['home_dist', `${Number.isFinite(dcFlight.home) ? dcFlight.home.toFixed(1) + ' m' : '-'} <span style="color:var(--text3)">derived FC state - no DroneCAN message carries it</span>`],
+      ['home_dist', `${Number.isFinite(dcFlight.home) ? dcFlight.home.toFixed(1) + ' m' : '-'} <span style="color:var(--text2)">derived FC state - no DroneCAN message carries it</span>`],
     ];
   }
   keyed(slot.mode, {
@@ -1175,10 +1175,10 @@ function dcRenderTop() {
     }
     const checks = bits.length
       ? bits.map(b => `<span class="dc-chip warn">${dcEscHtml(b)}</span>`).join(' ')
-      : `<span class="dc-chip ok">all checks pass</span>${dcArm.armed ? ' <span style="color:var(--text3)">(armed - the FC stops running pre-arm checks, so 0 is expected here)</span>' : ''}`;
+      : `<span class="dc-chip ok">all checks pass</span>${dcArm.armed ? ' <span style="color:var(--text2)">(armed - the FC stops running pre-arm checks, so 0 is expected here)</span>' : ''}`;
     armRows = [
       ['ArmingStatus on the wire', { cls: 'dc-msg', html: dcArm.armed ? 'FULLY_ARMED' : 'DISARMED' }],
-      ['arming_state (game)', `<span class="dc-chip ${cls}">${state}</span>${dcArm.state === 1 ? ' <span style="color:var(--text3)">the FC was asked to arm and refused - ArmingStatus has no field for this</span>' : ''}`],
+      ['arming_state (game)', `<span class="dc-chip ${cls}">${state}</span>${dcArm.state === 1 ? ' <span style="color:var(--text2)">the FC was asked to arm and refused - ArmingStatus has no field for this</span>' : ''}`],
       [`prearm_fail ${dcH(dcArm.fail, 4)}`, checks],
     ];
   }

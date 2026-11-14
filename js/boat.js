@@ -34,11 +34,11 @@
 .boat-dial { display:block; width:100%; height:auto; }
 .boat-dial .rim  { fill:none; stroke:var(--border2); stroke-width:1.2; }
 .boat-dial .tick { stroke:var(--border2); stroke-width:1; }
-.boat-dial .card { fill:var(--text3); font-family:var(--sans); font-size:7px; text-anchor:middle; }
+.boat-dial .card { fill:var(--text3); font-family:var(--sans); font-size:7px; /* fs-exempt: gauge */ text-anchor:middle; }
 .boat-dial .bow  { fill:var(--text2); }
 .boat-dial .hub  { fill:var(--bg); stroke:var(--border2); stroke-width:1; }
 .boat-dial .ctrv { font-family:var(--mono); text-anchor:middle; fill:var(--text); }
-.boat-dial .ctrc { font-family:var(--sans); text-anchor:middle; fill:var(--text3); font-size:6px; letter-spacing:.1em; }
+.boat-dial .ctrc { font-family:var(--sans); text-anchor:middle; fill:var(--text3); font-size:6px; /* fs-exempt: gauge */ letter-spacing:.1em; }
 .boat-nd-awa  { stroke-width:3; stroke-linecap:round; }
 .boat-nd-twd  { stroke:var(--text2); stroke-width:1.2; stroke-linecap:round; stroke-dasharray:3 2.5; }
 .boat-nd-boom { stroke:var(--amber); stroke-width:4; stroke-linecap:round; }
@@ -59,13 +59,13 @@
 .boat-bed        { fill:var(--cyan); opacity:.28; stroke:none; }
 .boat-bed.warn   { fill:var(--red); opacity:.32; }
 .boat-depth-v {
-  position:absolute; left:9px; top:3px; font-family:var(--mono); font-size:24px; line-height:1.1;
+  position:absolute; left:9px; top:3px; font-family:var(--mono); font-size:24px; /* fs-exempt: gauge */ line-height:1.1;
   color:var(--cyan); text-shadow:0 0 6px var(--bg2), 0 0 6px var(--bg2), 0 0 6px var(--bg2);
 }
 .boat-depth-v.warn { color:var(--red); }
 .boat-depth-u {
-  position:absolute; left:9px; bottom:4px; font-size:8px; text-transform:uppercase;
-  letter-spacing:.12em; color:var(--text3);
+  position:absolute; left:9px; bottom:4px; font-size:8px; /* fs-exempt: gauge */ text-transform:uppercase;
+  letter-spacing:.12em; color:var(--text2);
 }
 `;
   document.head.appendChild(style);

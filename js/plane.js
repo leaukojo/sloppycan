@@ -23,9 +23,9 @@
   style.textContent = `
 .pln-body .vp-sec-lbl .v { font-family:var(--mono); font-size:inherit; color:var(--text); letter-spacing:0; text-transform:none; }
 .pln-range { width:100%; margin:0; cursor:pointer; accent-color:var(--blue); }
-.pln-read-row { display:flex; justify-content:space-between; font-size:9px; text-transform:uppercase;
-  letter-spacing:.06em; color:var(--text3); margin-bottom:4px; }
-.pln-read-row .v { font-family:var(--mono); font-size:11px; color:var(--text); letter-spacing:0; }
+.pln-read-row { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--text2); margin-bottom:4px; }
+.pln-read-row .v { font-family:var(--mono); font-size:var(--fs-s); color:var(--text); letter-spacing:0; }
 `;
   document.head.appendChild(style);
 

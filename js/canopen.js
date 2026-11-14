@@ -27,20 +27,20 @@
 .co-logbar {
   background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
   padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
-  font-family:var(--sans); font-size:12px; font-weight:600; color:var(--text);
+  font-family:var(--sans); font-size:var(--fs-m); font-weight:600; color:var(--text);
 }
-.co-logbar a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:400; font-size:11px; margin-left:auto; }
-.co-tx-hint { font-size:11px; color:var(--amber); padding:2px 0 0 0; font-family:var(--sans); }
+.co-logbar a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:400; font-size:var(--fs-s); margin-left:auto; }
+.co-tx-hint { font-size:var(--fs-s); color:var(--amber); padding:2px 0 0 0; font-family:var(--sans); }
 .co-tbl a.co-seecan { color:var(--blue); text-decoration:none; }
 .co-config {
   background:var(--bg2); border-bottom:1px solid var(--border);
   padding:7px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  flex-shrink:0; font-family:var(--sans); font-size:11px; color:var(--text2);
+  flex-shrink:0; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
 }
 .co-config label { display:flex; align-items:center; gap:5px; }
 .co-config input {
   background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:5px; font-family:var(--mono); font-size:11px; padding:3px 6px; outline:none; width:74px;
+  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 6px; outline:none; width:74px;
 }
 .co-controls {
   padding:14px 20px; display:flex; flex-direction:column; gap:11px;
@@ -48,47 +48,47 @@
 }
 .co-btn-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .co-btn {
-  font-size:11.5px; padding:5px 12px; background:var(--bg2); color:var(--text2);
-  border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  font-size:var(--fs-m); padding:5px 12px; background:var(--bg2); color:var(--text2);
+  border:1px solid var(--border); border-radius:0; cursor:pointer;
   font-family:var(--sans); white-space:nowrap; transition:background .15s,color .15s;
 }
 .co-btn:hover:not(:disabled) { background:var(--bg3); color:var(--text); }
 .co-btn:disabled { opacity:.4; cursor:not-allowed; }
 .co-btn.go     { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .co-btn.danger { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
-.co-form { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--sans); font-size:11px; color:var(--text2); }
+.co-form { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2); }
 .co-form label { display:flex; align-items:center; gap:5px; }
 .co-form input {
   background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:5px; font-family:var(--mono); font-size:11px; padding:4px 7px; outline:none; width:64px;
+  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 7px; outline:none; width:64px;
 }
 .co-form .grp-title {
-  font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); min-width:84px;
+  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); min-width:84px;
 }
 .co-readout {
-  font-family:var(--mono); font-size:11px; color:var(--green); padding:2px 0 0 84px;
+  font-family:var(--mono); font-size:var(--fs-s); color:var(--green); padding:2px 0 0 84px;
   word-break:break-all; min-height:14px;
 }
 .co-readout.err { color:var(--red); }
 .co-nodes { padding:14px 20px 4px; }
-.co-empty { text-align:center; color:var(--text3); font-size:12px; padding:36px 0; font-family:var(--sans); line-height:1.6; }
-.co-chip { display:inline-block; padding:2px 10px; border-radius:11px; font-size:11px; font-weight:600;
+.co-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:36px 0; font-family:var(--sans); line-height:1.6; }
+.co-chip { display:inline-block; padding:2px 10px; border-radius:var(--r-pill); font-size:var(--fs-s); font-weight:600;
   font-family:var(--sans); background:var(--bg2); color:var(--text3); border:1px solid var(--border); }
 .co-chip.oper  { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .co-chip.preop { background:var(--amber-dim); color:var(--amber); border-color:transparent; }
 .co-chip.stop  { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
 .co-chip.boot  { background:var(--bg3);        color:var(--text2); }
-.co-tag { display:inline-block; padding:1px 6px; margin-right:3px; border-radius:7px;
-  font-size:9px; font-family:var(--sans); background:var(--bg3); color:var(--text3); }
-.co-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+.co-tag { display:inline-block; padding:1px 6px; margin-right:3px; border-radius:0;
+  font-size:var(--fs-s); font-family:var(--sans); background:var(--bg3); color:var(--text2); }
+.co-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-m); }
 .co-tbl th {
-  text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
-  color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
+  text-align:left; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em;
+  color:var(--text2); padding:5px 8px; border-bottom:1px solid var(--border);
   font-weight:500; font-family:var(--sans); white-space:nowrap; background:var(--bg2); cursor:default; position:sticky; top:0; z-index:1;
 }
 .co-tbl td { padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text2); font-family:var(--mono); }
 .co-tbl tr:last-child td { border-bottom:none; }
-.co-tbl td.co-ts  { color:var(--text3); font-size:10px; white-space:nowrap; }
+.co-tbl td.co-ts  { color:var(--text3); font-size:var(--fs-s); white-space:nowrap; }
 .co-tbl td.co-id  { color:var(--blue); white-space:nowrap; }
 .co-tbl td.co-node{ color:var(--text2); white-space:nowrap; text-align:center; }
 .co-tbl td.co-type{ font-family:var(--sans); white-space:nowrap; }
@@ -97,8 +97,9 @@
 .co-tbl td.co-type.hb   { color:var(--green); }
 .co-tbl td.co-type.nmt  { color:var(--amber); }
 .co-tbl td.co-type.pdo  { color:var(--text2); }
-.co-tbl td.co-raw { color:var(--text3); font-size:10px; letter-spacing:.03em; }
-.co-tbl td.co-dec { color:var(--text2); font-size:10.5px; font-family:var(--sans); }
+.co-tbl td.co-raw { color:var(--text3); font-size:var(--fs-s); letter-spacing:.03em; }
+.co-tbl td.co-dec { color:var(--text2); font-size:var(--fs-s); font-family:var(--sans); }
+.co-tbl td.co-dec .co-hex { font-family:var(--mono); }   /* hex bytes are mono everywhere */
 .co-tbl tr.emcy-row td { background:var(--red-dim); }
 `;
   document.head.appendChild(s);
@@ -294,11 +295,11 @@ function canopenIngestFrame(frame) {
     case 'emcy':   summary = coDecodeEmcy(d); emcy = true; break;
     case 'sync':   summary = d.length ? 'SYNC · counter ' + d[0] : 'SYNC'; break;
     case 'time':   summary = 'TIME stamp'; break;
-    case 'pdo':    summary = d.length ? coHexBytes(d) + '  (raw - no mapping)' : '(empty)'; break;
+    case 'pdo':    summary = d.length ? '<span class="co-hex">' + coHexBytes(d) + '</span>  (raw - no mapping)' : '(empty)'; break;
     case 'sdo_rx': summary = coDecodeSdo(Array.from(d), 'rx').summary; break;
     case 'sdo_tx': { const dec = coDecodeSdo(Array.from(d), 'tx'); summary = dec.summary; coSdoResolve(id, dec, Array.from(d)); break; }
-    case 'lss':    summary = coHexBytes(d); break;
-    default:       summary = coHexBytes(d);
+    case 'lss':    summary = '<span class="co-hex">' + coHexBytes(d) + '</span>'; break;
+    default:       summary = '<span class="co-hex">' + coHexBytes(d) + '</span>';
   }
   coTab.pushLog({ ts, id, node: c.node, kind: c.kind, type: c.type, data: Array.from(d), summary, emcy });
 }
@@ -557,7 +558,7 @@ function coRenderNodes() {
     const cls = n.state == null ? '' : (CO_STATE_CLASS[n.state] || '');
     const tags = [...n.types].filter(Boolean).map(t => `<span class="co-tag">${t}</span>`).join('');
     return { cells: [
-      { cls: 'co-node', html: `${id} <span style="color:var(--text3)">(${coH(id)})</span>` },
+      { cls: 'co-node', html: `${id} <span style="color:var(--text2)">(${coH(id)})</span>` },
       `<span class="co-chip ${cls}">${stName}</span>`,
       { cls: 'co-ts', html: n.lastSeen ? coRelTs(n.lastSeen) : '-' },
       tags || '<span style="color:var(--text3)">-</span>',

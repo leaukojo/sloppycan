@@ -22,24 +22,24 @@
   style.textContent = `
 /* Traction: wheel against ground on one scale, the wheel's excess shaded as slip */
 .tractor-pair { display:grid; grid-template-columns:44px 1fr 60px; gap:5px 6px; align-items:center;
-  font-size:9px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); }
-.tractor-pair .v { font-family:var(--mono); font-size:10px; color:var(--text); letter-spacing:0; text-align:right; text-transform:none; }
+  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
+.tractor-pair .v { font-family:var(--mono); font-size:var(--fs-s); color:var(--text); letter-spacing:0; text-align:right; text-transform:none; }
 .tractor-slip { position:relative; }
 .tractor-slip > i { position:absolute; top:0; bottom:0; left:0; }
-.tractor-slip > i.gap { background:var(--amber); border-radius:0 4px 4px 0; transition:left .12s linear, width .12s linear; }
+.tractor-slip > i.gap { background:var(--amber); border-radius:0; transition:left .12s linear, width .12s linear; }
 .tractor-slip.over > i.gap { background:var(--red); }
 .tractor-gap { margin-top:7px; }
 
 /* Commands: views over isobus.js, which owns them */
-.tractor-ctl-cap { display:flex; justify-content:space-between; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--text3); margin-bottom:8px; }
+.tractor-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
 .tractor-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
-.tractor-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); }
+.tractor-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
 .tractor-ctl-row .lbl { width:52px; flex-shrink:0; }
 .tractor-ctl-row input[type=range] { flex:1; min-width:0; }
 .tractor-ctl-row .v { font-family:var(--mono); color:var(--text); letter-spacing:0; width:44px; text-align:right; flex-shrink:0; }
 .tractor-ctl-row button {
-  padding:4px 7px; font-size:10px; font-family:var(--sans); text-transform:uppercase; letter-spacing:.06em;
-  color:var(--text2); background:var(--bg); border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  padding:4px 7px; font-size:var(--fs-s); font-family:var(--sans); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--text2); background:var(--bg); border:1px solid var(--border); border-radius:0; cursor:pointer;
 }
 .tractor-ctl-row button.on { color:var(--green); border-color:var(--green); background:var(--green-dim); }
 .tractor-ctl .bus { outline:1px solid var(--amber); outline-offset:1px; }

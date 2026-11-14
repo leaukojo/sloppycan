@@ -93,7 +93,8 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
 ## Verifying
 
 `node --check js/<file>.js`, then the three CI checks:
-`node .github/scripts/static-checks.mjs` (inline handlers, script tags, this file's size) ·
+`node .github/scripts/static-checks.mjs` (inline handlers, script tags, this file's size; UI tokens:
+font sizes are `--fs-*` or `fs-exempt` gauges, radius 0 / 50% / `--r-pill`, controls `padding:0 X`) ·
 `python -m unittest discover -s scripting -p "test_*.py"` (relay) ·
 `node .github/scripts/smoke.mjs` (headless Chrome: load, every `window.*SelfTest` fresh and per
 demo traffic, golden frames; needs `npm install --no-save --no-package-lock puppeteer` once).

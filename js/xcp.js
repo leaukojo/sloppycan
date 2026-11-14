@@ -31,12 +31,12 @@
 .xcp-config {
   background:var(--bg2); border-bottom:1px solid var(--border);
   padding:7px 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
-  flex-shrink:0; font-family:var(--sans); font-size:11px; color:var(--text2);
+  flex-shrink:0; font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
 }
 .xcp-config label { display:flex; align-items:center; gap:5px; }
 .xcp-config input, .xcp-config select {
   background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:5px; font-family:var(--mono); font-size:11px; padding:3px 6px; outline:none;
+  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 6px; outline:none;
 }
 .xcp-config input { width:64px; }
 .xcp-controls {
@@ -54,14 +54,14 @@
 .xcp-log-bar {
   background:var(--bg2); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
   padding:6px 16px; display:flex; align-items:center; gap:14px; flex-shrink:0;
-  font-family:var(--sans); font-size:12px; font-weight:600; color:var(--text);
+  font-family:var(--sans); font-size:var(--fs-m); font-weight:600; color:var(--text);
 }
-.xcp-log-bar a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:400; margin-left:auto; font-size:11px; }
-.xcp-log-bar button { font-size:11px; padding:3px 10px; }
+.xcp-log-bar a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:400; margin-left:auto; font-size:var(--fs-s); }
+.xcp-log-bar button { font-size:var(--fs-s); padding:3px 10px; }
 .xcp-btn-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .xcp-btn {
-  font-size:11.5px; padding:5px 12px; background:var(--bg2); color:var(--text2);
-  border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  font-size:var(--fs-m); padding:5px 12px; background:var(--bg2); color:var(--text2);
+  border:1px solid var(--border); border-radius:0; cursor:pointer;
   font-family:var(--sans); white-space:nowrap; transition:background .15s,color .15s;
 }
 .xcp-btn:hover:not(:disabled) { background:var(--bg3); color:var(--text); }
@@ -71,28 +71,28 @@
 .xcp-btn.danger:hover:not(:disabled) { background:var(--red); color:#000; }
 .xcp-form {
   display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  font-family:var(--sans); font-size:11px; color:var(--text2);
+  font-family:var(--sans); font-size:var(--fs-s); color:var(--text2);
 }
 .xcp-form label { display:flex; align-items:center; gap:5px; }
 .xcp-form input {
   background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:5px; font-family:var(--mono); font-size:11px; padding:4px 7px; outline:none;
+  border-radius:0; font-family:var(--mono); font-size:var(--fs-s); padding:0 7px; outline:none;
 }
 .xcp-form .grp-title {
-  font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3);
+  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2);
   min-width:auto;
 }
 .xcp-readout {
-  font-family:var(--mono); font-size:11px; color:var(--green); padding:2px 0 0;
+  font-family:var(--mono); font-size:var(--fs-s); color:var(--green); padding:2px 0 0;
   word-break:break-all; min-height:14px;
 }
 .xcp-readout.err { color:var(--red); }
-.xcp-tx-hint { font-size:11px; color:var(--amber); padding:2px 0 0; font-family:var(--sans); }
+.xcp-tx-hint { font-size:var(--fs-s); color:var(--amber); padding:2px 0 0; font-family:var(--sans); }
 .xcp-tbl a.xc-seecan { color:var(--blue); text-decoration:none; }
 .xcp-divider { width:1px; align-self:stretch; min-height:16px; background:var(--border); margin:0 6px; }
 .xcp-sess { padding:14px 20px; }
 .xcp-state {
-  display:inline-block; padding:4px 14px; border-radius:14px; font-size:13px;
+  display:inline-block; padding:4px 14px; border-radius:var(--r-pill); font-size:var(--fs-m);
   font-weight:600; font-family:var(--sans); background:var(--bg2); color:var(--text2);
   border:1px solid var(--border);
 }
@@ -101,31 +101,31 @@
   display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
   gap:12px; margin:14px 0 8px;
 }
-.xcp-tile { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:11px 13px; }
+.xcp-tile { background:var(--bg2); border:1px solid var(--border); border-radius:0; padding:11px 13px; }
 .xcp-tile .xt-label {
-  font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3);
+  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2);
   font-family:var(--sans); margin-bottom:4px;
 }
-.xcp-tile .xt-val { font-size:18px; color:var(--text); font-family:var(--mono); line-height:1.15; }
-.xcp-chips-title { font-size:12px; font-weight:600; color:var(--text); margin:16px 0 6px; font-family:var(--sans); }
+.xcp-tile .xt-val { font-size:var(--fs-xl); color:var(--text); font-family:var(--mono); line-height:1.15; }
+.xcp-chips-title { font-size:var(--fs-m); font-weight:600; color:var(--text); margin:16px 0 6px; font-family:var(--sans); }
 .xcp-chip {
-  display:inline-block; padding:2px 9px; margin:3px; border-radius:11px;
-  font-size:10px; font-family:var(--sans); background:var(--bg2);
+  display:inline-block; padding:2px 9px; margin:3px; border-radius:var(--r-pill);
+  font-size:var(--fs-s); font-family:var(--sans); background:var(--bg2);
   color:var(--text3); border:1px solid var(--border);
 }
 .xcp-chip.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
-.xcp-empty { text-align:center; color:var(--text3); font-size:12px; padding:40px 0; font-family:var(--sans); line-height:1.6; }
-.xcp-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+.xcp-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:40px 0; font-family:var(--sans); line-height:1.6; }
+.xcp-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-m); }
 .xcp-tbl th {
-  text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
-  color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
+  text-align:left; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em;
+  color:var(--text2); padding:5px 8px; border-bottom:1px solid var(--border);
   font-weight:500; font-family:var(--sans); white-space:nowrap;
   background:var(--bg2); cursor:default; position:sticky; top:0; z-index:1;
 }
 .xcp-tbl td { padding:5px 8px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--text2); font-family:var(--mono); }
 .xcp-tbl tr:last-child td { border-bottom:none; }
-.xcp-tbl td.xc-ts  { color:var(--text3); font-size:10px; white-space:nowrap; }
-.xcp-tbl td.xc-dir { font-family:var(--sans); white-space:nowrap; font-size:10px; }
+.xcp-tbl td.xc-ts  { color:var(--text3); font-size:var(--fs-s); white-space:nowrap; }
+.xcp-tbl td.xc-dir { font-family:var(--sans); white-space:nowrap; font-size:var(--fs-s); }
 .xcp-tbl td.xc-dir.cro { color:var(--blue); }
 .xcp-tbl td.xc-dir.dto { color:var(--purple); }
 .xcp-tbl td.xc-id  { color:var(--blue); white-space:nowrap; }
@@ -133,8 +133,8 @@
 .xcp-tbl td.xc-type.res { color:var(--green); }
 .xcp-tbl td.xc-type.err { color:var(--red); }
 .xcp-tbl td.xc-type.daq { color:var(--text3); }
-.xcp-tbl td.xc-raw { color:var(--text3); font-size:10px; letter-spacing:.03em; }
-.xcp-tbl td.xc-dec { color:var(--text2); font-size:10.5px; font-family:var(--sans); }
+.xcp-tbl td.xc-raw { color:var(--text3); font-size:var(--fs-s); letter-spacing:.03em; }
+.xcp-tbl td.xc-dec { color:var(--text2); font-size:var(--fs-s); font-family:var(--sans); }
 `;
   document.head.appendChild(s);
 })();
@@ -591,7 +591,7 @@ function xcpRenderSession() {
       ${xcpTile('Session status', XCP.sessionStatus == null ? '-' : xcpH(XCP.sessionStatus))}
       ${xcpTile('Protection', XCP.protection == null ? '-' : xcpH(XCP.protection))}
     </div>
-    <div class="xcp-chips-title">Slave resources <span style="color:var(--text3);font-weight:400">(CONNECT byte 1)</span></div>
+    <div class="xcp-chips-title">Slave resources <span style="color:var(--text2);font-weight:400">(CONNECT byte 1)</span></div>
     <div>${res}</div>`);
 }
 

@@ -23,20 +23,20 @@
   s.textContent = `
 .chademo-note {
   background:var(--bg2); border-bottom:1px solid var(--border);
-  padding:8px 16px; font-size:11px; color:var(--text2); font-family:var(--sans);
+  padding:8px 16px; font-size:var(--fs-s); color:var(--text2); font-family:var(--sans);
   display:flex; align-items:center; gap:14px; flex-shrink:0; line-height:1.5;
 }
 .chademo-note a { color:var(--blue); text-decoration:none; white-space:nowrap; margin-left:auto; }
 .chademo-tbl a.cm-seecan { color:var(--blue); text-decoration:none; }
 .chademo-state {
-  display:inline-block; padding:4px 14px; border-radius:14px; font-size:13px;
+  display:inline-block; padding:4px 14px; border-radius:var(--r-pill); font-size:var(--fs-m);
   font-weight:600; font-family:var(--sans); background:var(--bg2); color:var(--text2);
   border:1px solid var(--border);
 }
 .chademo-pause-btn {
-  margin-left:10px; vertical-align:middle; font-size:11px; padding:3px 11px;
+  margin-left:10px; vertical-align:middle; font-size:var(--fs-s); padding:3px 11px;
   background:var(--bg2); color:var(--text2); border:1px solid var(--border);
-  border-radius:6px; cursor:pointer; font-family:var(--sans); white-space:nowrap;
+  border-radius:0; cursor:pointer; font-family:var(--sans); white-space:nowrap;
 }
 .chademo-pause-btn:hover { background:var(--bg3); color:var(--text); }
 .chademo-state.charging { background:var(--green-dim); color:var(--green); border-color:transparent; }
@@ -47,37 +47,37 @@
   gap:12px; margin:16px 0 8px;
 }
 .chademo-tile {
-  background:var(--bg2); border:1px solid var(--border); border-radius:10px;
+  background:var(--bg2); border:1px solid var(--border); border-radius:0;
   padding:12px 14px;
 }
 .chademo-tile .ct-label {
-  font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3);
+  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2);
   font-family:var(--sans); margin-bottom:4px;
 }
 .chademo-tile .ct-val {
-  font-size:22px; color:var(--green); font-family:var(--mono); line-height:1.1;
+  font-size:var(--fs-xl); color:var(--green); font-family:var(--mono); line-height:1.1;
 }
 .chademo-tile .ct-val.muted { color:var(--text); }
 .chademo-tile .ct-sub {
-  font-size:11px; color:var(--text3); font-family:var(--mono); margin-top:3px;
+  font-size:var(--fs-s); color:var(--text2); font-family:var(--mono); margin-top:3px;
 }
 .chademo-flags-title {
-  font-size:12px; font-weight:600; color:var(--text); margin:18px 0 6px;
+  font-size:var(--fs-m); font-weight:600; color:var(--text); margin:18px 0 6px;
   font-family:var(--sans);
 }
 .chademo-chip {
-  display:inline-block; padding:2px 9px; margin:3px; border-radius:11px;
-  font-size:10px; font-family:var(--sans); background:var(--bg2);
+  display:inline-block; padding:2px 9px; margin:3px; border-radius:var(--r-pill);
+  font-size:var(--fs-s); font-family:var(--sans); background:var(--bg2);
   color:var(--text3); border:1px solid var(--border);
 }
 .chademo-chip.on.bad  { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
 .chademo-chip.on.good { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .chademo-chip.on.info { background:var(--amber-dim); color:var(--amber); border-color:transparent; }
-.chademo-empty { text-align:center; color:var(--text3); font-size:12px; padding:48px 0; font-family:var(--sans); }
-.chademo-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+.chademo-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:48px 0; font-family:var(--sans); }
+.chademo-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-m); }
 .chademo-tbl th {
-  text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
-  color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
+  text-align:left; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em;
+  color:var(--text2); padding:5px 8px; border-bottom:1px solid var(--border);
   font-weight:500; font-family:var(--sans); white-space:nowrap;
   /* opaque bg on the cell (not <thead>) so the sticky header isn't see-through
      with border-collapse:collapse */
@@ -88,11 +88,11 @@
   color:var(--text2); font-family:var(--mono);
 }
 .chademo-tbl tr:last-child td { border-bottom:none; }
-.chademo-tbl td.cm-ts  { color:var(--text3); font-size:10px; white-space:nowrap; }
+.chademo-tbl td.cm-ts  { color:var(--text3); font-size:var(--fs-s); white-space:nowrap; }
 .chademo-tbl td.cm-id  { color:var(--blue); white-space:nowrap; }
 .chademo-tbl td.cm-name{ font-family:var(--sans); color:var(--text2); white-space:nowrap; }
-.chademo-tbl td.cm-val { color:var(--text2); font-size:10.5px; }
-.chademo-tbl td.cm-raw { color:var(--text3); font-size:10px; letter-spacing:.04em; }
+.chademo-tbl td.cm-val { color:var(--text2); font-size:var(--fs-s); }
+.chademo-tbl td.cm-raw { color:var(--text3); font-size:var(--fs-s); letter-spacing:.04em; }
 `;
   document.head.appendChild(s);
 })();
@@ -334,11 +334,11 @@ function chademoRenderSession() {
       ${tile('Protocol #', 'V ' + cmShow(CM.protoV), 'charger ' + cmShow(CM.protoC), true)}
       ${tile('Connector', (CM.cStatus & 0x04) ? 'Locked' : 'Unlocked', null, true)}
     </div>
-    <div class="chademo-flags-title">Vehicle faults <span style="color:var(--text3);font-weight:400">(0x102 byte 4)</span></div>
+    <div class="chademo-flags-title">Vehicle faults <span style="color:var(--text2);font-weight:400">(0x102 byte 4)</span></div>
     <div>${chademoChips(CM.vFaults, CM_FAULT_BITS)}</div>
-    <div class="chademo-flags-title">Vehicle status <span style="color:var(--text3);font-weight:400">(0x102 byte 5)</span></div>
+    <div class="chademo-flags-title">Vehicle status <span style="color:var(--text2);font-weight:400">(0x102 byte 5)</span></div>
     <div>${chademoChips(CM.vStatus, CM_VSTATUS_BITS)}</div>
-    <div class="chademo-flags-title">Charger status <span style="color:var(--text3);font-weight:400">(0x109 byte 5)</span></div>
+    <div class="chademo-flags-title">Charger status <span style="color:var(--text2);font-weight:400">(0x109 byte 5)</span></div>
     <div>${chademoChips(CM.cStatus, CM_CSTATUS_BITS)}</div>`);
 }
 

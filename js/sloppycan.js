@@ -301,7 +301,7 @@ function renderTxRows() {
   body.innerHTML = txMessages.map(msg => {
     const maxIdLen = msg.ext ? 8 : 3;
     return `<div class="tx-row" data-seq="${msg.seq}">
-      <button class="btn" style="padding:2px 7px;font-size:11px;color:var(--red);border-color:transparent;margin-right:2px"
+      <button class="btn" style="padding:0 7px;font-size:var(--fs-s);color:var(--red);border-color:transparent;margin-right:2px"
         onclick="removeTxMessage(${msg.seq})" title="Remove">✕</button>
       <span class="tx-sep"></span>
       <span class="tx-lbl">ID</span>
@@ -341,7 +341,7 @@ function renderTxRows() {
         onchange="txSetEnabled(${msg.seq}, this.checked)">
       <span class="tx-lbl">Enable</span>
       <span class="tx-sep"></span>
-      <button class="btn" id="txonce-${msg.seq}" style="padding:2px 8px;font-size:11px;"
+      <button class="btn" id="txonce-${msg.seq}" style="padding:0 8px;font-size:var(--fs-s);"
         onclick="txSendOnce(this,${msg.seq})" title="Send once" ${!txValidateData(msg) ? 'disabled' : ''}>
         ▶
       </button>
@@ -355,7 +355,7 @@ function renderTxRows() {
         oninput="(txMessages.find(m=>m.seq===${msg.seq})||{}).note=this.value"
         style="flex:1;min-width:80px;width:auto">
     </div>`;
-  }).join('') || '<div style="padding:8px 16px;font-size:12px;color:var(--text3);font-family:var(--sans)">No messages. Click Add to create one.</div>';
+  }).join('') || '<div style="padding:8px 16px;font-size:var(--fs-m);color:var(--text2);font-family:var(--sans)">No messages. Click Add to create one.</div>';
   updateTxIndicator();
   renderTxModuleRows();
 }
@@ -1231,18 +1231,18 @@ function hwConnectWarning() {
     ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;'
       + 'justify-content:center;background:#0008;backdrop-filter:blur(2px)';
     ov.innerHTML =
-      `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:10px;`
+      `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:0;`
       + `max-width:440px;padding:22px 24px;font-family:var(--sans);color:var(--text);box-shadow:0 8px 40px #000a">`
-      + `<div style="font-weight:600;font-size:15px;margin-bottom:10px;color:var(--amber)">Connect to hardware?</div>`
-      + `<div style="font-size:13px;line-height:1.5;color:var(--text2)">This AI-built tool is for education only. `
+      + `<div style="font-weight:600;font-size:var(--fs-l);margin-bottom:10px;color:var(--amber)">Connect to hardware?</div>`
+      + `<div style="font-size:var(--fs-m);line-height:1.5;color:var(--text2)">This AI-built tool is for education only. `
       + `Use it only with testbeds and simulators. Connecting to a real vehicle is dangerous, strongly discouraged, `
       + `and against SloppyCAN's license.</div>`
-      + `<label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:12px;color:var(--text2);cursor:pointer">`
+      + `<label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:var(--fs-m);color:var(--text2);cursor:pointer">`
       + `<input type="checkbox" id="hwWarnDismiss"> Don't show again for this workspace</label>`
       + `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">`
-      + `<button id="hwWarnCancel" style="padding:7px 14px;border-radius:6px;border:1px solid var(--border2);`
+      + `<button id="hwWarnCancel" style="padding:7px 14px;border-radius:0;border:1px solid var(--border2);`
       + `background:var(--bg3);color:var(--text);cursor:pointer;font-family:var(--sans)">Cancel</button>`
-      + `<button id="hwWarnOk" style="padding:7px 14px;border-radius:6px;border:1px solid var(--amber);`
+      + `<button id="hwWarnOk" style="padding:7px 14px;border-radius:0;border:1px solid var(--amber);`
       + `background:var(--amber-dim);color:var(--amber);cursor:pointer;font-family:var(--sans)">Continue</button></div></div>`;
     document.body.appendChild(ov);
     const close = (val) => { ov.remove(); resolve(val); };
@@ -1742,7 +1742,7 @@ function rerenderTable() {
       // cell[7]: age
       row.insertCell(7).className = 'td-age';
       // cell[8]: notes
-      row.insertCell(8).style.cssText = 'min-width:100px;padding:4px 8px;color:var(--text3);font-family:var(--sans);font-size:11px;font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      row.insertCell(8).style.cssText = 'min-width:100px;padding:4px 8px;color:var(--text2);font-family:var(--sans);font-size:var(--fs-s);font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
     }
 
     // ── Row-level state (always applied) ──────────────────────────────────────
@@ -2148,7 +2148,7 @@ function dumpBuildRow(e) {
     <td><span class="td-type ${typeClass}">${typeLabel}</span>${dirBadge}</td>
     <td style="color:var(--text2);text-align:center">${e.dlc}</td>
     <td class="td-data">${formatDumpData(e, fk)}</td>
-    <td style="color:var(--text3);font-family:var(--sans);font-size:11px;font-style:italic;padding:3px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${escHtml(frameNotes.get(frameKey(e)) || '')}</td>
+    <td style="color:var(--text2);font-family:var(--sans);font-size:var(--fs-s);font-style:italic;padding:3px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${escHtml(frameNotes.get(frameKey(e)) || '')}</td>
   `;
   tr.addEventListener('click', () => inspectFrame(e));
   return tr;
@@ -2343,13 +2343,13 @@ function inspectFrame(f) {
     return `<span style="color:${color}">${s.bit}</span>`;
   }).join('');
 
-  const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px;font-family:var(--sans);font-size:11px;color:var(--text2)">` +
+  const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px;font-family:var(--sans);font-size:var(--fs-s);color:var(--text2)">` +
     SECTION_LABELS.map(([sec, lbl]) =>
       `<span style="display:flex;align-items:center;gap:4px">` +
-      `<span style="width:9px;height:9px;border-radius:2px;background:${SECTION_COLORS[sec]};flex-shrink:0"></span>${escHtml(lbl)}</span>`
+      `<span style="width:9px;height:9px;border-radius:0;background:${SECTION_COLORS[sec]};flex-shrink:0"></span>${escHtml(lbl)}</span>`
     ).join('') +
     `<span style="display:flex;align-items:center;gap:4px">` +
-    `<span class="stuff-bit" style="font-family:var(--mono);font-size:11px;color:var(--text2)">·</span>underlined = stuff bit</span>` +
+    `<span class="stuff-bit" style="font-family:var(--mono);font-size:var(--fs-s);color:var(--text2)">·</span>underlined = stuff bit</span>` +
     `</div>`;
 
   const currentColor = frameColors.get(noteKey) || '';
@@ -2358,46 +2358,46 @@ function inspectFrame(f) {
   const html = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
       <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);font-family:var(--sans)">ID</span>
-        <div id="inspectIdDisplay" style="font-size:20px;font-weight:600;font-family:var(--mono);color:${currentColor || 'var(--text)'}">${(isExt ? '0x' : '') + idHex}</div>
+        <span style="font-size:var(--fs-s);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text2);font-family:var(--sans)">ID</span>
+        <div id="inspectIdDisplay" style="font-size:var(--fs-xl);font-weight:600;font-family:var(--mono);color:${currentColor || 'var(--text)'}">${(isExt ? '0x' : '') + idHex}</div>
       </div>
       <span class="td-type ${isRtr ? 'rtr' : isExt ? 'ext' : 'std'}">${isRtr ? 'RTR' : isExt ? 'EXT' : 'STD'}</span>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap" title="Sets the highlight colour for this ID across the ID List, Traffic Dump, and Graph tabs.">
-        <span style="font-size:11px;color:var(--text3);font-family:var(--sans)">ID Color</span>
+        <span style="font-size:var(--fs-s);color:var(--text2);font-family:var(--sans)">ID Color</span>
         ${['#f87171','#fb923c','#f59e0b','#a3e635','#00e87a','#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6'].map(c =>
           `<span title="${c}" onclick="setFrameColor('${noteKey}','${c}')"
-            style="width:14px;height:14px;border-radius:3px;background:${c};cursor:pointer;flex-shrink:0;${currentColor===c?'outline:2px solid #fff;outline-offset:1px':'opacity:0.75'}"></span>`
+            style="width:14px;height:14px;border-radius:0;background:${c};cursor:pointer;flex-shrink:0;${currentColor===c?'outline:2px solid #fff;outline-offset:1px':'opacity:0.75'}"></span>`
         ).join('')}
         <input type="color" value="${colorPickerVal}"
-          style="width:26px;height:22px;padding:1px 2px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:transparent;${currentColor && !['#f87171','#fb923c','#f59e0b','#a3e635','#00e87a','#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6'].includes(currentColor) ? `outline:2px solid ${currentColor};outline-offset:2px` : ''}"
+          style="width:26px;height:22px;padding:1px 2px;border:1px solid var(--border2);border-radius:0;cursor:pointer;background:transparent;${currentColor && !['#f87171','#fb923c','#f59e0b','#a3e635','#00e87a','#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6'].includes(currentColor) ? `outline:2px solid ${currentColor};outline-offset:2px` : ''}"
           oninput="setFrameColor('${noteKey}',this.value)">
-        ${currentColor ? `<button class="btn" style="padding:2px 7px;font-size:11px" onclick="setFrameColor('${noteKey}','')">Clear</button>` : ''}
+        ${currentColor ? `<button class="btn" style="padding:0 7px;font-size:var(--fs-s)" onclick="setFrameColor('${noteKey}','')">Clear</button>` : ''}
       </div>
     </div>
 
     <div class="inspect-title">Notes</div>
     <input id="inspectNoteArea" type="text"
-      style="width:100%;margin-bottom:8px;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:13px;padding:8px 12px;outline:none;box-sizing:border-box"
+      style="width:100%;margin-bottom:8px;background:var(--bg2);border:1px solid var(--border2);border-radius:0;color:var(--text);font-family:var(--sans);font-size:var(--fs-m);padding:0 12px;outline:none;box-sizing:border-box"
       placeholder="Add notes about this frame ID…"
       value="${escHtml(frameNotes.get(noteKey) || '')}"
       oninput="frameNotes.set('${noteKey}', this.value);saveNotes();rerenderTable()">
 
-    <div class="inspect-title">Bit Field Layout <span style="font-size:10px;font-weight:400;color:var(--text3);letter-spacing:0;text-transform:none">- without bit stuffing</span></div>
+    <div class="inspect-title">Bit Field Layout <span style="font-size:var(--fs-s);font-weight:400;color:var(--text2);letter-spacing:0;text-transform:none">- without bit stuffing</span></div>
     <div class="bitfield-wrap">
       ${fieldHtml}
     </div>
 
     <div class="inspect-title">Bitstream with Bit Stuffing
-      <span style="font-size:10px;font-weight:400;color:var(--text3);letter-spacing:0;text-transform:none">
+      <span style="font-size:var(--fs-s);font-weight:400;color:var(--text2);letter-spacing:0;text-transform:none">
         - ${stuffed.length} bits total, ${stuffCount} stuff bit${stuffCount !== 1 ? 's' : ''} inserted
       </span>
       <a href="explainers/can-signals-explainer.html?bits=${stuffed.map(s => s.bit).join('')}" target="_blank"
-        style="font-size:11px;font-weight:400;color:var(--accent,#60a5fa);text-decoration:none;letter-spacing:0;text-transform:none;margin-left:8px"
+        style="font-size:var(--fs-s);font-weight:400;color:var(--accent,#60a5fa);text-decoration:none;letter-spacing:0;text-transform:none;margin-left:8px"
         title="See these bits as CAN_H / CAN_L oscilloscope waveforms">↗ View as oscilloscope signals</a>
     </div>
     <div class="stuff-wrap">
       ${legendHtml}
-      <div style="font-family:var(--mono);font-size:13px;letter-spacing:0.1em;overflow-x:auto;white-space:nowrap">${stuffBitsHtml}</div>
+      <div style="font-family:var(--mono);font-size:var(--fs-m);letter-spacing:0.1em;overflow-x:auto;white-space:nowrap">${stuffBitsHtml}</div>
     </div>
 
     <div class="inspect-title">Field Details</div>
@@ -2521,10 +2521,10 @@ function updateNotchBtn() {
 
 function clearInspector() {
   document.getElementById('inspectContent').innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:200px;gap:14px;color:var(--text3)">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:200px;gap:14px;color:var(--text2)">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M9 5v14"/></svg>
-      <div style="font-size:15px;font-weight:500;color:var(--text2)">No frame selected</div>
-      <div style="font-size:13px;">Click a frame in the ID List or Traffic Dump to inspect it here.</div>
+      <div style="font-size:var(--fs-l);font-weight:500;color:var(--text2)">No frame selected</div>
+      <div style="font-size:var(--fs-m);">Click a frame in the ID List or Traffic Dump to inspect it here.</div>
     </div>`;
 }
 
@@ -3525,16 +3525,16 @@ function isotpFuncAppendResponse(wrap, rid, payload, opts) {
   div.style.cssText = 'margin-bottom:4px';
   if (opts.error) {
     div.innerHTML =
-      `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px">` +
+      `<div style="display:flex;gap:8px;align-items:baseline;font-size:var(--fs-m)">` +
         `<span class="isotp-ecu-tag">${escHtml(idHex)}</span>` +
         `<span style="color:var(--red)">${escHtml(opts.error)}</span></div>`;
   } else if (opts.pending) {
     const hex = payload.map(b => b.toString(16).toUpperCase().padStart(2,'0')).join(' ');
     div.innerHTML =
-      `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px">` +
+      `<div style="display:flex;gap:8px;align-items:baseline;font-size:var(--fs-m)">` +
         `<span class="isotp-ecu-tag">${escHtml(idHex)}</span>` +
         `<span style="color:var(--amber)">${escHtml(hex)}</span>` +
-        `<span style="color:var(--amber);font-family:var(--sans);font-size:10px">Response Pending</span></div>`;
+        `<span style="color:var(--amber);font-family:var(--sans);font-size:var(--fs-s)">Response Pending</span></div>`;
   } else {
     const id  = 'u' + (isotpEntrySeq++) + 'f';
     const hex = payload.map(b => b.toString(16).toUpperCase().padStart(2,'0')).join(' ');
@@ -3542,7 +3542,7 @@ function isotpFuncAppendResponse(wrap, rid, payload, opts) {
     const color = isNeg ? 'var(--red)' : 'var(--green)';
     const dec = udsSection(decodePayload(payload), id);
     div.innerHTML =
-      `<div style="display:flex;gap:8px;align-items:baseline;font-size:12px">` +
+      `<div style="display:flex;gap:8px;align-items:baseline;font-size:var(--fs-m)">` +
         `<span class="isotp-ecu-tag">${escHtml(idHex)}</span>` +
         `<span style="color:${color};letter-spacing:0.05em;word-break:break-all">${escHtml(hex)}</span></div>` +
       (dec ? `<div style="padding-left:34px">${dec}</div>` : '');
@@ -3718,19 +3718,19 @@ function isotpAppendEntry(payload) {
   wrap.style.cssText = 'margin-bottom:14px;border-left:2px solid var(--border2);padding-left:10px;transition:border-color 0.3s';
   wrap.innerHTML =
     `<div style="display:flex;gap:10px;align-items:baseline;margin-bottom:2px">` +
-      `<span style="color:var(--amber);font-weight:700;font-size:11px;min-width:22px;flex-shrink:0">TX</span>` +
-      `<span style="color:var(--text);letter-spacing:0.05em;word-break:break-all;font-size:12px">${escHtml(hex)}</span>` +
-      `<span style="color:var(--text3);font-size:10px;margin-left:auto;white-space:nowrap;padding-left:12px">${isotpTs()}</span>` +
+      `<span style="color:var(--amber);font-weight:700;font-size:var(--fs-s);min-width:22px;flex-shrink:0">TX</span>` +
+      `<span style="color:var(--text);letter-spacing:0.05em;word-break:break-all;font-size:var(--fs-m)">${escHtml(hex)}</span>` +
+      `<span style="color:var(--text3);font-size:var(--fs-s);margin-left:auto;white-space:nowrap;padding-left:12px">${isotpTs()}</span>` +
       `<button type="button" data-seecan="${sendTs}"` +
-        ` style="font-size:10px;color:var(--blue);background:none;border:none;cursor:pointer;white-space:nowrap;padding-left:8px;flex-shrink:0"` +
+        ` style="font-size:var(--fs-s);color:var(--blue);background:none;border:none;cursor:pointer;white-space:nowrap;padding-left:8px;flex-shrink:0"` +
         ` title="Jump to this exchange in the Traffic Dump (pauses auto-scroll)">⊞ See CAN Traffic</button>` +
       `<a class="isotp-explainer-btn" href="${isotpExplainerUrl(hex, '')}" target="_blank"` +
-        ` style="font-size:10px;color:var(--blue);text-decoration:none;white-space:nowrap;padding-left:8px;flex-shrink:0"` +
+        ` style="font-size:var(--fs-s);color:var(--blue);text-decoration:none;white-space:nowrap;padding-left:8px;flex-shrink:0"` +
         ` title="Open in ISO-TP Explainer">↗ See ISO-TP traffic</a>` +
     `</div>` +
     (txD ? `<div style="padding-left:30px;margin-bottom:4px">${txD}</div>` : '') +
     `<div class="isotp-rx">` +
-      `<div class="isotp-rx-waiting" style="display:flex;gap:10px;align-items:center;color:var(--text3);font-style:italic;font-size:11px">` +
+      `<div class="isotp-rx-waiting" style="display:flex;gap:10px;align-items:center;color:var(--text2);font-style:italic;font-size:var(--fs-s)">` +
         `<span style="min-width:22px;flex-shrink:0"></span><span>waiting…</span>` +
       `</div>` +
     `</div>`;
@@ -3745,11 +3745,11 @@ function isotpAddPendingNote(wrap, payload) {
   const wt  = wrap.querySelector('.isotp-rx-waiting');
   const hex = payload.map(b => b.toString(16).toUpperCase().padStart(2,'0')).join(' ');
   const div = document.createElement('div');
-  div.style.cssText = 'display:flex;gap:10px;align-items:baseline;margin-bottom:3px;font-size:12px';
+  div.style.cssText = 'display:flex;gap:10px;align-items:baseline;margin-bottom:3px;font-size:var(--fs-m)';
   div.innerHTML =
-    `<span style="color:var(--amber);font-weight:700;font-size:11px;min-width:22px;flex-shrink:0">RX</span>` +
+    `<span style="color:var(--amber);font-weight:700;font-size:var(--fs-s);min-width:22px;flex-shrink:0">RX</span>` +
     `<span style="color:var(--amber);letter-spacing:0.05em">${escHtml(hex)}</span>` +
-    `<span style="color:var(--amber);font-family:var(--sans);font-size:10px;margin-left:8px">Response Pending - ECU still processing</span>`;
+    `<span style="color:var(--amber);font-family:var(--sans);font-size:var(--fs-s);margin-left:8px">Response Pending - ECU still processing</span>`;
   rx.insertBefore(div, wt);
   document.getElementById('isotpLog').scrollTop = document.getElementById('isotpLog').scrollHeight;
 }
@@ -3766,8 +3766,8 @@ function isotpMarkDone(wrap, payload) {
   const rxD   = udsSection(decodePayload(payload), id);
   const el    = document.createElement('div');
   el.innerHTML =
-    `<div style="display:flex;gap:10px;align-items:baseline;margin-bottom:2px;font-size:12px">` +
-      `<span style="color:${color};font-weight:700;font-size:11px;min-width:22px;flex-shrink:0">RX</span>` +
+    `<div style="display:flex;gap:10px;align-items:baseline;margin-bottom:2px;font-size:var(--fs-m)">` +
+      `<span style="color:${color};font-weight:700;font-size:var(--fs-s);min-width:22px;flex-shrink:0">RX</span>` +
       `<span style="color:${color};letter-spacing:0.05em;word-break:break-all">${escHtml(hex)}</span>` +
     `</div>` +
     (rxD ? `<div style="padding-left:30px">${rxD}</div>` : '');
@@ -3794,13 +3794,13 @@ function isotpShowTimeoutBanner() {
   const el = document.createElement('div');
   el.className = 'isotp-timeout-banner';
   el.style.cssText = 'position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;'
-    + 'background:var(--bg2);border:1px solid var(--red);border-radius:6px;'
-    + 'padding:7px 12px;margin-bottom:10px;font-size:11px;color:var(--red)';
+    + 'background:var(--bg2);border:1px solid var(--red);border-radius:0;'
+    + 'padding:7px 12px;margin-bottom:10px;font-size:var(--fs-s);color:var(--red)';
   el.innerHTML =
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` +
     `<span style="flex:1">No response received - the ECU did not reply within ${ISOTP_TIMEOUT} ms. Check IDs, addressing mode, and that the bus is not paused.</span>` +
-    `<button onclick="clearIsotpLog()" style="background:var(--red);border:none;color:#fff;border-radius:4px;padding:3px 9px;font-size:10px;cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear Window</button>` +
-    `<button onclick="this.closest('.isotp-timeout-banner').remove()" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:3px 7px;font-size:10px;cursor:pointer;font-family:var(--sans)">✕</button>`;
+    `<button onclick="clearIsotpLog()" style="background:var(--red);border:none;color:#fff;border-radius:0;padding:3px 9px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear Window</button>` +
+    `<button onclick="this.closest('.isotp-timeout-banner').remove()" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:0;padding:3px 7px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans)">✕</button>`;
   log.insertBefore(el, log.firstChild);
 }
 
@@ -3815,7 +3815,7 @@ function isotpMarkError(wrap, reason) {
 function isotpLogWarn(msg) {
   const log = document.getElementById('isotpLog');
   const el  = document.createElement('div');
-  el.style.cssText = 'color:var(--red);margin-bottom:6px;font-family:var(--sans);font-size:11px';
+  el.style.cssText = 'color:var(--red);margin-bottom:6px;font-family:var(--sans);font-size:var(--fs-s)';
   el.textContent = '⚠ ' + msg;
   log.appendChild(el);
   log.scrollTop = log.scrollHeight;
@@ -3891,12 +3891,12 @@ function isotpProtoSwitchWarn() {
   const el = document.createElement('div');
   el.className = 'isotp-proto-warn';
   el.style.cssText = 'display:flex;align-items:center;gap:10px;background:var(--bg2);'
-    + 'border:1px solid var(--amber);border-radius:6px;padding:7px 12px;margin-bottom:10px;'
-    + 'font-size:11px;color:var(--amber)';
+    + 'border:1px solid var(--amber);border-radius:0;padding:7px 12px;margin-bottom:10px;'
+    + 'font-size:var(--fs-s);color:var(--amber)';
   el.innerHTML =
     `<span style="flex:1">⚠ Protocol switched - earlier entries above were decoded under a different protocol and may read incorrectly.</span>` +
-    `<button onclick="clearIsotpLog()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:3px 9px;font-size:10px;cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear Window</button>` +
-    `<button onclick="this.closest('.isotp-proto-warn').remove()" style="background:transparent;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:3px 7px;font-size:10px;cursor:pointer;font-family:var(--sans)">✕</button>`;
+    `<button onclick="clearIsotpLog()" style="background:var(--amber);border:none;color:#000;border-radius:0;padding:3px 9px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans);white-space:nowrap">Clear Window</button>` +
+    `<button onclick="this.closest('.isotp-proto-warn').remove()" style="background:transparent;border:1px solid var(--amber);color:var(--amber);border-radius:0;padding:3px 7px;font-size:var(--fs-s);cursor:pointer;font-family:var(--sans)">✕</button>`;
   log.insertBefore(el, log.firstChild);
 }
 
@@ -4411,7 +4411,7 @@ function obdWatchStart() {
   if (!obdBusReady()) { isotpLogWarn('Watch disabled - bus closed or listen-only'); return; }
   if (!obdWatch.length) {
     const grid = document.getElementById('obdWatchGrid');
-    if (grid) grid.innerHTML = '<span style="color:var(--amber);font-size:11px;font-family:var(--sans)">No PIDs selected - tick boxes above, then Start.</span>';
+    if (grid) grid.innerHTML = '<span style="color:var(--amber);font-size:var(--fs-s);font-family:var(--sans)">No PIDs selected - tick boxes above, then Start.</span>';
     isotpLogWarn('Select at least one PID to watch');
     return;
   }

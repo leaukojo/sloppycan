@@ -28,7 +28,7 @@
   s.textContent = `
 .ramn-window {
   position:fixed; z-index:900; top:72px; left:90px; width:300px;
-  background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
+  background:var(--bg2); border:1px solid var(--border2); border-radius:0;
   box-shadow:0 8px 24px #0006; font-family:var(--sans); color:var(--text);
   display:none; flex-direction:column; overflow:hidden;
 }
@@ -36,14 +36,14 @@
 .ramn-header {
   display:flex; align-items:center; gap:8px; cursor:move; user-select:none;
   padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
-  font-size:12px; font-weight:600; letter-spacing:.02em;
+  font-size:var(--fs-m); font-weight:600; letter-spacing:.02em;
 }
 .ramn-header .ramn-dot { width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0; }
 .ramn-header .ramn-dot.ctrl { background:var(--amber); }
 .ramn-header .ramn-title { flex:1; }
 .ramn-close {
-  background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px;
-  line-height:1; padding:2px 6px; border-radius:5px;
+  background:none; border:none; color:var(--text2); cursor:pointer; font-size:var(--fs-l);
+  line-height:1; padding:2px 6px; border-radius:0;
 }
 .ramn-close:hover { background:var(--bg); color:var(--text); }
 .ramn-scaleouter { overflow:hidden; }
@@ -53,28 +53,28 @@
 .ramn-top { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
 .ramn-wheel { width:80px; height:80px; color:var(--text2); flex-shrink:0; transition:transform .08s linear; }
 .ramn-gearbox { flex:1; text-align:center; }
-.ramn-gearcap { font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--text3); margin-bottom:4px; }
+.ramn-gearcap { font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:4px; }
 .ramn-gearbadge {
   display:inline-flex; align-items:center; justify-content:center; min-width:56px;
-  padding:5px 14px; border:1px solid var(--border2); border-radius:9px; background:var(--bg);
+  padding:5px 14px; border:1px solid var(--border2); border-radius:0; background:var(--bg);
 }
-.ramn-gear { font-family:var(--mono); font-size:38px; font-weight:500; line-height:1; color:var(--text); }
+.ramn-gear { font-family:var(--mono); font-size:38px; /* fs-exempt: gauge */ font-weight:500; line-height:1; color:var(--text); }
 .ramn-gear.rev { color:var(--amber); }
-.ramn-joy { font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--text3); margin-top:6px; min-height:12px; }
+.ramn-joy { font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.08em; color:var(--text2); margin-top:6px; min-height:12px; }
 .ramn-joy.active { color:var(--blue); }
 
 /* Pedal + steer bars */
 .ramn-bar-row { margin-bottom:9px; }
-.ramn-bar-head { display:flex; justify-content:space-between; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:3px; }
+.ramn-bar-head { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); margin-bottom:3px; }
 .ramn-bar-head .v { font-family:var(--mono); color:var(--text); letter-spacing:0; }
-.ramn-bar { height:9px; background:var(--bg); border:1px solid var(--border); border-radius:5px; overflow:hidden; }
-.ramn-bar > i { display:block; height:100%; width:0%; border-radius:4px; transition:width .08s linear; }
+.ramn-bar { height:9px; background:var(--bg); border:1px solid var(--border); border-radius:0; overflow:hidden; }
+.ramn-bar > i { display:block; height:100%; width:0%; border-radius:0; transition:width .08s linear; }
 .ramn-bar.brake > i { background:var(--red); }
 .ramn-bar.accel > i { background:var(--green); }
 /* Steering: centre-origin bar */
-.ramn-steer { position:relative; height:9px; background:var(--bg); border:1px solid var(--border); border-radius:5px; }
+.ramn-steer { position:relative; height:9px; background:var(--bg); border:1px solid var(--border); border-radius:0; }
 .ramn-steer::before { content:''; position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--border2); }
-.ramn-steer > i { position:absolute; top:0; bottom:0; left:50%; width:0%; background:var(--blue); border-radius:3px; transition:all .08s linear; }
+.ramn-steer > i { position:absolute; top:0; bottom:0; left:50%; width:0%; background:var(--blue); border-radius:0; transition:all .08s linear; }
 
 /* Tell-tale grid */
 .ramn-tells {
@@ -83,11 +83,11 @@
 }
 .ramn-tell {
   display:flex; flex-direction:column; align-items:center; gap:3px;
-  padding:6px 2px; border-radius:8px; background:var(--bg); color:var(--text3);
+  padding:6px 2px; border-radius:0; background:var(--bg); color:var(--text3);
   transition:color .1s, background .1s;
 }
 .ramn-tell svg { width:22px; height:22px; }
-.ramn-tell .lbl { font-size:8px; text-transform:uppercase; letter-spacing:.05em; text-align:center; line-height:1.2; }
+.ramn-tell .lbl { font-size:8px; /* fs-exempt: gauge */ text-transform:uppercase; letter-spacing:.05em; text-align:center; line-height:1.2; }
 .ramn-tell.on.green { color:var(--green); background:var(--green-dim); }
 .ramn-tell.on.blue  { color:var(--blue);  background:var(--blue-dim); }
 .ramn-tell.on.amber { color:var(--amber); background:var(--amber-dim); }
@@ -102,7 +102,7 @@
 
 /* ── Control Panel ─────────────────────────────────────────────────────────── */
 .ramn-sec { margin-bottom:11px; }
-.ramn-sec-lbl { display:flex; justify-content:space-between; align-items:center; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:5px; }
+.ramn-sec-lbl { display:flex; justify-content:space-between; align-items:center; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); margin-bottom:5px; }
 .ramn-sec-lbl .v { font-family:var(--mono); color:var(--text); letter-spacing:0; text-transform:none; }
 .ramn-range { width:100%; margin:0; cursor:pointer; }
 .ramn-range.brake { accent-color:var(--red); }
@@ -110,9 +110,9 @@
 .ramn-range.steer { accent-color:var(--blue); }
 .ramn-seg { display:flex; gap:4px; }
 .ramn-seg button, .ramn-toggle {
-  flex:1; padding:6px 0; font-size:11px; font-family:var(--sans); text-align:center;
+  flex:1; padding:6px 0; font-size:var(--fs-s); font-family:var(--sans); text-align:center;
   background:var(--bg); color:var(--text2); border:1px solid var(--border);
-  border-radius:6px; cursor:pointer; user-select:none; transition:background .08s,color .08s;
+  border-radius:0; cursor:pointer; user-select:none; transition:background .08s,color .08s;
 }
 .ramn-seg button:hover, .ramn-toggle:hover { background:var(--bg3); color:var(--text); }
 .ramn-seg button.active { background:var(--blue-dim); color:var(--blue); border-color:transparent; }
@@ -122,14 +122,14 @@
 .ramn-toggle.on.red   { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
 .ramn-row2 { display:flex; gap:6px; }
 .ramn-mini {
-  font-size:9px; font-family:var(--sans); padding:2px 8px; background:var(--bg);
-  color:var(--text2); border:1px solid var(--border); border-radius:5px; cursor:pointer;
+  font-size:var(--fs-s); font-family:var(--sans); padding:2px 8px; background:var(--bg);
+  color:var(--text2); border:1px solid var(--border); border-radius:0; cursor:pointer;
 }
 .ramn-mini:hover { background:var(--bg3); color:var(--text); }
 .ramn-joypad { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; width:128px; margin:0 auto; }
 .ramn-joypad button {
-  padding:9px 0; font-size:14px; background:var(--bg); color:var(--text2);
-  border:1px solid var(--border); border-radius:6px; cursor:pointer; user-select:none;
+  padding:9px 0; font-size:var(--fs-l); background:var(--bg); color:var(--text2);
+  border:1px solid var(--border); border-radius:0; cursor:pointer; user-select:none;
 }
 .ramn-joypad button.sp { visibility:hidden; }
 .ramn-joypad button.held { background:var(--blue-dim); color:var(--blue); border-color:transparent; }
@@ -137,10 +137,10 @@
 /* Traffic off: the simulated frames stop, so the controls that feed them grey out. */
 .ramn-header .ramn-dot.ctrl.off { background:var(--text3); }
 .ramn-ctrl-off .ramn-sec:not(.ramn-traffic-sec):not(.ramn-uplink-sec), .ramn-sec.ramn-sec-off { opacity:.35; pointer-events:none; }
-.ramn-base-note { margin-top:6px; font-size:10px; color:var(--amber); }
+.ramn-base-note { margin-top:6px; font-size:var(--fs-s); color:var(--amber); }
 .ramn-hint {
   margin-top:6px; padding-top:9px; border-top:1px solid var(--border);
-  font-size:9.5px; color:var(--text3); line-height:1.5;
+  font-size:var(--fs-s); color:var(--text2); line-height:1.5;
 }
 .ramn-hint b { color:var(--text2); font-weight:600; }
 .ramn-hint a { color:var(--blue); text-decoration:none; }

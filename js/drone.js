@@ -40,7 +40,7 @@
 .drone-sec { margin-bottom:10px; }
 .drone-sec-lbl {
   display:flex; justify-content:space-between; align-items:center; gap:6px;
-  font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:5px;
+  font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); margin-bottom:5px;
 }
 .drone-sec-lbl .v { font-family:var(--mono); color:var(--text); letter-spacing:0; text-transform:none; }
 .drone-rule { border-top:1px solid var(--border); margin:12px 0 10px; }
@@ -48,11 +48,11 @@
 /* Chips: one state each, off the contract's own enum tables */
 .drone-chips { display:grid; grid-template-columns:repeat(2,1fr); gap:5px; }
 .drone-chip {
-  display:flex; flex-direction:column; gap:2px; padding:5px 7px; border-radius:7px;
+  display:flex; flex-direction:column; gap:2px; padding:5px 7px; border-radius:0;
   background:var(--bg); border:1px solid var(--border);
 }
-.drone-chip .cap { font-size:8px; text-transform:uppercase; letter-spacing:.08em; color:var(--text3); }
-.drone-chip .val { font-family:var(--mono); font-size:13px; line-height:1.1; color:var(--text); }
+.drone-chip .cap { font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.08em; color:var(--text2); }
+.drone-chip .val { font-family:var(--mono); font-size:var(--fs-m); line-height:1.1; color:var(--text); }
 .drone-chip.green { background:var(--green-dim); border-color:transparent; }
 .drone-chip.green .val { color:var(--green); }
 .drone-chip.amber { background:var(--amber-dim); border-color:transparent; }
@@ -64,35 +64,35 @@
 
 /* Why the FC refused. Only ever shown while arming_state is BLOCKED. */
 .drone-why {
-  margin-top:6px; padding:5px 7px; border-radius:7px; background:var(--red-dim);
-  color:var(--red); font-size:10px; line-height:1.45;
+  margin-top:6px; padding:5px 7px; border-radius:0; background:var(--red-dim);
+  color:var(--red); font-size:var(--fs-s); line-height:1.45;
 }
 .drone-why.hidden { display:none; }
 
 /* Bars */
 .drone-bar-row { margin-bottom:7px; }
-.drone-bar-head { display:flex; justify-content:space-between; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:3px; }
+.drone-bar-head { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); margin-bottom:3px; }
 .drone-bar-head .v { font-family:var(--mono); color:var(--text); letter-spacing:0; text-transform:none; }
-.drone-bar { height:8px; background:var(--bg); border:1px solid var(--border); border-radius:5px; overflow:hidden; }
-.drone-bar > i { display:block; height:100%; width:0%; border-radius:4px; background:var(--cyan); transition:width .1s linear; }
+.drone-bar { height:8px; background:var(--bg); border:1px solid var(--border); border-radius:0; overflow:hidden; }
+.drone-bar > i { display:block; height:100%; width:0%; border-radius:0; background:var(--cyan); transition:width .1s linear; }
 .drone-bar.warn > i { background:var(--red); }
 
 /* Readout grid */
 .drone-reads { display:grid; grid-template-columns:repeat(3,1fr); gap:5px 8px; }
 .drone-read { display:flex; flex-direction:column; gap:1px; }
-.drone-read .cap { font-size:8px; text-transform:uppercase; letter-spacing:.07em; color:var(--text3); }
-.drone-read .val { font-family:var(--mono); font-size:11px; color:var(--text); }
+.drone-read .cap { font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em; color:var(--text2); }
+.drone-read .val { font-family:var(--mono); font-size:var(--fs-s); color:var(--text); }
 
 /* ESC table + node strip */
-.drone-tbl { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:10px; }
-.drone-tbl th { font-family:var(--sans); font-size:8px; text-transform:uppercase; letter-spacing:.07em; color:var(--text3); text-align:right; font-weight:500; padding:0 0 3px; }
+.drone-tbl { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:var(--fs-s); }
+.drone-tbl th { font-family:var(--sans); font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em; color:var(--text2); text-align:right; font-weight:500; padding:0 0 3px; }
 .drone-tbl th:first-child, .drone-tbl td:first-child { text-align:left; }
 .drone-tbl td { text-align:right; padding:1px 0; color:var(--text); }
 .drone-tbl tr.fault td { color:var(--red); }
 .drone-nodes { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
 .drone-node {
-  padding:4px 2px; border-radius:6px; text-align:center; background:var(--bg);
-  border:1px solid var(--border); font-size:9px; letter-spacing:.03em; color:var(--text2);
+  padding:4px 2px; border-radius:0; text-align:center; background:var(--bg);
+  border:1px solid var(--border); font-size:var(--fs-s); letter-spacing:.03em; color:var(--text2);
   cursor:pointer; user-select:none;
 }
 .drone-node:hover { border-color:var(--border2); color:var(--text); }
@@ -103,13 +103,13 @@
 
 /* ── Control widgets ──────────────────────────────────────────────────────── */
 .drone-arm {
-  width:100%; padding:10px 0; font-family:var(--sans); font-size:14px; font-weight:600;
+  width:100%; padding:10px 0; font-family:var(--sans); font-size:var(--fs-l); font-weight:600;
   letter-spacing:.1em; text-align:center; cursor:pointer; user-select:none;
-  background:var(--bg); color:var(--text2); border:1px solid var(--border2); border-radius:8px;
+  background:var(--bg); color:var(--text2); border:1px solid var(--border2); border-radius:0;
 }
 .drone-arm:hover { background:var(--bg3); color:var(--text); }
 .drone-arm.up { background:var(--red-dim); color:var(--red); border-color:transparent; }
-.drone-armnote { margin-top:5px; font-size:9.5px; line-height:1.45; color:var(--text3); }
+.drone-armnote { margin-top:5px; font-size:var(--fs-s); line-height:1.45; color:var(--text2); }
 .drone-armnote.warn { color:var(--amber); }
 .drone-range { width:100%; margin:0; cursor:pointer; accent-color:var(--cyan); }
 .drone-range.pitch { accent-color:var(--green); }
@@ -117,23 +117,23 @@
 .drone-range.gimbal { accent-color:var(--purple); }
 .drone-seg { display:flex; gap:4px; }
 .drone-seg button, .drone-toggle {
-  flex:1; padding:6px 0; font-size:11px; font-family:var(--sans); text-align:center;
+  flex:1; padding:6px 0; font-size:var(--fs-s); font-family:var(--sans); text-align:center;
   background:var(--bg); color:var(--text2); border:1px solid var(--border);
-  border-radius:6px; cursor:pointer; user-select:none; transition:background .08s,color .08s;
+  border-radius:0; cursor:pointer; user-select:none; transition:background .08s,color .08s;
 }
 .drone-seg button:hover, .drone-toggle:hover { background:var(--bg3); color:var(--text); }
 .drone-seg button.active { background:var(--blue-dim); color:var(--blue); border-color:transparent; }
 .drone-toggle.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .drone-row2 { display:flex; gap:6px; align-items:center; }
 .drone-mini {
-  font-size:9px; font-family:var(--sans); padding:2px 8px; background:var(--bg);
-  color:var(--text2); border:1px solid var(--border); border-radius:5px; cursor:pointer;
+  font-size:var(--fs-s); font-family:var(--sans); padding:2px 8px; background:var(--bg);
+  color:var(--text2); border:1px solid var(--border); border-radius:0; cursor:pointer;
 }
 .drone-mini:hover { background:var(--bg3); color:var(--text); }
-.drone-colour { width:34px; height:24px; padding:0; background:var(--bg); border:1px solid var(--border); border-radius:5px; cursor:pointer; }
+.drone-colour { width:34px; height:24px; padding:0; background:var(--bg); border:1px solid var(--border); border-radius:0; cursor:pointer; }
 .drone-hint {
   margin-top:8px; padding-top:9px; border-top:1px solid var(--border);
-  font-size:9.5px; color:var(--text3); line-height:1.5;
+  font-size:var(--fs-s); color:var(--text2); line-height:1.5;
 }
 .drone-hint b { color:var(--text2); font-weight:600; }
 `;

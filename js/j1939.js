@@ -21,15 +21,15 @@
   s.textContent = `
 .j1939-stab {
   background:transparent; border:none; border-bottom:2px solid transparent;
-  color:var(--text2); cursor:pointer; font-family:var(--sans); font-size:12px;
+  color:var(--text2); cursor:pointer; font-family:var(--sans); font-size:var(--fs-m);
   font-weight:500; padding:8px 14px; transition:color .15s,border-color .15s;
 }
 .j1939-stab:hover { color:var(--text); }
 .j1939-stab.active { color:var(--green); border-bottom-color:var(--green); }
-.j1939-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+.j1939-tbl { width:100%; border-collapse:collapse; font-size:var(--fs-m); }
 .j1939-tbl th {
-  text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em;
-  color:var(--text3); padding:5px 8px; border-bottom:1px solid var(--border);
+  text-align:left; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.07em;
+  color:var(--text2); padding:5px 8px; border-bottom:1px solid var(--border);
   font-weight:500; font-family:var(--sans); white-space:nowrap;
   background:var(--bg2); position:sticky; top:0; z-index:1;
 }
@@ -42,15 +42,15 @@
 .j1939-tbl td.j-name { font-family:var(--sans); color:var(--text2); }
 .j1939-tbl td.j-sa   { color:var(--blue); }
 .j1939-tbl td.j-val  { color:var(--green); font-family:var(--mono); }
-.j1939-tbl td.j-ts   { color:var(--text3); font-size:10px; white-space:nowrap; }
-.j1939-tbl td.j-raw  { color:var(--text3); font-size:10px; letter-spacing:.04em; }
-.j1939-fault-badge { display:inline-block; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:600; }
+.j1939-tbl td.j-ts   { color:var(--text3); font-size:var(--fs-s); white-space:nowrap; }
+.j1939-tbl td.j-raw  { color:var(--text3); font-size:var(--fs-s); letter-spacing:.04em; }
+.j1939-fault-badge { display:inline-block; padding:1px 6px; border-radius:0; font-size:var(--fs-s); font-weight:600; }
 .j1939-fault-badge.dm1 { background:var(--red-dim);  color:var(--red); }
 .j1939-fault-badge.dm2 { background:var(--amber-dim); color:var(--amber); }
-.j1939-empty { text-align:center; color:var(--text3); font-size:12px; padding:48px 0; font-family:var(--sans); }
-.j1939-log-row { display:flex; gap:12px; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--border); font-size:11px; }
+.j1939-empty { text-align:center; color:var(--text2); font-size:var(--fs-m); padding:48px 0; font-family:var(--sans); }
+.j1939-log-row { display:flex; gap:12px; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--border); font-size:var(--fs-s); }
 .j1939-log-row:last-child { border-bottom:none; }
-.j1939-tp-badge { display:inline-block; padding:0 4px; background:var(--purple-dim); color:var(--purple); border-radius:3px; font-size:9px; margin-left:4px; }
+.j1939-tp-badge { display:inline-block; padding:0 4px; background:var(--purple-dim); color:var(--purple); border-radius:0; font-size:var(--fs-s); margin-left:4px; }
 `;
   document.head.appendChild(s);
 })();
@@ -896,7 +896,7 @@ function j1939Render() {
 function j1939SpnHtml(results) {
   if (!results || !results.length) return '<span style="color:var(--text3)">-</span>';
   return results.filter(r => r.valid).map(r =>
-    `<span style="color:var(--text2);font-family:var(--sans);font-size:10px">${r.name}</span> `+
+    `<span style="color:var(--text2);font-family:var(--sans);font-size:var(--fs-s)">${r.name}</span> `+
     `<span style="color:var(--green)">${r.display}</span>`
   ).join('<br>');
 }
@@ -904,7 +904,7 @@ function j1939SpnHtml(results) {
 function j1939BytesHtml(data, max = 32) {
   const arr = Array.from(data);
   const shown = arr.slice(0, max).map(b => j1939H(b)).join(' ');
-  return arr.length > max ? `${shown} … <span style="color:var(--text3)">(${arr.length} bytes)</span>` : shown;
+  return arr.length > max ? `${shown} … <span style="color:var(--text2)">(${arr.length} bytes)</span>` : shown;
 }
 
 // The sub-tabs update their rows in place (sloppycan.js's renderKeyedTable): a full innerHTML
@@ -926,16 +926,16 @@ function j1939RenderPGN() {
   </tr>`,
     emptyHtml: '<div class="j1939-empty">No J1939 frames received yet.<br>J1939 uses 29-bit extended CAN IDs.</div>',
   }, rows, e => e.more ? 'more' : e.pgn + ':' + e.sa, e => {
-    if (e.more) return { cells: [{ span: 7, style: 'color:var(--text3);text-align:center',
+    if (e.more) return { cells: [{ span: 7, style: 'color:var(--text2);text-align:center',
       html: `${e.more} more not shown (least recently seen)` }] };
     const entry = db[e.pgn];
     const pgnStr = j1939H(e.pgn, 4);
-    const name = entry ? `<b>${entry.abbr}</b> <span style="color:var(--text3)">${entry.name}</span>` : `PGN ${pgnStr}`;
+    const name = entry ? `<b>${entry.abbr}</b> <span style="color:var(--text2)">${entry.name}</span>` : `PGN ${pgnStr}`;
     const tpBadge = e.fromTP ? `<span class="j1939-tp-badge">${e.fromTP === 'etp' ? 'ETP' : (j1939ProtoMode === 'nmea2000' ? 'FP' : 'TP')}</span>` : '';
     return { cells: [
       { cls: 'j-pgn', html: pgnStr + tpBadge },
       { cls: 'j-name', html: name },
-      { cls: 'j-sa', style: 'white-space:nowrap', html: `0x${j1939H(e.sa)}<br><span style="color:var(--text3);font-family:var(--sans);font-size:10px">${j1939SaLabel(e.sa)}</span>` },
+      { cls: 'j-sa', style: 'white-space:nowrap', html: `0x${j1939H(e.sa)}<br><span style="color:var(--text2);font-family:var(--sans);font-size:var(--fs-s)">${j1939SaLabel(e.sa)}</span>` },
       j1939SpnHtml(e.spnResults),
       { cls: 'j-ts', html: e.count },
       { cls: 'j-ts', html: j1939RelTs(e.ts) },
@@ -965,7 +965,7 @@ function j1939RenderLog() {
       { cls: 'j-ts', html: j1939RelTs(e.ts) },
       { cls: 'j-pgn', html: pgnLabel + tpBadge },
       { cls: 'j-sa', style: 'white-space:nowrap', html: `0x${j1939H(e.sa)} → 0x${daStr}` },
-      { style: 'font-size:10.5px;color:var(--text2);font-family:var(--mono)', html: vals },
+      { style: 'font-size:var(--fs-s);color:var(--text2);font-family:var(--mono)', html: vals },
     ] };
   });
   if (j1939Log.length && nearBottom) el.scrollTop = el.scrollHeight;
@@ -990,7 +990,7 @@ function j1939RenderDM() {
     if (!sec) {
       const root = document.createElement('div');
       root.style.marginBottom = '20px';
-      root.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;font-family:var(--sans)"></div>' +
+      root.innerHTML = '<div style="font-size:var(--fs-m);font-weight:600;color:var(--text);margin-bottom:6px;font-family:var(--sans)"></div>' +
         ['dm1', 'dm2'].map(t => `<div data-dm="${t}" style="margin-bottom:8px"><span></span><div></div></div>`).join('');
       sec = { root, title: root.firstChild, blocks: {} };
       for (const t of ['dm1', 'dm2']) {
@@ -1010,9 +1010,9 @@ function j1939RenderDM() {
       if (blk.b.style.display !== disp) blk.b.style.display = disp;
       if (!dtcs) continue;
       window.setHtmlIfChanged(blk.head, `<span class="j1939-fault-badge ${type}">${type.toUpperCase()}</span>
-      <span style="font-size:10px;color:var(--text3);margin-left:6px;font-family:var(--sans)">${ts ? j1939RelTs(ts) : ''} - ${dtcs.length} fault${dtcs.length!==1?'s':''}</span>
+      <span style="font-size:var(--fs-s);color:var(--text2);margin-left:6px;font-family:var(--sans)">${ts ? j1939RelTs(ts) : ''} - ${dtcs.length} fault${dtcs.length!==1?'s':''}</span>
       <span class="j-raw" style="margin-left:10px" title="Raw message payload">Raw: ${rawMsgData ? j1939BytesHtml(rawMsgData) : '-'}</span>` +
-        (dtcs.length ? '' : `<span style="font-size:11px;color:var(--green);margin-left:10px;font-family:var(--sans)">No active faults</span>`));
+        (dtcs.length ? '' : `<span style="font-size:var(--fs-s);color:var(--green);margin-left:10px;font-family:var(--sans)">No active faults</span>`));
       const mt = dtcs.length ? '4px' : '';
       if (blk.tbl.style.marginTop !== mt) blk.tbl.style.marginTop = mt;
       window.renderKeyedTable(blk.tbl, {
@@ -1072,9 +1072,9 @@ function j1939RenderAddr() {
   }, [...j1939AddrMap.values()].sort((a,b)=>a.sa-b.sa), e => e.sa, e => ({ cells: [
     { cls: 'j-pgn', html: `0x${j1939H(e.sa)}` },
     { cls: 'j-name', html: j1939ProtoMode === 'nmea2000'
-      ? `${NMEA_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text3)">/ Fn ${e.fn}</span>`
+      ? `${NMEA_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text2)">/ Fn ${e.fn}</span>`
       : j1939ProtoMode === 'iso11783'
-      ? `${ISOBUS_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text3)">/ ${e.fnName}</span>`
+      ? `${ISOBUS_DEVICE_CLASS[e.devClass] || ('Class ' + e.devClass)} <span style="color:var(--text2)">/ ${e.fnName}</span>`
       : e.fnName },
     { cls: 'j-name', html: e.industryName },
     { cls: 'j-ts', html: e.ecuInst },

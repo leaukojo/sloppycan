@@ -30,45 +30,45 @@
   background:var(--bg2); border-bottom:1px solid var(--border); padding:5px 12px;
   display:flex; align-items:center; gap:7px; flex-shrink:0; flex-wrap:wrap;
 }
-.graph-toolbar .graph-lbl { font-family:var(--sans); font-size:11px; color:var(--text3); }
+.graph-toolbar .graph-lbl { font-family:var(--sans); font-size:var(--fs-s); color:var(--text2); }
 .graph-sel, .graph-toolbar select {
   background:var(--bg3); color:var(--text); border:1px solid var(--border2);
-  border-radius:4px; font-family:var(--sans); font-size:12px; padding:3px 6px; outline:none;
+  border-radius:0; font-family:var(--sans); font-size:var(--fs-m); padding:0 6px; outline:none;
 }
 .graph-sep { width:1px; height:18px; background:var(--border2); margin:0 3px; }
-.graph-add-warn { color:var(--red); font-family:var(--sans); font-size:11px; }
+.graph-add-warn { color:var(--red); font-family:var(--sans); font-size:var(--fs-s); }
 .graph-signed-lbl {
   display:flex; align-items:center; gap:4px; font-family:var(--sans);
-  font-size:11px; color:var(--text2); cursor:pointer;
+  font-size:var(--fs-s); color:var(--text2); cursor:pointer;
 }
 .graph-stage { flex:1; min-height:0; position:relative; }
 #graphCanvas { width:100%; height:100%; display:block; }
 .graph-legend {
   flex-shrink:0; display:flex; flex-wrap:wrap; gap:6px 16px; padding:7px 12px;
   border-top:1px solid var(--border); background:var(--bg2);
-  font-family:var(--sans); font-size:11px; color:var(--text2); max-height:96px; overflow-y:auto;
+  font-family:var(--sans); font-size:var(--fs-s); color:var(--text2); max-height:96px; overflow-y:auto;
 }
 .graph-legend:empty { display:none; }
 .graph-legend-item { display:flex; align-items:center; gap:6px; }
-.graph-swatch { width:11px; height:11px; border-radius:2px; flex-shrink:0; }
+.graph-swatch { width:11px; height:11px; border-radius:0; flex-shrink:0; }
 .graph-legend-name { color:var(--text); font-weight:500; }
 .graph-legend-val { font-family:var(--mono); color:var(--text2); }
 .graph-pick-note {
-  color:var(--text2); font-size:11px; font-style:italic; max-width:280px; overflow:hidden;
+  color:var(--text2); font-size:var(--fs-s); font-style:italic; max-width:280px; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; cursor:help; flex-shrink:1;
 }
 .graph-legend-x, .graph-legend-rescale {
   border:none; background:transparent; color:var(--text3); cursor:pointer;
-  font-size:13px; line-height:1; padding:0 2px; border-radius:3px;
+  font-size:var(--fs-m); line-height:1; padding:0 2px; border-radius:0;
 }
 .graph-legend-x:hover { color:var(--red); background:var(--bg3); }
 .graph-legend-rescale:hover { color:var(--text); background:var(--bg3); }
 .graph-ctx {
   position:fixed; z-index:1000; background:var(--bg2); border:1px solid var(--border2);
-  border-radius:6px; padding:4px; box-shadow:0 6px 24px rgba(0,0,0,0.4);
-  font-family:var(--sans); font-size:12px;
+  border-radius:0; padding:4px; box-shadow:0 6px 24px rgba(0,0,0,0.4);
+  font-family:var(--sans); font-size:var(--fs-m);
 }
-.graph-ctx-item { padding:6px 12px; cursor:pointer; color:var(--text2); border-radius:4px; white-space:nowrap; }
+.graph-ctx-item { padding:6px 12px; cursor:pointer; color:var(--text2); border-radius:0; white-space:nowrap; }
 .graph-ctx-item:hover { background:var(--bg3); color:var(--text); }
 `;
   document.head.appendChild(s);
@@ -275,8 +275,12 @@ function graphPopulateIdPicker() {
     const A = graphParseKey(a), B = graphParseKey(b);
     return (A.isExt - B.isExt) || (A.id - B.id);
   });
+  // No traffic yet: a disabled picker that says so, and nothing to Add.
+  sel.disabled = !keys.length;
+  const addBtn = document.getElementById('graphAddBtn');
+  if (addBtn) addBtn.disabled = !keys.length;
   if (!keys.length) {
-    sel.innerHTML = '<option value="">- no IDs seen yet -</option>';
+    sel.innerHTML = '<option value="">No IDs</option>';
   } else {
     sel.innerHTML = keys.map(k => {
       const { isExt, id } = graphParseKey(k);
@@ -821,7 +825,7 @@ function graphLegendHtml() {
     const w = Math.max(graphFmtVal(s.vmin).length, graphFmtVal(s.vmax).length);
     const fixed = v => `<span style="display:inline-block;min-width:${w}ch;text-align:right">${graphFmtVal(v)}</span>`;
     const rng = s.buf.count ? `${fixed(s.vmin)}…${fixed(s.vmax)}` : '-';
-    node.innerHTML = `${fixed(s.curVal)} <span style="color:var(--text3)">(${rng})</span>`;
+    node.innerHTML = `${fixed(s.curVal)} <span style="color:var(--text2)">(${rng})</span>`;
   }
 }
 

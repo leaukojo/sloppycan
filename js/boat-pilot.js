@@ -38,23 +38,23 @@
   style.textContent = `
 .bap-seg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .bap-seg button {
-  padding:6px 4px; font-size:11px; font-family:var(--sans); text-transform:uppercase;
+  padding:6px 4px; font-size:var(--fs-s); font-family:var(--sans); text-transform:uppercase;
   letter-spacing:.06em; color:var(--text2); background:var(--bg); border:1px solid var(--border);
-  border-radius:7px; cursor:pointer;
+  border-radius:0; cursor:pointer;
 }
 .bap-seg button.on { color:var(--amber); border-color:var(--amber); background:var(--amber-dim); }
 .bap-hdg { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-.bap-hdg-v { font-family:var(--mono); font-size:16px; color:var(--text); min-width:52px; text-align:center; }
+.bap-hdg-v { font-family:var(--mono); font-size:var(--fs-l); color:var(--text); min-width:52px; text-align:center; }
 .bap-hdg-v.uncaptured { color:var(--text3); }
 .bap-nudges { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin-top:6px; }
 .bap-nudges button {
-  padding:5px 0; font-family:var(--mono); font-size:11px; color:var(--text2);
-  background:var(--bg); border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  padding:5px 0; font-family:var(--mono); font-size:var(--fs-s); color:var(--text2);
+  background:var(--bg); border:1px solid var(--border); border-radius:0; cursor:pointer;
 }
 .bap-nudges button:hover { color:var(--text); border-color:var(--border2); }
-.bap-sheet-row { display:flex; justify-content:space-between; font-size:9px; text-transform:uppercase;
-  letter-spacing:.06em; color:var(--text3); margin-bottom:4px; }
-.bap-sheet-row .v { font-family:var(--mono); font-size:11px; color:var(--text); letter-spacing:0; }
+.bap-sheet-row { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--text2); margin-bottom:4px; }
+.bap-sheet-row .v { font-family:var(--mono); font-size:var(--fs-s); color:var(--text); letter-spacing:0; }
 .bap-range { width:100%; }
 `;
   document.head.appendChild(style);

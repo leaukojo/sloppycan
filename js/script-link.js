@@ -226,20 +226,20 @@
   // ── Explainer window (header "Script" button) ──
   const css = document.createElement('style');
   css.textContent = `
-.sl-dot { margin-left:4px; font-size:10px; }
+.sl-dot { margin-left:4px; font-size:var(--fs-s); }
 .sl-ov { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center;
   background:#0008; backdrop-filter:blur(2px); }
-.sl-win { background:var(--bg2); border:1px solid var(--border2); border-radius:10px; max-width:520px; margin:16px;
-  padding:22px 24px; font-family:var(--sans); color:var(--text); box-shadow:0 8px 40px #000a; font-size:13px; line-height:1.5; }
-.sl-win h3 { margin:0 0 10px; font-size:15px; font-weight:600; color:var(--amber); }
+.sl-win { background:var(--bg2); border:1px solid var(--border2); border-radius:0; max-width:520px; margin:16px;
+  padding:22px 24px; font-family:var(--sans); color:var(--text); box-shadow:0 8px 40px #000a; font-size:var(--fs-m); line-height:1.5; }
+.sl-win h3 { margin:0 0 10px; font-size:var(--fs-l); font-weight:600; color:var(--amber); }
 .sl-win p, .sl-win ol { margin:0 0 10px; color:var(--text2); }
 .sl-win ol { padding-left:20px; }
 .sl-win b { color:var(--text); }
-.sl-win code { font-family:var(--mono); font-size:12px; color:var(--text); }
+.sl-win code { font-family:var(--mono); font-size:var(--fs-m); color:var(--text); }
 .sl-win a { color:var(--amber); }
-.sl-status { margin-top:14px; font-size:12px; color:var(--text2); }
+.sl-status { margin-top:14px; font-size:var(--fs-m); color:var(--text2); }
 .sl-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
-.sl-actions button { padding:7px 14px; border-radius:6px; border:1px solid var(--border2); background:var(--bg3);
+.sl-actions button { padding:7px 14px; border-radius:0; border:1px solid var(--border2); background:var(--bg3);
   color:var(--text); cursor:pointer; font-family:var(--sans); }
 .sl-actions .sl-primary { border-color:var(--amber); background:var(--amber-dim); color:var(--amber); }`;
   document.head.appendChild(css);

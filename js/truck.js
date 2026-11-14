@@ -20,15 +20,15 @@
   const style = document.createElement('style');
   style.textContent = `
 /* Commands: views over the modules that own them (isobus.js, j1939-flavor.js, cleanopen.js) */
-.truck-ctl-cap { display:flex; justify-content:space-between; font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--text3); margin-bottom:8px; }
+.truck-ctl-cap { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.14em; color:var(--text2); margin-bottom:8px; }
 .truck-ctl-cap .bus-key { color:var(--amber); letter-spacing:.06em; }
-.truck-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); }
+.truck-ctl-row { display:flex; align-items:center; gap:6px; margin-bottom:7px; font-size:var(--fs-s); text-transform:uppercase; letter-spacing:.06em; color:var(--text2); }
 .truck-ctl-row .lbl { width:52px; flex-shrink:0; }
 .truck-ctl-row input[type=range] { flex:1; min-width:0; }
 .truck-ctl-row .v { font-family:var(--mono); color:var(--text); letter-spacing:0; width:44px; text-align:right; flex-shrink:0; }
 .truck-ctl-row button {
-  padding:4px 7px; font-size:10px; font-family:var(--sans); text-transform:uppercase; letter-spacing:.06em;
-  color:var(--text2); background:var(--bg); border:1px solid var(--border); border-radius:6px; cursor:pointer;
+  padding:4px 7px; font-size:var(--fs-s); font-family:var(--sans); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--text2); background:var(--bg); border:1px solid var(--border); border-radius:0; cursor:pointer;
 }
 .truck-ctl-row button.on { color:var(--green); border-color:var(--green); background:var(--green-dim); }
 .truck-ctl .bus { outline:1px solid var(--amber); outline-offset:1px; }

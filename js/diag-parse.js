@@ -417,16 +417,16 @@ function udsSection(decoded, id) {
   const rowsHtml = rows.map(r => {
     const val = r.vHtml || escHtml(String(r.v)).replace(/\n/g,'<br>');
     return `<div style="display:flex;gap:8px;padding:1px 0;flex-wrap:wrap">` +
-      `<span style="min-width:130px;flex-shrink:0;color:var(--text3);font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:0.05em">${escHtml(r.k)}</span>` +
-      `<span style="color:var(--text);font-size:11px;font-family:var(--mono);word-break:break-all">${val}</span>` +
+      `<span style="min-width:130px;flex-shrink:0;color:var(--text2);font-family:var(--sans);font-size:var(--fs-s);text-transform:uppercase;letter-spacing:0.05em">${escHtml(r.k)}</span>` +
+      `<span style="color:var(--text);font-size:var(--fs-s);font-family:var(--mono);word-break:break-all">${val}</span>` +
     `</div>`;
   }).join('');
   return `<div style="margin-top:3px">` +
     `<div onclick="udsToggle('${id}')" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;user-select:none">` +
-      `<span id="${id}_a" style="color:${color};font-size:9px;line-height:1">▶</span>` +
-      `<span style="color:${color};font-family:var(--sans);font-size:11px">${escHtml(summary)}</span>` +
+      `<span id="${id}_a" style="color:${color};font-size:var(--fs-s);line-height:1">▶</span>` +
+      `<span style="color:${color};font-family:var(--sans);font-size:var(--fs-s)">${escHtml(summary)}</span>` +
     `</div>` +
-    `<div id="${id}_d" style="display:none;margin-top:5px;padding:6px 10px;background:var(--bg2);border-left:2px solid var(--border2);border-radius:0 4px 4px 0">${rowsHtml}</div>` +
+    `<div id="${id}_d" style="display:none;margin-top:5px;padding:6px 10px;background:var(--bg2);border-left:2px solid var(--border2);border-radius:0">${rowsHtml}</div>` +
   `</div>`;
 }
 function udsToggle(id) {

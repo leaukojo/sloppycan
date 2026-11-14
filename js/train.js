@@ -22,15 +22,15 @@
   const style = document.createElement('style');
   style.textContent = `
 .trn-toggle {
-  padding:8px 0; font-size:12px; font-family:var(--sans); text-align:center; text-transform:uppercase;
+  padding:8px 0; font-size:var(--fs-m); font-family:var(--sans); text-align:center; text-transform:uppercase;
   letter-spacing:.06em; color:var(--text2); background:var(--bg); border:1px solid var(--border);
-  border-radius:7px; cursor:pointer; user-select:none;
+  border-radius:0; cursor:pointer; user-select:none;
 }
 .trn-toggle:hover { background:var(--bg3); color:var(--text); }
 .trn-toggle.on { color:var(--green); border-color:transparent; background:var(--green-dim); }
-.trn-read-row { display:flex; justify-content:space-between; font-size:9px; text-transform:uppercase;
-  letter-spacing:.06em; color:var(--text3); margin-bottom:4px; }
-.trn-read-row .v { font-family:var(--mono); font-size:11px; color:var(--text); letter-spacing:0; }
+.trn-read-row { display:flex; justify-content:space-between; font-size:var(--fs-s); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--text2); margin-bottom:4px; }
+.trn-read-row .v { font-family:var(--mono); font-size:var(--fs-s); color:var(--text); letter-spacing:0; }
 .trn-read-row .v.warn { color:var(--amber); }
 `;
   document.head.appendChild(style);

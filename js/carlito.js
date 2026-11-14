@@ -26,7 +26,7 @@
   s.textContent = `
 .carlito-window {
   position:fixed; z-index:900; top:90px; left:730px; width:480px; height:540px;
-  background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
+  background:var(--bg2); border:1px solid var(--border2); border-radius:0;
   box-shadow:0 8px 24px #0006; font-family:var(--sans); color:var(--text);
   display:none; flex-direction:column; overflow:hidden; min-width:320px; min-height:260px;
 }
@@ -34,72 +34,72 @@
 .carlito-header {
   display:flex; align-items:center; gap:8px; cursor:move; user-select:none; flex-shrink:0;
   padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
-  font-size:12px; font-weight:600; letter-spacing:.02em;
+  font-size:var(--fs-m); font-weight:600; letter-spacing:.02em;
 }
 .carlito-header .dot { width:8px; height:8px; border-radius:50%; background:var(--green); flex-shrink:0; }
 .carlito-header .title { flex:1; }
-.carlito-src { color:var(--text3); text-decoration:none; font-size:10px; font-weight:500; padding:2px 4px; }
+.carlito-src { color:var(--text2); text-decoration:none; font-size:var(--fs-s); font-weight:500; padding:2px 4px; }
 .carlito-src:hover { color:var(--text); }
 /* stable | dev channel selector - which hosted Carlito build the iframe loads. */
-.carlito-build { display:flex; border:1px solid var(--border); border-radius:5px; overflow:hidden; }
+.carlito-build { display:flex; border:1px solid var(--border); border-radius:0; overflow:hidden; }
 .carlito-build.hidden { display:none; }
 .carlito-build button {
   background:var(--bg); border:none; color:var(--text3); cursor:pointer;
-  font-family:var(--sans); font-size:10px; font-weight:600; line-height:1; padding:3px 7px;
+  font-family:var(--sans); font-size:var(--fs-s); font-weight:600; line-height:1; padding:3px 7px;
 }
 .carlito-build button + button { border-left:1px solid var(--border); }
 .carlito-build button:hover { color:var(--text); }
 .carlito-build button.on { background:var(--green-dim); color:var(--green); }
 .carlito-iocaret {
-  background:none; border:none; color:var(--text2); cursor:pointer; font-size:11px; line-height:1;
-  padding:2px 5px; border-radius:5px;
+  background:none; border:none; color:var(--text2); cursor:pointer; font-size:var(--fs-s); line-height:1;
+  padding:2px 5px; border-radius:0;
 }
 .carlito-iocaret:hover { background:var(--bg); color:var(--text); }
 .carlito-close {
-  background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px;
-  line-height:1; padding:2px 6px; border-radius:5px;
+  background:none; border:none; color:var(--text2); cursor:pointer; font-size:var(--fs-l);
+  line-height:1; padding:2px 6px; border-radius:0;
 }
 .carlito-close:hover { background:var(--bg); color:var(--text); }
 .carlito-bar {
   display:flex; align-items:center; gap:7px; flex-shrink:0;
   padding:6px 9px; background:var(--bg2); border-bottom:1px solid var(--border);
-  font-size:11px; font-family:var(--sans);
+  font-size:var(--fs-s); font-family:var(--sans);
 }
 .carlito-bar button {
   background:var(--bg); border:1px solid var(--border); color:var(--text2);
-  border-radius:5px; padding:3px 9px; cursor:pointer; font-size:11px; white-space:nowrap;
+  border-radius:0; padding:3px 9px; cursor:pointer; font-size:var(--fs-s); white-space:nowrap;
 }
 .carlito-bar button:hover { background:var(--bg3); color:var(--text); }
 .carlito-bar button.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .carlito-link { color:var(--text2); }
 .carlito-link.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .carlito-nodrive {
-  display:none; padding:3px 9px; border-radius:5px; font-size:11px; white-space:nowrap;
+  display:none; padding:3px 9px; border-radius:0; font-size:var(--fs-s); white-space:nowrap;
   background:var(--amber-dim); color:var(--amber);
 }
 .carlito-nodrive.on { display:inline-block; }
 /* OUT | IN status panel: left = data sent from sloppyCAN, right = data received from Carlito. */
 .carlito-io {
   display:flex; flex-shrink:0; background:var(--bg2); border-bottom:1px solid var(--border);
-  font-family:var(--mono); font-size:10px;
+  font-family:var(--mono); font-size:var(--fs-s);
 }
 .carlito-io.collapsed { display:none; }
 .carlito-io-col { flex:1; padding:5px 9px; display:flex; flex-direction:column; gap:2px; }
 .carlito-io-col.out { border-left:3px solid var(--green); }
 .carlito-io-col.in  { border-left:3px solid var(--amber); }
-.carlito-io-hdr { font-family:var(--sans); font-size:9px; font-weight:700; letter-spacing:.04em; margin-bottom:2px; }
+.carlito-io-hdr { font-family:var(--sans); font-size:var(--fs-s); font-weight:700; letter-spacing:.04em; margin-bottom:2px; }
 .carlito-io-col.out .carlito-io-hdr { color:var(--green); }
 .carlito-io-col.in  .carlito-io-hdr { color:var(--amber); }
-.carlito-io-row { display:flex; justify-content:space-between; gap:8px; color:var(--text3); }
+.carlito-io-row { display:flex; justify-content:space-between; gap:8px; color:var(--text2); }
 .carlito-io-row b { color:var(--text); font-weight:600; }
-.carlito-io-col.out .carlito-io-row.applied > span::before { content:'●'; color:var(--green); font-size:6px; vertical-align:middle; margin-right:4px; }
-.carlito-io-bar { height:5px; border-radius:3px; background:var(--bg); overflow:hidden; margin-top:3px; }
+.carlito-io-col.out .carlito-io-row.applied > span::before { content:'●'; color:var(--green); font-size:6px; /* fs-exempt: glyph */ vertical-align:middle; margin-right:4px; }
+.carlito-io-bar { height:5px; border-radius:0; background:var(--bg); overflow:hidden; margin-top:3px; }
 .carlito-io-bar > div { height:100%; width:0%; background:var(--amber); transition:width .08s linear; }
 .carlito-framewrap { flex:1; position:relative; background:#000; }
 .carlito-framewrap iframe { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; }
 .carlito-placeholder {
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  color:var(--text3); font-size:12px; text-align:center; padding:20px; line-height:1.6;
+  color:var(--text2); font-size:var(--fs-m); text-align:center; padding:20px; line-height:1.6;
 }
 .carlito-resize {
   position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; z-index:2;
