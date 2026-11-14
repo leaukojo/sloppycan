@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NMEA 2000 Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:        #000204;
+  --bg2:       #06090d;
+  --bg3:       #0a1015;
+  --border:    #11181f;
+  --border2:   #1b2630;
+  --text:      #cdd6df;
+  --text2:     #5d6b78;
+  --text3:     #37424c;
+  --green:     #37e07a;
+  --green-dim: #37e07a22;
+  --amber:     #ffb000;
+  --amber-dim: #ffb00022;
+  --red:       #ff4d4d;
+  --red-dim:   #ff4d4d22;
+  --blue:      #5aa6f0;
+  --blue-dim:  #5aa6f022;
+  --purple:    #a78bfa;
+  --purple-dim:#a78bfa18;
+  --mono: 'Azeret Mono', 'JetBrains Mono', 'Cascadia Code', monospace;
+  --sans: 'Saira Condensed', system-ui, sans-serif;
+}
+body.light {
+  --bg:        #f4edfb;
+  --bg2:       #fcf7ff;
+  --bg3:       #e9ddf7;
+  --border:    #ddc9f0;
+  --border2:   #c3a2e2;
+  --text:      #2a1250;
+  --text2:     #6a4296;
+  --text3:     #9d77c6;
+  --green:     #0a8765;
+  --green-dim: #0a876518;
+  --amber:     #c4006d;
+  --amber-dim: #c4006d16;
+  --red:       #e11d48;
+  --red-dim:   #e11d4814;
+  --blue:      #6d28d9;
+  --blue-dim:  #6d28d912;
+  --purple:    #9333ea;
+  --purple-dim:#9333ea16;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--green);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 600; color: var(--text); }
+.logo-sub  { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+.header-sep { flex: 1; }
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 5px 10px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg3); color: var(--text); }
+
+main { flex: 1; overflow-y: auto; }
+.prose { max-width: 860px; margin: 0 auto; padding: 32px 28px 80px; }
+.prose h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; }
+.prose .lede { color: var(--text2); font-size: 15px; margin-bottom: 28px; line-height: 1.6; }
+.prose h2 {
+  font-size: 18px; font-weight: 600; margin: 34px 0 12px;
+  padding-top: 18px; border-top: 1px solid var(--border);
+}
+.prose p { line-height: 1.7; color: var(--text); margin-bottom: 12px; }
+.prose ul { margin: 0 0 12px 22px; line-height: 1.7; }
+.prose code { font-family: var(--mono); font-size: 0.9em; background: var(--bg3); padding: 1px 5px; border-radius: 4px; color: var(--green); }
+.prose strong { color: var(--text); font-weight: 600; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--text3); text-transform: uppercase; letter-spacing: .05em; font-size: 11px; font-weight: 600; }
+td.mono, th.mono { font-family: var(--mono); }
+.note { font-size: 13px; color: var(--text2); border-left: 3px solid var(--blue); padding-left: 12px; margin: 12px 0; line-height: 1.6; }
+
+/* Frame byte strips */
+.frame { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; font-family: var(--mono); }
+.cell { min-width: 38px; text-align: center; padding: 6px 4px; border-radius: 5px; border: 1px solid var(--border); font-size: 12px; }
+.cell small { display: block; font-size: 9px; color: var(--text3); margin-top: 2px; }
+.cell.hdr  { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.cell.len  { background: var(--amber-dim);  border-color: var(--amber);  color: var(--amber); }
+.cell.data { background: var(--green-dim);  border-color: var(--green);  color: var(--green); }
+.lane { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin: 14px 0 4px; }
+</style>
+</head>
+<body>
+<!-- remove from here -->
+<div style="background:#b00020;color:#fff;text-align:center;padding:10px;font-family:sans-serif;font-size:14px;font-weight:bold;">AI-generated text still pending human review/editing.</div>
+<!-- remove until here -->
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1.5 3.3c0 0 1.8-0.9 3.3-0.9 1.3 0 2.3 0.45 2.9 0.9v8c-0.6-0.45-1.6-0.9-2.9-0.9-1.5 0-3.3 0.9-3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+        <path d="M14.5 3.3c0 0-1.8-0.9-3.3-0.9-1.3 0-2.3 0.45-2.9 0.9v8c0.6-0.45 1.6-0.9 2.9-0.9 1.5 0 3.3 0.9 3.3 0.9V3.3z" fill="#000" opacity="0.85"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">NMEA 2000 Explainer</div>
+      <div class="logo-sub">IEC 61162-3 · marine CAN</div>
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <a href="isotp-explainer.html" target="_blank" class="btn">ISO-TP transport ↗</a>
+  <button class="btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light / dark mode" style="padding:5px 8px;border-color:transparent">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+<div class="prose">
+
+  <h1>NMEA 2000</h1>
+  <p class="lede">
+    NMEA 2000 (IEC 61162-3) is the network marine electronics speak: chartplotters,
+    GPS receivers, wind and depth sensors, engine gateways, battery monitors. Under the
+    hood it is <strong>J1939 with a marine dictionary</strong>, the same 29-bit CAN
+    framing, the same PGN/source-address structure, the same ISO address claim. Three
+    things differ: the message catalogue, the multi-frame transport (<strong>Fast
+    Packet</strong>), and how fields are packed.
+  </p>
+
+  <h2>It's J1939 at the wire level</h2>
+  <p>
+    Every NMEA 2000 frame is a standard CAN 2.0B frame with a 29-bit extended identifier,
+    and the identifier is split exactly the way J1939 does it:
+  </p>
+  <table>
+    <thead><tr><th>Bits</th><th>Field</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">28–26</td><td>Priority</td><td>0 = highest</td></tr>
+      <tr><td class="mono">25–24</td><td>Reserved / Data Page</td><td>extends the PGN range</td></tr>
+      <tr><td class="mono">23–16</td><td>PDU Format (PF)</td><td>≥ 0xF0 → broadcast (PGN includes byte 15–8)</td></tr>
+      <tr><td class="mono">15–8</td><td>PDU Specific (PS)</td><td>destination addr (PF&lt;0xF0) or PGN low byte</td></tr>
+      <tr><td class="mono">7–0</td><td>Source Address</td><td>which device sent it</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The <strong>PGN</strong> (Parameter Group Number) identifies <em>what</em> the message
+    is, e.g. <code>127250</code> Vessel Heading, <code>130306</code> Wind Data. sloppyCAN
+    reuses its J1939 ID parser verbatim and just swaps in a marine PGN dictionary when you
+    pick <strong>NMEA 2000</strong> from the protocol dropdown in the J1939 / N2K tab.
+  </p>
+  <div class="note">
+    The bus runs at <strong>250 kbit/s</strong>. Set the header <strong>Speed</strong>
+    dropdown to 250k before connecting to a real backbone. sloppyCAN does not change it
+    for you.
+  </div>
+
+  <h2>Fast Packet</h2>
+  <p>
+    A single CAN frame carries at most 8 data bytes. J1939 moves longer messages with its
+    Transport Protocol (TP.CM / TP.DT); NMEA 2000 does <em>not</em>. It uses
+    <strong>Fast Packet</strong>, which packs the sequencing into the data field of ordinary
+    frames of the same PGN. Whether a PGN is single-frame or Fast Packet is a fixed property
+    of that PGN (it's in the dictionary).
+  </p>
+  <p>
+    Byte 0 of every Fast Packet frame is a control byte: the top 3 bits are a
+    <strong>sequence counter</strong> (0–7, ties one logical message together) and the low
+    5 bits are a <strong>frame counter</strong> (the ordinal within the message).
+  </p>
+
+  <div class="lane">First frame (frame counter = 0)</div>
+  <div class="frame">
+    <div class="cell hdr">SC|0<small>byte 0</small></div>
+    <div class="cell len">LEN<small>byte 1</small></div>
+    <div class="cell data">D0<small>byte 2</small></div>
+    <div class="cell data">D1</div><div class="cell data">D2</div>
+    <div class="cell data">D3</div><div class="cell data">D4</div>
+    <div class="cell data">D5<small>byte 7</small></div>
+  </div>
+  <p style="font-size:13px;color:var(--text2)">
+    Byte 1 is the <strong>total payload length</strong>; bytes 2–7 carry the first
+    <strong>6</strong> payload bytes.
+  </p>
+
+  <div class="lane">Continuation frames (frame counter = 1, 2, 3 …)</div>
+  <div class="frame">
+    <div class="cell hdr">SC|n<small>byte 0</small></div>
+    <div class="cell data">D<small>byte 1</small></div>
+    <div class="cell data">D</div><div class="cell data">D</div>
+    <div class="cell data">D</div><div class="cell data">D</div>
+    <div class="cell data">D</div>
+    <div class="cell data">D<small>byte 7</small></div>
+  </div>
+  <p style="font-size:13px;color:var(--text2)">
+    Each continuation carries <strong>7</strong> payload bytes, placed at offset
+    <code>6 + (frameCounter − 1) × 7</code>. Collect frames until you have
+    <code>LEN</code> bytes, then decode the whole buffer as that PGN. A Fast Packet message
+    can be up to 223 bytes.
+  </p>
+  <div class="note">
+    sloppyCAN keys each reassembly slot by <code>(PGN, source, sequence)</code> and drops
+    a slot that makes no progress for ~1 s, so one lost middle frame can't wedge it. In the
+    PGN Monitor and Frame Log, reassembled messages get an <strong>FP</strong> badge.
+  </div>
+
+  <h2>Field encoding</h2>
+  <p>
+    NMEA 2000 fields are little-endian and frequently <strong>bit-packed</strong>: a field
+    can be 2, 4 or 6 bits wide and start anywhere, not just on a byte boundary. (J1939's
+    whole-byte SPN model can't express this, so the marine decoder works in bit offsets.)
+    Each field has a resolution, an optional offset, and a unit; the all-ones value means
+    <em>data not available</em> and the next value down means <em>out of range</em>.
+  </p>
+  <table>
+    <thead><tr><th>Quantity</th><th>Resolution</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Angle (heading, wind, COG)</td><td class="mono">0.0001 rad</td><td>shown in degrees</td></tr>
+      <tr><td>Temperature</td><td class="mono">0.01 K</td><td>shown in °C (−273.15)</td></tr>
+      <tr><td>Pressure</td><td class="mono">100 Pa</td><td>shown in kPa / hPa</td></tr>
+      <tr><td>Speed</td><td class="mono">0.01 m/s</td><td></td></tr>
+      <tr><td>Latitude / Longitude</td><td class="mono">1e-7 deg</td><td>32-bit signed (rapid)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Worked Example: 130306 Wind Data</h2>
+  <p>
+    Wind Data is a single-frame PGN. The 8 data bytes lay out as:
+  </p>
+  <div class="frame">
+    <div class="cell">SID<small>byte 0</small></div>
+    <div class="cell data">SPD<small>byte 1–2</small></div>
+    <div class="cell data">SPD</div>
+    <div class="cell data">ANG<small>byte 3–4</small></div>
+    <div class="cell data">ANG</div>
+    <div class="cell len">REF<small>byte 5</small></div>
+    <div class="cell">-<small>byte 6–7</small></div>
+    <div class="cell">-</div>
+  </div>
+  <div class="card">
+    <p style="margin-bottom:8px"><strong>Payload:</strong> <code>FF 4E 06 60 16 02 FF FF</code></p>
+    <ul style="margin-bottom:0">
+      <li><strong>Wind Speed</strong> = bytes 1–2 LE = <code>0x064E</code> = 1614 × 0.01 m/s =
+        <strong>16.14 m/s</strong></li>
+      <li><strong>Wind Angle</strong> = bytes 3–4 LE = <code>0x1660</code> = 5728 × 0.0001 rad =
+        0.5728 rad = <strong>32.8°</strong></li>
+      <li><strong>Reference</strong> = byte 5 low bits = <code>2</code> = <strong>Apparent</strong></li>
+    </ul>
+  </div>
+  <p>
+    That's exactly what the PGN Monitor shows when you run <strong>Demo</strong> with the
+    dropdown set to NMEA 2000. It streams heading, engine RPM, position, wind, and a
+    Fast-Packet engine-dynamic message so you can watch reassembly happen with no hardware
+    attached.
+  </p>
+
+  <h2>Worked Example: 127245 Rudder</h2>
+  <p>
+    Rudder is a single-frame PGN. sloppyCAN's own boat only ever has an applied position to
+    report, never a distinct commanded one, so the Direction Order and Angle Order fields stay
+    <em>not available</em> and only Position gets written:
+  </p>
+  <div class="frame">
+    <div class="cell">Inst<small>byte 0</small></div>
+    <div class="cell">Dir<small>byte 1</small></div>
+    <div class="cell">Ord<small>byte 2–3</small></div>
+    <div class="cell">Ord</div>
+    <div class="cell data">POS<small>byte 4–5</small></div>
+    <div class="cell data">POS</div>
+    <div class="cell">-<small>byte 6–7</small></div>
+    <div class="cell">-</div>
+  </div>
+  <div class="card">
+    <p style="margin-bottom:8px"><strong>Payload:</strong> <code>FF FF FF FF AF F1 FF FF</code></p>
+    <ul style="margin-bottom:0">
+      <li><strong>Position</strong> = bytes 4–5 LE = <code>0xF1AF</code> = a signed 16-bit
+        value, so subtract 65536: <code>61871 − 65536 = −3665</code> × 0.0001 rad =
+        −0.3665 rad = <strong>−21.0°</strong> (to port)</li>
+    </ul>
+  </div>
+  <p>
+    That −21° is exactly the contract's <code>rudder_actual</code> (−60%) converted through
+    <code>nmea2000.js</code>'s own hard-over constant — 35° of full throw — the one
+    percentage-to-degrees conversion this file declares, because PGN 127245 carries a real
+    angle and the contract's rudder signals are percentages.
+  </p>
+
+  <h2>Worked Example: 127237 Heading/Track Control</h2>
+  <p>
+    A 21-byte Fast Packet message (so it arrives as three CAN frames — the shape from the
+    Fast Packet section above). sloppyCAN's boat only ever fills two of its many fields: the
+    Steering Mode bits (which of the pilot's own two states it is in) and the
+    Heading-To-Steer, both of which double as the closest legal expression of the contract's
+    <code>nav_mode_actual</code> / <code>heading_target</code>. Every other field — the four
+    limit-exceeded flags, Turn Mode, both rudder-order fields, the track and cross-track
+    limits — stays <em>not available</em>, because this boat runs heading-hold alone and has
+    no route, no cross-track error, and no distinct rudder order to publish.
+  </p>
+  <div class="card">
+    <p style="margin-bottom:8px">
+      <strong>Reassembled payload</strong> (byte 0 and bytes 2–4, 7–20 all <code>0xFF</code>):
+    </p>
+    <ul style="margin-bottom:0">
+      <li>byte 1, bits 0–2 = <code>0xFB</code> → low 3 bits <code>011</code> = <strong>3,
+        Heading Control Standalone</strong> — the pilot is actively holding a course</li>
+      <li>bytes 5–6 LE = <code>0x14 0xB8</code> = <code>0xB814</code> = 47124 × 0.0001 rad =
+        4.7124 rad = <strong>270.0°</strong>, the Heading-To-Steer</li>
+    </ul>
+  </div>
+  <p>
+    In STANDBY the same two fields read <code>0</code> (Heading Control off) and the boat's
+    current heading — never a sentinel, because the contract wants a bus that engages the
+    pilot with no course of its own to capture whatever heading the boat is already on rather
+    than steer to an arbitrary bearing.
+  </p>
+
+  <h2>Worked Example: 130577 Direction Data</h2>
+  <p>
+    A 14-byte Fast Packet message. Like the Heading/Track Control message above, most of its
+    fields (Data Mode, COG Reference, SID, COG, SOG, Heading, Speed Through Water) stay
+    <em>not available</em> — each already has its own dedicated PGN above with its own
+    source address, so repeating them here would be the same value published twice from two
+    different "instruments." Only Set and Drift, the tidal-current pair with no PGN of their
+    own elsewhere, get written:
+  </p>
+  <div class="card">
+    <p style="margin-bottom:8px">
+      <strong>Reassembled payload</strong> (bytes 0–9 all <code>0xFF</code>):
+    </p>
+    <ul style="margin-bottom:0">
+      <li>bytes 10–11 LE = <code>0x5B 0x88</code> = <code>0x885B</code> = 34907 × 0.0001 rad =
+        3.4907 rad = <strong>200.0°</strong>, the Set (bearing the current flows <em>toward</em>)</li>
+      <li>bytes 12–13 LE = <code>0x28 0x00</code> = 40 × 0.01 m/s = <strong>0.40 m/s</strong>,
+        the Drift</li>
+    </ul>
+  </div>
+
+  <h2>What makes a marine dash different from a truck's</h2>
+  <p>
+    The same physical quantity has two names on a boat that a land vehicle never has to tell
+    apart, because a boat's medium moves under it:
+  </p>
+  <table>
+    <thead><tr><th>Pair</th><th>Through/apparent</th><th>Over/true</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Speed</td>
+        <td><strong>STW</strong> (128259) — through the WATER, what a paddlewheel log reads</td>
+        <td><strong>SOG</strong> (129026) — over the GROUND; the gap is the tide's own push
+          or drag</td>
+      </tr>
+      <tr>
+        <td>Wind</td>
+        <td><strong>AWA / AWS</strong> (130306, apparent) — what the hull actually feels,
+          bow-referenced</td>
+        <td><strong>TWD / TWS</strong> (130306, true) — the wind's real bearing and speed,
+          with the hull's own motion subtracted back out</td>
+      </tr>
+      <tr>
+        <td>Course</td>
+        <td><strong>Heading</strong> (127250) — where the bow POINTS</td>
+        <td><strong>COG</strong> (129026) — the course actually MADE; the gap is leeway plus
+          the set of the tide, exactly what 130577's Set/Drift describes</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Depth has its own version of the same trap: 128267 reports water <strong>under the
+    transducer</strong>, which rides wherever the hull floats it — not under the keel, and
+    not to the sea bed from the surface. A shoaling reading and a squatting hull both move
+    that number the same direction, and the PGN has no way to tell you which.
+  </p>
+  <div class="note">
+    The one boat reading with <strong>no PGN at all</strong> is the sail: the contract's
+    <code>sheet</code> (how far the boom may swing) and <code>sail_angle</code> (where the
+    wind put it) ride the base CAN map and the uplink respectively, because NMEA 2000 defines
+    no sail PGN — not an oversight in this project, but what the standard itself is. A real
+    marine bus carries what its committee thought worth standardising, and sail trim was
+    never that.
+  </div>
+
+</div>
+</main>
+
+<script>
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  const icon = document.getElementById('themeIcon');
+  if (t === 'light') {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+function toggleTheme() {
+  const t = document.body.classList.contains('light') ? 'dark' : 'light';
+  localStorage.setItem('sloppycan-explainer-theme', t);
+  applyTheme(t);
+}
+applyTheme(localStorage.getItem('sloppycan-explainer-theme') || 'dark');
+</script>
+</body>
+</html>

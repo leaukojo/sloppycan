@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sloppyCAN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- The font FILES are served from fonts.gstatic.com (a different origin), so warm that connection
+     too - with crossorigin, since font fetches are CORS. Without it the preconnect above only
+     covers the CSS request and buys no real head-start. Offline/file:// degrades to system fonts. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/sloppycan.css">
+<script src="js/carlito-registry.js" defer></script><!-- every Carlito registry, created empty; must precede every module that registers (j1939.js included) -->
+<script src="js/j1939-pack.js" defer></script><!-- the one J1939 / NMEA 2000 frame-packing helper (window.J1939Pack); must precede j1939.js and every packer -->
+<script src="js/j1939-tables.js" defer></script><!-- shared J1939 dictionary + pure decoders (also loaded by explainers/dtc.html + j1939-explainer.html); must precede j1939.js -->
+<script src="js/j1939.js" defer></script><!-- J1939 module; also sources the DM1 lamp states for carlito.js's uplink -->
+<script src="js/graph.js" defer></script><!-- Graph module -->
+<script src="js/fuzz.js" defer></script><!-- Fuzzing module -->
+<script src="js/chademo.js" defer></script><!-- CHAdeMO module -->
+<script src="js/xcp.js" defer></script><!-- XCP module -->
+<script src="js/canopen.js" defer></script><!-- CANopen module -->
+<script src="js/ramn.js" defer></script><!-- RAMN dashboard module -->
+<script src="js/carlito_contract.js" defer></script><!-- shared signal contract (generated in the carlito repo); must precede carlito.js -->
+<script src="js/vehicle-panel.js" defer></script><!-- shared vehicle-panel mechanism (telemetry fan-out, link detection, RAMN handoff, ?vehicle= deep link); needs carlito_contract.js and must precede every panel below -->
+<script src="js/dronecan-core.js" defer></script><!-- DroneCAN codec + carlito dronecan-flavor packer + dcCtl uplink sources (no DOM; the bridge page loads only this half) -->
+<script src="js/dronecan.js" defer></script><!-- DroneCAN tab: receive path, services, allocation, demo, self-test; needs dronecan-core.js -->
+<script src="js/isobus.js" defer></script><!-- ISOBUS (ISO 11783) carlito isobus-flavor packer; frames decode in the J1939 tab's ISO 11783 mode -->
+<script src="js/j1939-flavor.js" defer></script><!-- carlito j1939-flavor packer (ERC1/AIR1 + the VW request server's signal) -->
+<script src="js/nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig); frames decode in the J1939 tab's nmea2000 mode -->
+<script src="js/cleanopen.js" defer></script><!-- the garbage truck's body: command (CANopen RPDO decoder + uplink source) and state (TPDO1, the cleanopen-flavor packer) -->
+<script src="js/iso11992.js" defer></script><!-- carlito iso11992-flavor packer (the trailer's EBS21 / EBS22); needs j1939-pack.js -->
+<script src="js/canaerospace.js" defer></script><!-- carlito canaerospace-flavor packer (flaps_actual as a CANaerospace NOD) -->
+<script src="js/drone.js" defer></script><!-- Drone dashboard + control windows: needs ramn.js (makeFloating) and dronecan.js (dcCtl) -->
+<script src="js/truck.js" defer></script><!-- Truck dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
+<script src="js/tractor.js" defer></script><!-- Tractor dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
+<script src="js/boat.js" defer></script><!-- Boat dashboard: a vehicle panel, needs vehicle-panel.js + ramn.js -->
+<script src="js/boat-pilot.js" defer></script><!-- Boat autopilot control head: sources nav_mode/heading_cmd/sheet, needs vehicle-panel.js + ramn.js + boat.js -->
+<script src="js/train.js" defer></script><!-- Train controls: sources pantograph/doors, needs vehicle-panel.js + ramn.js -->
+<script src="js/plane.js" defer></script><!-- Plane controls: sources elevator/flaps, needs vehicle-panel.js + ramn.js -->
+<script src="js/carlito.js" defer></script><!-- Carlito game link module -->
+<script src="js/script-link.js" defer></script><!-- Script link: live frames to/from local scripts via scripting/sloppycan_relay.py -->
+</head>
+<body class="no-link"><!-- syncLinkState() owns no-link; set here so a fresh load never flashes the chrome -->
+
+<header>
+  <div class="brand-cluster">
+    <div class="logo-text">sloppyCAN</div>
+    <a class="logo-src" href="https://github.com/leaukojo/sloppycan" target="_blank" rel="noopener" title="View source on GitHub">
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+    </a>
+  </div>
+  <!-- theme toggle moved here (just before the Workspace cluster) -->
+  <button class="btn theme-toggle-btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle light / dark mode" title="Toggle light / dark mode">
+    <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+    </svg>
+  </button>
+  <div class="header-cluster header-cluster-box">
+    <label class="header-check hdr-tag-gap" title="Saved per-vehicle workspace - settings, filters, TX rows, pins, colours and notes are stored per workspace and restored on reload.">
+      <span class="hdr-tag">Workspace</span>
+      <select id="wsSelect" onchange="switchWorkspace(this.value)" class="hdr-select ws-select"></select>
+    </label>
+    <div class="menu-anchor">
+      <button class="btn ws-menu-btn" id="wsMenuBtn" onclick="toggleWsMenu()" aria-label="Menu" title="Menu">⋯</button>
+      <div id="wsMenu" class="dropdown-menu ws-menu" style="display:none">
+        <button class="ws-item" onclick="newWorkspace();closeWsMenu()">New…</button>
+        <button class="ws-item" onclick="renameWorkspace();closeWsMenu()">Rename…</button>
+        <button class="ws-item" onclick="duplicateWorkspace();closeWsMenu()">Duplicate</button>
+        <button class="ws-item" id="wsDeleteBtn" onclick="deleteWorkspace();closeWsMenu()">Delete</button>
+        <div class="menu-divider"></div>
+        <button class="ws-item" onclick="exportWorkspace();closeWsMenu()">Export…</button>
+        <button class="ws-item" onclick="document.getElementById('wsImportFile').click();closeWsMenu()">Import…</button>
+        <div class="menu-divider"></div>
+        <!-- Global prefs (collectPrefs / applyPrefs), not per-workspace -->
+        <div class="sec ws-menu-sec">Settings</div>
+        <label class="field ws-menu-field" title="Render refresh cap. Lower = less CPU; Max = render as fast as possible.">
+          Render rate
+          <select id="fpsLimit" onchange="setFpsLimit(parseInt(this.value))" class="hdr-select">
+            <option value="2">2</option>
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="30">30</option>
+            <option value="0">Max</option>
+          </select>
+        </label>
+        <label class="field ws-menu-field" title="Traffic Dump capacity. When full, the oldest frames are dropped.">
+          Buffer size
+          <select id="bufferSizeSelect" onchange="setBufferSize(parseInt(this.value))" class="hdr-select">
+            <option value="10000">10k</option>
+            <option value="50000">50k</option>
+            <option value="100000" selected>100k</option>
+            <option value="500000">500k</option>
+            <option value="1000000">1M</option>
+          </select>
+        </label>
+      </div>
+      <input type="file" id="wsImportFile" accept="application/json,.json" style="display:none"
+        onchange="if(this.files[0]){importWorkspace(this.files[0]);this.value=''}">
+    </div>
+  </div>
+  <div class="header-sep"></div>
+  <!-- IDs + fps always; Errors only when > 0, Memory only at >= 75% (updateStats). Frames and bytes
+       are in the block's tooltip. #statBytes is can-link.js's write target (its host shim), kept hidden. -->
+  <div class="header-stats link-only" id="headerStats">
+    <div class="hstat"><div class="hstat-val" id="statIds">0</div><div class="hstat-lbl">IDs</div></div>
+    <div class="hstat"><div class="hstat-val" id="statRate">0</div><div class="hstat-lbl">fps</div></div>
+    <div class="hstat" id="statErrorsBox" style="display:none" title="CAN / adapter error frames seen."><div class="hstat-val stat-err" id="statErrors">0</div><div class="hstat-lbl">Errors</div></div>
+    <div class="hstat" id="statIdsCap" style="display:none" title="ID list capped - oldest IDs dropped"><div class="hstat-lbl" style="color:var(--amber)">IDs capped</div></div>
+    <div class="hstat" id="statMemBox" style="display:none" title="Traffic Dump memory in use. At 100% the oldest frames are dropped (capacity set under Menu ▸ Buffer size)."><div class="hstat-val" id="statDumpBuf">0%</div><div class="hstat-lbl">Memory</div></div>
+    <span id="statBytes" hidden></span>
+  </div>
+  <div id="pausedBadge" style="display:none" class="badge-paused">
+    <div class="badge-paused-dot"></div> PAUSED
+  </div>
+  <!-- Adapter settings live in a popover anchored to Connect (#1) - opened by toggleConnectPopover() -->
+  <div class="menu-anchor">
+    <button class="btn primary" id="connectBtn" onclick="toggleConnectPopover()" title="Pick your adapter, then connect to the CAN hardware.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      <span>Connect</span>
+    </button>
+    <div id="connectPopover" class="dropdown-menu connect-popover" style="display:none">
+      <label class="field" title="Adapter protocol. SLCAN = serial text adapters; gs_usb = candleLight / CANable native (WebUSB).">
+        Adapter
+        <select id="adapterType" class="hdr-select" onchange="updateAdapterSettingsUi()">
+          <option value="serial" selected>SLCAN</option>
+          <option value="socket">SLCAN (socket tunnel)</option>
+          <option value="gsusb">gs_usb</option>
+        </select>
+      </label>
+      <div id="socketTunnelRow" class="connect-pop-field" style="display:none"
+             title="WebSocket endpoint that tunnels bytes to a remote raw TCP SLCAN socket (python-can socket:// compatible). Raw SLCAN only - no telnet negotiation.">
+        <span class="hdr-tag">SLCAN socket tunnel (raw, no telnet)</span>
+        <input id="socketTunnelUrl" type="text" value="ws://127.0.0.1:29542/" placeholder="socket://host:port or ws://host:port/path">
+      </div>
+      <label class="field" title="CAN bus bit rate. Must match the bus you're tapping - a mismatch means no frames (or an error storm).">
+        Baudrate
+        <select id="baudRate" class="hdr-select">
+          <option value="S0">10k</option>
+          <option value="S1">20k</option>
+          <option value="S2">50k</option>
+          <option value="S3">100k</option>
+          <option value="S4">125k</option>
+          <option value="S5">250k</option>
+          <option value="S6" selected>500k</option>
+          <option value="S7">800k</option>
+          <option value="S8">1M</option>
+        </select>
+      </label>
+      <div class="connect-pop-divider"></div>
+      <label class="header-check" title="Open the CAN bus automatically as soon as the adapter connects.">
+        <input type="checkbox" id="autoOpen" checked>
+        <span>Auto-open bus on connect</span>
+      </label>
+      <label class="header-check" title="Receive only - never transmit on the bus. Safe for tapping an unknown bus.">
+        <input type="checkbox" id="listenOnly" onchange="if(window.obdStop)obdUpdateAvailability()">
+        <span>Listen-only</span>
+      </label>
+      <button class="btn primary connect-confirm" id="connectConfirmBtn" onclick="connectSerial()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Connect
+      </button>
+    </div>
+  </div>
+  <button class="btn demo-accent" id="demoBtn" onclick="startDemo()" title="Generate simulated CAN traffic - explore the tool with no hardware connected.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+    <span>Demo</span>
+  </button>
+  <button class="btn" id="ramnBtn" onclick="ramnToggle()" title="Toggle the floating RAMN dashboard (instrument cluster + driving panel in Demo).">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 16a9 9 0 0 1 18 0"/><path d="M12 16l4-4"/><circle cx="12" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg>
+    <span>RAMN dashboard</span>
+  </button>
+  <!-- Vehicle-panel buttons start HIDDEN; vehicle-panel.js shows the one whose machine is on the
+       Carlito link. The way to GET a machine is its protocol view (DroneCAN tab / J1939 modes). -->
+  <button class="btn" id="droneBtn" onclick="droneToggle()" style="display:none" title="Toggle the floating drone dashboard + control panel. Shown while a drone is on the Carlito link - the RAMN controls do not fit an aircraft.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l4 4M17 7l-4 4M7 17l4-4M17 17l-4-4"/><rect x="10" y="10" width="4" height="4" rx="1"/><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/></svg>
+    <span>Drone</span>
+  </button>
+  <button class="btn" id="truckBtn" onclick="truckToggle()" style="display:none" title="Toggle the floating truck dashboard. Shown while a truck is on the Carlito link and takes the RAMN cluster's place; the RAMN Control Panel keeps driving.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 3v3h-8z"/><circle cx="6" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>
+    <span>Truck</span>
+  </button>
+  <button class="btn" id="tractorBtn" onclick="tractorToggle()" style="display:none" title="Toggle the floating tractor dashboard. Shown while a tractor is on the Carlito link and takes the RAMN cluster's place; the RAMN Control Panel keeps driving.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12V8h5l2 4"/><path d="M11 12h9"/><circle cx="7" cy="16" r="4"/><circle cx="18" cy="17" r="3"/></svg>
+    <span>Tractor</span>
+  </button>
+  <button class="btn" id="boatBtn" onclick="boatToggle()" style="display:none" title="Toggle the floating boat instruments - wind rose, echo sounder, COG against heading, tanks and the engine block, all off the boat's own telemetry. Shown while a boat is on the Carlito link and takes the RAMN cluster's place; the RAMN Control Panel keeps driving.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15h18l-3 5H6z"/><path d="M12 3v9M12 5l6 7H6z"/></svg>
+    <span>Boat</span>
+  </button>
+  <button class="btn" id="boatPilotBtn" onclick="boatPilotToggle()" style="display:none" title="Toggle the boat autopilot control head - Standby/Auto, a heading knob and the sheet. Shown while a boat is on the Carlito link. Claims nothing from the RAMN controls: the boat is still steered on the RAMN rudder axis.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12L12 5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+    <span>Autopilot</span>
+  </button>
+  <button class="btn" id="trainBtn" onclick="trainToggle()" style="display:none" title="Toggle the train controls - pantograph and doors. Shown while a train is on the Carlito link. Claims nothing from the RAMN controls: the train is still driven on the RAMN accel/brake axes.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="12" rx="2"/><path d="M12 2v3M9 17l-2 4M15 17l2 4"/><circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+    <span>Train</span>
+  </button>
+  <button class="btn" id="planeBtn" onclick="planeToggle()" style="display:none" title="Toggle the plane controls - elevator and flaps. Shown while a plane is on the Carlito link. Claims nothing from the RAMN controls: the plane is still flown on the RAMN accel/brake/steer axes.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l8-2 3-8 2 1-1 7 6 2v2l-6-1-1 5 2 2v1l-4-1-4 1v-1l2-2-1-5-6 1z"/></svg>
+    <span>Plane</span>
+  </button>
+  <button class="btn" id="carlitoBtn" onclick="carlitoToggle()" title="Drive Carlito with RAMN controls - needs a live bus (Connect or Demo first).">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="16.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+    <span>Carlito</span>
+  </button>
+  <button class="btn" id="scriptBtn" onclick="scriptLinkShow()" title="Script link - let your own scripts (Python or any language) read and send live frames on this bus through a local relay.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5"/><path d="M12 19h8"/></svg>
+    <span>Script</span><span id="scriptLinkStatus" class="sl-dot"></span>
+  </button>
+  <div class="sep sep-20 link-only"></div>
+  <!-- Merged bus/pause button (cycles Open Bus → Pause → Resume) + Clear, moved into the header -->
+  <button class="btn link-only" id="busPauseBtn" onclick="busPauseClick()" disabled
+    title="Open the CAN bus, then pause / resume frame capture (cycles Open Bus → Pause → Resume).">
+    <svg id="busPayIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+    <span id="busPayLabel">Open Bus</span>
+  </button>
+  <button class="btn link-only" id="clearMainBtn" onclick="clearFrames()"
+    title="Clear all captured frames, the Traffic Dump, and the counters - resets the live view.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M8 6V4h8v2"/></svg>
+    <span>Clear</span>
+  </button>
+  <div class="sep sep-20 link-only"></div>
+  <button class="btn danger" id="disconnectBtn" onclick="disconnectSerial()" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    <span>Disconnect</span>
+  </button>
+</header>
+
+<div id="noSerialBanner" class="no-serial-banner">
+  Needs Chrome or Edge.
+</div>
+
+<!-- old .toolbar row removed - Pause/Clear moved into the header, filters moved onto the shared toolbar -->
+
+<div class="view-tabs" role="tablist" aria-label="View" onkeydown="onViewTabKey(event)">
+  <button class="view-tab active" role="tab" aria-selected="true" tabindex="0" aria-controls="tableWrap" id="vtab-ids" onclick="switchViewTab('ids')">ID List</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="dumpWrap" id="vtab-dump" onclick="switchViewTab('dump')">Traffic Dump</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="inspectWrap" id="vtab-inspect" onclick="switchViewTab('inspect')">Frame Inspector</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="isotpWrap" id="vtab-isotp" onclick="switchViewTab('isotp')">ISO-TP</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="xcpWrap" id="vtab-xcp" onclick="switchViewTab('xcp')">XCP</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="graphWrap" id="vtab-graph" onclick="switchViewTab('graph')">Graph</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="fuzzWrap" id="vtab-fuzz" onclick="switchViewTab('fuzz')">Fuzzing</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="termWrap" id="vtab-term" onclick="switchViewTab('term')" style="display:none" title="Raw SLCAN command console.">Serial Terminal</button>
+  <span class="view-tab-sep" aria-hidden="true"></span>
+  <span class="view-tab-beta" title="These tabs are in beta - decoders are still being refined and may change.">beta&nbsp;▸</span>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="j1939Wrap" id="vtab-j1939" onclick="switchViewTab('j1939')">J1939 / N2K</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="chademoWrap" id="vtab-chademo" onclick="switchViewTab('chademo')">CHAdeMO</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="canopenWrap" id="vtab-canopen" onclick="switchViewTab('canopen')">CANopen</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="dronecanWrap" id="vtab-dronecan" onclick="switchViewTab('dronecan')">DroneCAN</button>
+</div>
+
+<!-- Shared toolbar - visible for both ID List and Traffic Dump tabs -->
+<div id="sharedToolbar" class="shared-toolbar link-only">
+  <!-- Unified Help (#10) - filter syntax + byte colours + Notch workflow + view notes -->
+  <div class="menu-anchor">
+    <button class="btn btn-sm help-btn" id="helpBtn" onclick="toggleHelp()" title="How to read the tables, byte colours & filters" aria-label="Help">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none"/></svg>
+      <span>Help</span>
+    </button>
+    <div id="helpPanel" class="dropdown-menu help-panel" style="display:none">
+      <div class="help-sec">
+        <div class="help-title">Filter IDs - syntax</div>
+        <table class="fh-grid">
+          <tr><td><code>024</code></td><td>single ID (hex)</td></tr>
+          <tr><td><code>024, 039</code></td><td>list of IDs</td></tr>
+          <tr><td><code>000-02F</code></td><td>inclusive range</td></tr>
+          <tr><td><code>024, 100-1FF</code></td><td>mix lists &amp; ranges</td></tr>
+        </table>
+        <div class="help-note">IDs are hexadecimal. Tick <b>Exclude</b> to hide matching IDs instead of showing only them.</div>
+      </div>
+      <div class="help-sec">
+        <div class="help-title">Byte colors</div>
+        <div class="help-legend">
+          <span class="legend-item"><span class="legend-swatch lg-hot"></span>just changed</span>
+          <span class="legend-item"><span class="legend-swatch lg-noisy"></span>changes a lot (noisy)</span>
+          <span class="legend-item"><span class="legend-swatch lg-stable"></span>stable</span>
+          <span class="legend-item"><span class="legend-swatch lg-tx"></span>TX-only (sent by this tool)</span>
+        </div>
+      </div>
+      <div class="help-sec">
+        <div class="help-title">Notch workflow</div>
+        <div class="help-note">Click <b>Notch</b> to listen for a moment - every byte that changed gets marked noisy (amber), the rest stable (grey). Then wiggle a control: the byte that reacts lights up green, so you can pin down which byte a button or pedal drives.</div>
+      </div>
+      <div class="help-sec">
+        <div class="help-title">Graph</div>
+        <div class="help-note">Right-click an ID List row to graph one of its bytes. On the graph, drag to pan and use the wheel to zoom.</div>
+      </div>
+      <div class="help-sec">
+        <div class="help-title">ID List vs Traffic Dump</div>
+        <div class="help-note"><b>ID List</b> shows one row per CAN ID with its latest payload - best for spotting which bytes change. <b>Traffic Dump</b> is the raw, time-ordered log of every frame - best for following sequences and exporting.</div>
+      </div>
+    </div>
+  </div>
+  <div class="menu-anchor">
+    <div class="notch-btngroup">
+      <button class="btn btn-joined-l" id="notchBtn" onclick="notchClick()" disabled
+        title="Listen for a moment, then mark every byte that changed as 'noisy' (amber) and the rest as 'stable' (grey). Wiggle a control afterwards and the byte that reacts lights up green.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h3l3-8 4 16 3-8h3"/><path d="M19 12h3"/></svg>
+        <span id="notchLabel">Notch</span>
+      </button>
+      <button class="btn btn-joined-r" id="notchArrowBtn" onclick="toggleNotchPanel()" disabled
+        aria-label="Adjust notch settings" title="Adjust notch settings">▾</button>
+    </div>
+    <div id="notchPanel" class="dropdown-menu notch-menu" style="display:none">
+      <div class="col-g10">
+        <div class="col-g4">
+          <div class="row-between">
+            <span class="toolbar-label">Listening duration</span>
+            <span id="notchDurVal" class="mono-val">1.0s</span>
+          </div>
+          <input type="range" id="notchDuration" min="0.1" max="100" step="0.1" value="1"
+            class="range-green"
+            oninput="const _s=snapSeconds(parseFloat(this.value));this.value=_s;document.getElementById('notchDurVal').textContent=_s<10?_s.toFixed(1)+'s':_s.toFixed(0)+'s'">
+        </div>
+        <div class="col-g4">
+          <div class="row-between">
+            <span class="toolbar-label">Highlight duration</span>
+            <span id="hotDurVal" class="mono-val">500ms</span>
+          </div>
+          <input type="range" id="hotDuration" min="0" max="100" step="1" value="25"
+            class="range-green"
+            oninput="onHotDurationInput(this.value)">
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="btn" id="filterOutBtn" onclick="filterOutNotched()" disabled
+    title="Load the IDs seen during the last Notch into the ID filter and switch it to Exclude - hides that traffic so new IDs stand out.">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+    <span id="filterOutLabel">Filter out</span>
+  </button>
+  <div class="sep sep-20"></div>
+  <label class="chk-inline" title="Show only frames that still have at least one byte not yet seen settling (white/green) - i.e. data you haven't accounted for yet.">
+    <input type="checkbox" id="filterOnlyUnseen" class="chk-sm ac-blue"
+      onchange="onFilterChange()">
+    <span>Only unseen</span>
+  </label>
+  <label class="chk-inline" id="filterOnlyHighlightedLabel" title="Show only frames with a byte that changed just now (green). Pair with Notch to isolate the byte a control affects.">
+    <input type="checkbox" id="filterOnlyHighlighted" class="chk-sm ac-green"
+      onchange="if(this.checked)document.getElementById('filterOnlyUnseen').checked=true;onFilterChange()">
+    <span>Only highlighted</span>
+  </label>
+  <label class="chk-inline" title="Hide TX-only frames (ones this tool transmits but never received from the bus).">
+    <input type="checkbox" id="filterOnlyRx" class="chk-sm ac-green"
+      onchange="onFilterChange()">
+    <span>Only RX</span>
+  </label>
+  <div class="sep sep-20"></div>
+  <!-- Filter IDs / Frame / Data / Display moved here from the old toolbar row (apply to ID List + Traffic Dump only) -->
+  <div class="toolbar-group tg-gap6">
+    <span class="flt-resize"><input type="text" id="filterIds" placeholder="IDs: 024, 100-1FF" aria-label="Filter IDs" class="flt-control"
+      oninput="validateFilterIds();onFilterChange()"></span>
+    <label class="chk-inline">
+      <input type="checkbox" id="filterIdsExclude" class="chk-sm ac-red"
+        onchange="syncFilterOutState();onFilterChange()">
+      Exclude
+    </label>
+  </div>
+  <div class="sep sep-20"></div>
+  <div class="toolbar-group tg-gap6">
+    <select id="filterFrameType" onchange="onFilterChange()" class="flt-control" aria-label="Filter by frame type" title="Filter by frame format: STD = 11-bit identifier, EXT = 29-bit extended.">
+      <option value="all">STD + EXT</option>
+      <option value="std">STD</option>
+      <option value="ext">EXT</option>
+    </select>
+    <select id="filterDataType" onchange="onFilterChange()" class="flt-control" aria-label="Filter by data type" title="Filter by frame kind: DATA = carries a payload, RTR = remote request (no data).">
+      <option value="all">DATA + RTR</option>
+      <option value="data">DATA</option>
+      <option value="rtr">RTR</option>
+    </select>
+  </div>
+  <div class="sep sep-20"></div>
+  <div class="toolbar-group tg-gap6">
+    <input type="text" id="filterData" placeholder="Data bytes" class="flt-control w120"
+      aria-label="Filter by data bytes"
+      title="Show only frames whose payload contains these bytes - match by hex or ASCII."
+      oninput="onFilterChange()">
+  </div>
+  <div class="toolbar-group tg-gap6">
+    <select id="byteFormat" onchange="onByteFormatChange()" aria-label="Byte display format" title="How payload bytes are shown in the tables.">
+      <option value="hex">Hex</option>
+      <option value="hexascii" selected>Hex + ASCII</option>
+      <option value="bin">Binary</option>
+      <option value="ascii">ASCII</option>
+    </select>
+  </div>
+  <!-- Export controls - shown only when Traffic Dump tab is active -->
+  <div id="dumpOnlyControls" class="dump-only-controls" style="display:none">
+    <div class="sep sep-20"></div>
+    <button class="btn btn-sm" id="dumpScrollBtn" onclick="toggleDumpScroll()">⏸ Pause scroll</button>
+    <div class="sep sep-20"></div>
+    <div class="menu-anchor">
+      <button class="btn btn-sm" id="dumpExportBtn" onclick="toggleDropdown('dumpExportMenu','dumpExportBtn')" title="Save the Traffic Dump to a CSV file." aria-haspopup="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ico-13"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export ▾
+      </button>
+      <div id="dumpExportMenu" class="dropdown-menu ws-menu" style="display:none">
+        <button class="ws-item" onclick="exportDumpCSV(false);toggleDropdown('dumpExportMenu','dumpExportBtn',false)" title="Only the frames matching the current filters.">Filtered</button>
+        <button class="ws-item" onclick="exportDumpCSV(true);toggleDropdown('dumpExportMenu','dumpExportBtn',false)" title="The whole Traffic Dump buffer, ignoring filters.">All</button>
+      </div>
+    </div>
+    <span id="dumpExportCount" class="note-sans"></span>
+  </div>
+</div>
+
+<div class="table-wrap" id="tableWrap" role="tabpanel" aria-labelledby="vtab-ids">
+  <div class="welcome" id="emptyState">
+    <div class="welcome-title">sloppyCAN</div>
+    <div class="welcome-sub">Read and explore any CAN bus in your browser.</div>
+    <div class="welcome-tiles">
+      <button class="welcome-tile welcome-connect" onclick="toggleConnectPopover(true);flashEls('connectConfirmBtn');onboardArrowTo(this,'#connectConfirmBtn',3500)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        <span>Connect adapter</span>
+      </button>
+      <button class="welcome-tile welcome-demo" onclick="startDemo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        <span>Demo</span>
+      </button>
+      <button class="welcome-tile welcome-carlito" onclick="startDemo();if(!carlitoIsOpen())carlitoToggle()">
+        <img src="assets/carlito_screenshot.png" alt="">
+        <span>Drive Carlito</span>
+      </button>
+    </div>
+    <a class="welcome-explainers" href="explainers/index.html">Explainers ↗</a>
+  </div>
+  <div class="empty link-only" id="idsNoFrames" style="display:none">No frames yet.</div>
+  <div class="empty filter-empty" id="idsFilterEmpty" style="display:none" title="Frames are arriving, but the filters above match none of them.">Filters hide every frame. <button class="btn" onclick="clearAllFilters()">Clear filters</button></div>
+  <table id="frameTable" style="display:none">
+    <thead>
+      <tr>
+        <th class="th-checkbox"></th>
+        <th onclick="setSort('id')" onkeydown="thSortKey(event,'id')" tabindex="0" role="button" aria-label="Sort by ID" id="th-id">ID <span class="sort-arrow"></span></th>
+        <th onclick="setSort('type')" onkeydown="thSortKey(event,'type')" tabindex="0" role="button" aria-label="Sort by type" id="th-type">Type <span class="sort-arrow"></span></th>
+        <th onclick="setSort('len')" onkeydown="thSortKey(event,'len')" tabindex="0" role="button" aria-label="Sort by DLC" id="th-len">DLC <span class="sort-arrow"></span></th>
+        <th>Data</th>
+        <th onclick="setSort('count')" onkeydown="thSortKey(event,'count')" tabindex="0" role="button" aria-label="Sort by count" id="th-count" class="col-r">Count <span class="sort-arrow"></span></th>
+        <th onclick="setSort('rate')" onkeydown="thSortKey(event,'rate')" tabindex="0" role="button" aria-label="Sort by rate" id="th-rate" class="col-r">Rate <span class="sort-arrow"></span></th>
+        <th onclick="setSort('age')" onkeydown="thSortKey(event,'age')" tabindex="0" role="button" aria-label="Sort by last seen" id="th-age" class="col-r">Last seen <span class="sort-arrow"></span></th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody id="frameBody"></tbody>
+  </table>
+</div>
+
+<!-- Traffic dump header - pinned outside the scroll area so it never scrolls away -->
+<div id="dumpHeader" class="dump-header" style="display:none">
+  <table id="dumpHeaderTable" class="fixed-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>ID</th>
+        <th>Type</th>
+        <th class="col-c">DLC</th>
+        <th>Data</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+  </table>
+</div>
+
+<!-- Traffic dump view (virtual scroll) - no thead here, header is above -->
+<div class="table-wrap dump-wrap" id="dumpWrap" role="tabpanel" aria-labelledby="vtab-dump" style="display:none" onscroll="onDumpScroll()">
+  <div id="dumpSpacer" class="dump-spacer">
+    <table id="dumpTable" class="fixed-table dump-body-table">
+      <tbody id="dumpBody"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="dumpNoFrames">No frames yet.</div>
+  <div class="empty filter-empty" id="dumpFilterEmpty" style="display:none" title="Frames are arriving, but the filters above match none of them.">Filters hide every frame. <button class="btn" onclick="clearAllFilters()">Clear filters</button></div>
+</div>
+
+<!-- ISO-TP / UDS tab -->
+<div id="isotpWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-isotp" style="display:none">
+
+  <!-- Config bar: the protocol and the IDs. The set-once ISO-TP transport values sit behind the gear. -->
+  <div class="bar">
+    <div class="seg">
+      <button id="isotpModeUds" class="active" onclick="isotpSetProtoMode('uds')">UDS</button>
+      <button id="isotpModeObd" onclick="isotpSetProtoMode('obd')">OBD-II</button>
+      <button id="isotpModeKwp" onclick="isotpSetProtoMode('kwp')">KWP2000</button>
+    </div>
+    <div class="sep sep-20"></div>
+    <label class="field">Tx ID
+      <input type="text" id="isotpTxId" value="7DF" maxlength="8" class="hex-input w70"
+        title="CAN ID this tool sends requests on (hex). 7DF = OBD-II functional broadcast."
+        oninput="isotpIdInput()">
+    </label>
+    <label class="field">Rx ID
+      <input type="text" id="isotpRxId" value="7E9" maxlength="8" class="hex-input w70"
+        title="CAN ID the ECU replies on (hex). The response is matched against this ID."
+        oninput="isotpIdInput()">
+    </label>
+    <span id="isotpBroadcastHint" class="broadcast-hint" style="display:none"
+      title="Broadcast Tx (0x7DF 11-bit / 0x18DB33F1 29-bit) - many ECUs may answer. The Rx ID just prioritizes one; if it doesn't respond, the first observed responder is used.">
+      <span class="hint-badge">?</span>broadcast</span>
+    <label class="field">CAN
+      <select id="isotpCanType" class="sel-sm" onchange="isotpIdInput()">
+        <option value="std">STD (11-bit)</option>
+        <option value="ext">EXT (29-bit)</option>
+      </select>
+    </label>
+    <div class="menu-anchor">
+      <button type="button" class="btn" id="isotpTransportBtn" onclick="toggleDropdown('isotpTransportMenu','isotpTransportBtn')" title="ISO-TP addressing, flow control and padding" aria-haspopup="true">&#9881; Transport</button>
+      <div id="isotpTransportMenu" class="dropdown-menu isotp-transport-menu" style="display:none">
+        <label class="field">Addressing
+          <select id="isotpAddrMode" class="sel-sm" onchange="isotpAddrModeChanged()">
+            <option value="normal">Normal</option>
+            <option value="extended">Extended</option>
+          </select>
+        </label>
+        <label id="isotpAddrByteWrap" class="field" style="display:none">Addr byte
+          <input type="text" id="isotpAddrByte" value="F1" maxlength="2" class="hex-input w38"
+            title="Source address byte prepended to each TX frame (Extended addressing)">
+        </label>
+        <label class="field">Block size (hex)
+          <input type="text" id="isotpBlockSize" value="00" maxlength="2" class="hex-input w38" title="00 = unlimited (send all CFs without waiting for intermediate FC). 01–FF = max CFs before Flow Control."
+            oninput="isotpValidateHex2('isotpBlockSize')">
+        </label>
+        <label class="field">STmin (hex)
+          <span class="isotp-stmin">
+            <input type="text" id="isotpStmin" value="00" maxlength="2" class="hex-input w38"
+              title="ISO 15765-2: 00–7F = 0–127 ms, F1–F9 = 100–900 µs"
+              oninput="isotpUpdateStminLabel()">
+            <span id="isotpStminLabel" class="stmin-label">0 ms</span>
+          </span>
+        </label>
+        <label class="field">Padding
+          <input type="text" id="isotpPadding" placeholder="none" maxlength="2" class="hex-input w46"
+            title="Hex byte to pad frames to 8 bytes (e.g. AA). Empty = no padding."
+            oninput="const v=this.value.trim();this.classList.toggle('invalid',v.length>0&&!/^[0-9A-Fa-f]{1,2}$/.test(v))">
+        </label>
+      </div>
+    </div>
+    <button class="btn btn-xs" onclick="clearIsotpLog()">Clear</button>
+    <!-- Follows the protocol (isotpSetProtoMode). The ISO-TP explainer is linked from each log entry. -->
+    <a id="isotpProtoLearnLink" href="explainers/uds-explainer.html" target="_blank" rel="noopener"
+      class="learn">Learn how UDS works ↗</a>
+  </div>
+
+  <!-- UDS sub-mode panel (shown only in UDS mode) -->
+  <div id="udsWrap" class="submode-panel" style="display:none">
+    <!-- Request palette -->
+    <div id="udsPalette" class="obd-row"></div>
+  </div>
+
+  <!-- OBD-II sub-mode panel (shown only in OBD mode) -->
+  <div id="obdWrap" class="submode-panel obd-panel" style="display:none">
+    <span id="obdHint" class="tx-hint-amber" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</span>
+
+    <!-- Mode + PID picker (first) - then the one-click shortcuts to its right, same row -->
+    <div class="obd-row">
+      <span class="toolbar-label">Send</span>
+      <select id="obdPickMode" class="sel-sm">
+        <option value="01">01 Current data</option>
+        <option value="02">02 Freeze frame</option>
+        <option value="06">06 Monitor tests</option>
+        <option value="09">09 Vehicle info</option>
+      </select>
+      <select id="obdPickPid" class="sel-sm mw320"></select>
+      <button id="obdPickSend" class="obd-btn">Send PID</button>
+      <button id="obdProbeBtn" class="obd-btn ml8">Probe supported PIDs</button>
+      <span class="sep sep-18 sep-mx6"></span>
+      <div id="obdPalette" class="obd-row"></div>
+    </div>
+
+    <!-- Supported-PID grid (populated by the probe) -->
+    <div id="obdProbeGrid" class="obd-pidgrid" style="display:none"></div>
+
+    <!-- Quick Watch -->
+    <div class="quickwatch-sec">
+      <div class="obd-row">
+        <span class="qw-title">Quick Watch</span>
+        <div id="obdWatchSelect" class="obd-row gap8"></div>
+        <span class="toolbar-label ml8">Interval</span>
+        <select id="obdPollMs" class="sel-sm">
+          <option value="250">250 ms</option>
+          <option value="500" selected>500 ms</option>
+          <option value="1000">1 s</option>
+        </select>
+        <button id="obdWatchBtn" class="obd-btn">Start</button>
+      </div>
+      <div id="obdWatchGrid" class="obd-tiles"></div>
+    </div>
+  </div>
+
+  <!-- KWP2000 sub-mode panel (shown only in KWP mode) -->
+  <div id="kwpWrap" class="submode-panel" style="display:none">
+    <!-- Request palette -->
+    <div id="kwpPalette" class="obd-row"></div>
+  </div>
+
+  <!-- Conversation log -->
+  <div id="isotpLog" class="isotp-log"></div>
+  <div class="empty isotp-empty">No requests yet.</div>
+
+  <!-- Input row -->
+  <div class="term-input-row">
+    <span id="isotpInputLabel" class="isotp-input-label">UDS</span>
+    <input type="text" id="isotpInput"
+      placeholder="22 F1 84"
+      class="bare-input isotp-input"
+      onkeydown="isotpKeydown(event)" onblur="isotpFmtHex(this)">
+    <button class="btn input-send-btn" onclick="isotpSend()">Send</button>
+  </div>
+</div>
+
+<div id="j1939Wrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-j1939" style="display:none">
+  <div role="tablist" aria-label="J1939 view" class="subtab-bar">
+    <div class="seg" title="Protocol dictionary + transport">
+      <button id="j1939ProtoJ1939"    class="active" onclick="j1939ProtoClick('j1939')">J1939</button>
+      <button id="j1939ProtoNmea2000"           onclick="j1939ProtoClick('nmea2000')">NMEA2000</button>
+      <button id="j1939ProtoIso11783"           onclick="j1939ProtoClick('iso11783')">ISO 11783</button>
+    </div>
+    <div class="sep sep-20"></div>
+    <button class="j1939-stab active" role="tab" aria-selected="true"  id="j1939stab-pgn"  onclick="j1939SubTab('pgn')">PGN Monitor</button>
+    <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-log"  onclick="j1939SubTab('log')">Frame Log</button>
+    <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-dm"   onclick="j1939SubTab('dm')">Faults (DM1/DM2)</button>
+    <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-addr" onclick="j1939SubTab('addr')">Address Claim</button>
+    <!-- The J1939-21 request client. A handful of parameter groups are sent ON REQUEST rather than
+         periodically, which means the frame does not exist until somebody asks for it - so there is
+         no way to see one without a button like this. The PGN box's datalist holds the groups this
+         side answers; picking one fills only the PGN, and the address stays as typed. -->
+    <div class="j1939-req ml-auto">
+      <label class="field">PGN <input type="text" id="j1939ReqPgn" list="j1939ReqPgnList" placeholder="65261" title="The parameter group to ask for. Decimal, or 0x-prefixed hex; empty asks for 65261. The list holds the request-only groups this side answers out of the game's telemetry.">
+      <datalist id="j1939ReqPgnList">
+        <option value="65261">CCSS - speed_limit (SPN 74)</option>
+        <option value="65253">HOURS - engine_hours (SPN 247)</option>
+        <option value="65258">VW - axle_load (SPN 582), from 0x09</option>
+        <option value="60928">Address Claimed - the implement's NAME, from 0x80</option>
+      </datalist></label>
+      <label class="field">from <input type="text" id="j1939ReqDa" list="j1939ReqDaList" value="255" title="Destination address (0-255, decimal or 0x-prefixed hex). 255 / 0xFF = global broadcast: every ECU is asked.">
+      <datalist id="j1939ReqDaList">
+        <option value="255">every ECU (global / 0xFF)</option>
+        <option value="0x00">0x00 Engine #1</option>
+        <option value="0xF0">0xF0 Tractor ECU</option>
+      </datalist></label>
+      <button type="button" class="btn" onclick="j1939SendRequest()" title="Put a real PGN 59904 request on the bus from the diagnostic tool address 0xF9. The answer arrives as an ordinary broadcast and lands in the PGN Monitor.">Request</button>
+      <span id="j1939ReqStatus" class="j1939-req-status"></span>
+    </div>
+    <span id="j1939Badge" class="j1939-badge"></span>
+    <a id="j1939Learn" href="explainers/j1939-explainer.html" target="_blank" rel="noopener" class="learn">Learn how J1939 works ↗</a>
+  </div>
+  <div id="j1939-pgn"  class="scroll-pane"></div>
+  <div id="j1939-log"  class="log-pane" style="display:none"></div>
+  <div id="j1939-dm"   class="scroll-pane" style="display:none"></div>
+  <div id="j1939-addr" class="scroll-pane" style="display:none"></div>
+</div>
+
+<div id="chademoWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-chademo" style="display:none">
+  <div class="bar">
+    <span id="chademo-state-pill" class="pill" style="display:none"></span>
+    <button type="button" id="chademo-pause-btn" class="btn" style="display:none" onclick="chademoDemoPauseToggle()"></button>
+    <a href="explainers/ev-charging-explainer.html" target="_blank" rel="noopener" class="learn">Learn how EV charging works ↗</a>
+  </div>
+  <div id="chademo-session" class="session-scroll pad-14-20"></div>
+  <div class="log-section-bar">Frame Log</div>
+  <div id="chademo-log"     class="log-pane"></div>
+</div>
+
+<div id="xcpWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-xcp" style="display:none">
+  <div class="bar">
+    <label class="field">CRO <input id="xcpCro" value="552" oninput="xcpCfgChange()" class="hex-input w60" title="Command Receive Object ID (master→slave), hex"></label>
+    <label class="field">DTO <input id="xcpDto" value="553" oninput="xcpCfgChange()" class="hex-input w60" title="Data Transmit Object ID (slave→master), hex"></label>
+    <label class="field">CAN
+      <select id="xcpCanType" onchange="xcpCfgChange()">
+        <option value="std">11-bit</option>
+        <option value="ext">29-bit</option>
+      </select>
+    </label>
+    <label class="field">Byte order
+      <select id="xcpByteOrder" onchange="xcpCfgChange()" title="Auto = learn from CONNECT; override for pre-CONNECT decode">
+        <option value="auto">auto</option>
+        <option value="le">little</option>
+        <option value="be">big</option>
+      </select>
+    </label>
+    <button class="btn primary xcp-tx-btn" id="xcpConnectBtn" onclick="xcpConnect()">Connect</button>
+    <button class="btn danger xcp-tx-btn xcp-hide-until-connected" onclick="xcpDisconnect()">Disconnect</button>
+    <a href="explainers/xcp-explainer.html" target="_blank" rel="noopener" class="learn">Learn how XCP works ↗</a>
+  </div>
+  <div id="xcp-session" class="session-scroll">
+    <div class="xcp-controls xcp-hide-until-connected">
+      <div class="xcp-form">
+        <button class="btn xcp-tx-btn" onclick="xcpGetStatus()">Get Status</button>
+        <button class="btn xcp-tx-btn" onclick="xcpCommModeInfo()">Get Comm Mode Info</button>
+        <label class="field">Get ID
+          <select id="xcpIdType">
+            <option value="0">ASCII</option>
+            <option value="1">MC2 filename</option>
+            <option value="2">MC2 path</option>
+            <option value="3">URL</option>
+            <option value="4">A2L upload</option>
+          </select>
+        </label>
+        <button class="btn xcp-tx-btn" onclick="xcpGetId()">Get ID</button>
+        <span class="xcp-divider"></span>
+        <span class="field">DAQ</span>
+        <button class="btn xcp-tx-btn" onclick="xcpGetDaqInfo()" title="GET_DAQ_PROCESSOR_INFO">Get DAQ Info</button>
+        <button class="btn xcp-tx-btn" onclick="xcpDaqStart()" title="START_STOP_SYNCH start">Start</button>
+        <button class="btn xcp-tx-btn" onclick="xcpDaqStop()" title="START_STOP_SYNCH stop">Stop</button>
+      </div>
+      <div class="xcp-form">
+        <label class="field">MTA <input id="xcpMtaAddr" value="0x00000000" oninput="xcpValAddr(this)" class="hex-input w104"></label>
+        <button class="btn xcp-tx-btn" onclick="xcpSetMta()" title="SET_MTA">Set MTA</button>
+        <span class="xcp-divider"></span>
+        <label class="field">Read length <input id="xcpReadLen" type="text" value="8" oninput="xcpValLen(this)" class="hex-input w44"></label>
+        <button class="btn xcp-tx-btn" onclick="xcpReadMemMta()" title="UPLOAD @MTA (chunked)">Read</button>
+        <span class="xcp-divider"></span>
+        <label class="field">Write data <input id="xcpWriteData" placeholder="DE AD BE EF …" oninput="xcpValData(this)" class="hex-input w200"></label>
+        <button class="btn danger xcp-tx-btn" onclick="xcpWriteMem()" title="DOWNLOAD @MTA (chunked)">Write ⚠</button>
+      </div>
+    </div>
+    <div class="xcp-msgs">
+      <div id="xcp-tx-hint" class="xcp-tx-hint" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</div>
+      <div id="xcp-readout" class="xcp-readout"></div>
+    </div>
+    <div id="xcp-sessioninfo" class="xcp-sess"></div>
+  </div>
+  <div class="sec xcp-log-bar">
+    Message Log
+    <span class="sec-actions"><button class="btn btn-xs" onclick="xcpClearLog()">Clear</button></span>
+  </div>
+  <div id="xcp-log" class="log-pane"></div>
+</div>
+
+<div id="canopenWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-canopen" style="display:none">
+  <div class="bar">
+    <label class="field">Node <input id="coNode" value="1" onchange="canopenCfgChange()" oninput="coValNode(this)" class="w48" title="Default node-ID for the SDO/NMT forms"></label>
+    <!-- The SDO overrides are rarely changed, so they sit behind the gear rather than in the bar. -->
+    <div class="menu-anchor">
+      <button type="button" class="btn" id="coCfgBtn" onclick="canopenCfgMenu()" title="SDO timeout and COB-ID overrides" aria-haspopup="true">&#9881;</button>
+      <div id="coCfgMenu" class="dropdown-menu co-cfg-menu" style="display:none">
+        <label class="field">SDO timeout <input id="coSdoTimeout" value="1000" onchange="canopenCfgChange()" oninput="coValTimeout(this)" class="w60" title="ms to wait for an SDO response">ms</label>
+        <label class="field">SDO req <input id="coSdoReq" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" oninput="coClampCob(this)" title="Override SDO request COB-ID (blank = 0x600+node)"></label>
+        <label class="field">SDO rsp <input id="coSdoRsp" placeholder="auto" maxlength="3" onchange="canopenCfgChange()" oninput="coClampCob(this)" title="Override SDO response COB-ID (blank = 0x580+node)"></label>
+      </div>
+    </div>
+    <a href="explainers/canopen-explainer.html" target="_blank" rel="noopener" class="learn">Learn how CANopen works ↗</a>
+  </div>
+  <div id="co-nodes" class="session-scroll">
+    <div id="co-nodemap" class="co-nodes"></div>
+    <div class="co-controls">
+      <div class="co-form">
+        <span class="grp-title">SDO client</span>
+        <label>node <input id="coSdoNode" value="1" oninput="coValSdoNode(this)"></label>
+        <label>index <input id="coSdoIndex" value="0x1000" oninput="coValIndex(this)"></label>
+        <label>sub <input id="coSdoSub" value="0x00" oninput="coValSub(this)" class="w48"></label>
+        <button class="co-btn go co-tx-btn" onclick="canopenSdoReadBtn()" title="SDO upload (read)">Read</button>
+        <label>value <input id="coSdoValue" placeholder="0x00" oninput="coValValue(this)" class="w84"></label>
+        <button class="co-btn danger co-tx-btn" onclick="canopenSdoWriteBtn()" title="SDO download (write, expedited)">Write ⚠</button>
+      </div>
+      <div class="co-form">
+        <span class="grp-title">NMT</span>
+        <label>target <input id="coNmtNode" value="1" placeholder="all" oninput="coValNmt(this)" title="Node-ID, or 'all' (0) for broadcast" class="w48"></label>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x01)" title="0x01 Start">Start</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x02)" title="0x02 Stop">Stop</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x80)" title="0x80 Enter Pre-Operational">Pre-Op</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x81)" title="0x81 Reset Node">Reset Node</button>
+        <button class="co-btn co-tx-btn" onclick="canopenNmtBtn(0x82)" title="0x82 Reset Communication">Reset Comm</button>
+      </div>
+      <div class="co-form">
+        <span class="grp-title">SYNC</span>
+        <button class="co-btn co-tx-btn" onclick="canopenSyncBtn()" title="Broadcast SYNC (0x080)">Send SYNC</button>
+      </div>
+      <div id="co-tx-hint" class="co-tx-hint" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</div>
+      <div id="co-readout" class="co-readout"></div>
+    </div>
+  </div>
+  <div class="co-logbar">
+    <span>Message Log</span>
+  </div>
+  <div id="co-log" class="log-pane"></div>
+</div>
+
+<div id="dronecanWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-dronecan" style="display:none">
+  <div class="bar">
+    <label class="field"><input type="checkbox" id="dcTxEnabled" checked onchange="dronecanCfgChange()" title="Publish the Carlito drone's telemetry as DroneCAN transfers, and answer service requests and node-id allocations from the bus. Off = listen only. Decode is always on."> Transmit</label>
+    <label class="field">FC node <input type="text" id="dcFcNode" value="1" onchange="dronecanCfgChange()" title="Node-ID the FC's own messages (ArmingStatus, LightsCommand, BeepCommand) are published from. The eight bus nodes take their ids from the roster."></label>
+    <!-- The drone's inbound signals (mode, LEDs, beep, hook, gimbal) are set in the Drone Control
+         window (drone.js), the one place they live; it works with no game too, which is how the
+         DroneCAN demo puts LightsCommand / BeepCommand / hardpoint / gimbal transfers on the bus. -->
+    <button type="button" class="btn" onclick="droneCtrlToggle()" title="Open the Drone Control window: flight mode, LEDs, beep, hook and gimbal. Works without the game - the commands still go on this bus.">Drone controls</button>
+    <span id="dcDecodeOnly" class="pill warn" style="display:none" title="No DroneCAN heard on this bus (no NodeStatus in 5 s, no drone on the Carlito link, not DroneCAN demo): decoding only - service requests and allocations are not answered.">Decode only</span>
+    <a href="explainers/dronecan-explainer.html" target="_blank" rel="noopener" class="learn">Learn how DroneCAN works ↗</a>
+  </div>
+  <div id="dc-panes" class="session-scroll dc-panes"></div>
+  <div class="dc-logbar">
+    <span>Transfer Log</span>
+    <span id="dc-errs" class="dc-errs"></span>
+  </div>
+  <div id="dc-log" class="log-pane"></div>
+</div>
+
+<div id="graphWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-graph" style="display:none">
+  <div class="bar">
+    <span class="field">Signal</span>
+    <select id="graphPickId" title="Frame ID to graph"></select>
+    <span id="graphPickNote" class="graph-pick-note" style="display:none"></span>
+    <select id="graphPickByte" title="Byte index"></select>
+    <select id="graphPickWidth" title="Sample width">
+      <option value="1">8-bit</option>
+      <option value="2">16-bit</option>
+      <option value="4">32-bit</option>
+    </select>
+    <select id="graphPickEndian" title="Byte order" style="display:none">
+      <option value="be" selected>BE</option>
+      <option value="le">LE</option>
+    </select>
+    <label id="graphPickSignedLbl" class="graph-signed-lbl" style="display:none"><input type="checkbox" id="graphPickSigned"> signed</label>
+    <button class="btn" id="graphAddBtn">Add</button>
+    <button class="btn" id="graphClearBtn" title="Remove all graphed signals">Clear all</button>
+    <span id="graphAddWarn" class="graph-add-warn" style="display:none"></span>
+    <div class="sep sep-20"></div>
+    <label class="field">Window
+      <select id="graphWindowSel" title="Visible time window">
+        <option value="10000">10s</option>
+        <option value="30000" selected>30s</option>
+        <option value="60000">60s</option>
+      </select>
+    </label>
+    <button class="btn" id="graphPauseBtn" title="Freeze the view; Resume keeps your zoom.">Pause</button>
+    <button class="btn" id="graphLiveBtn" title="Jump to the live edge and reset the zoom.">Live</button>
+  </div>
+  <div class="graph-stage">
+    <canvas id="graphCanvas" title="Drag to pan, wheel to zoom."></canvas>
+    <div id="graphEmpty" class="empty graph-empty" title="Add one above, or right-click an ID List row.">No signals.</div>
+  </div>
+  <div id="graphLegend" class="graph-legend"></div>
+</div>
+<div id="graphCtxMenu" class="graph-ctx" style="display:none"></div>
+
+<div id="fuzzWrap" class="fuzz-wrap" role="tabpanel" aria-labelledby="vtab-fuzz" style="display:none">
+  <div class="bar">
+    <button class="btn primary fuzz-start" id="fuzzStartBtn" onclick="fuzzToggleRun()">Start</button>
+    <span class="fuzz-counter" id="fuzzCounter">0 frames sent</span>
+    <span id="fuzzTxHint" class="tx-hint-amber" style="display:none">TX disabled - connect a bus and uncheck Listen-only.</span>
+    <span class="fuzz-warn">⚠ Sends crafted frames. Use only on a bench bus.</span>
+  </div>
+
+  <!-- Radio groups are .seg buttons: data-fuzz names the fuzzCfg field, data-v the value. -->
+  <div class="fuzz-form">
+    <div class="fuzz-col">
+      <section class="fuzz-sec">
+        <div class="sec"><span class="fuzz-cap">Target</span>
+          <div class="seg" data-fuzz="fuzzIdMode">
+            <button data-v="range" class="active">Range</button><button data-v="observed">Observed</button><button data-v="single">Single</button>
+          </div>
+          <select id="fuzzIsExt" class="fuzz-sel" onchange="fuzzCfgChange()" aria-label="Frame format">
+            <option value="0">Std (11-bit)</option>
+            <option value="1">Ext (29-bit)</option>
+          </select>
+        </div>
+        <div class="fuzz-row" id="fuzzRangeOpts">
+          <label class="field">Start <input type="text" id="fuzzIdStart" class="fuzz-hex" value="000" maxlength="8" oninput="fuzzCfgChange()"></label>
+          <label class="field">End <input type="text" id="fuzzIdEnd" class="fuzz-hex" value="7FF" maxlength="8" oninput="fuzzCfgChange()"></label>
+          <div class="seg" data-fuzz="fuzzIdScan">
+            <button data-v="seq" class="active">Sequential</button><button data-v="rand">Random</button>
+          </div>
+        </div>
+        <div class="fuzz-row" id="fuzzSingleOpts" style="display:none">
+          <label class="field">ID <input type="text" id="fuzzSingleId" class="fuzz-hex" value="7DF" maxlength="8" oninput="fuzzCfgChange()"></label>
+        </div>
+        <div class="fuzz-row" id="fuzzObservedOpts" style="display:none">
+          <span class="fuzz-note" id="fuzzObservedNote" title="The IDs currently in the ID List."></span>
+          <div class="seg" data-fuzz="fuzzObsScan">
+            <button data-v="seq" class="active">Sequential</button><button data-v="rand">Random</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="fuzz-sec">
+        <div class="sec"><span class="fuzz-cap">Payload</span>
+          <div class="seg" data-fuzz="fuzzPayMode">
+            <button data-v="random" class="active">Random bytes</button><button data-v="mask">Per-byte mask</button><button data-v="bitgrid">Bit grid</button>
+          </div>
+        </div>
+        <!-- Random: choose which byte indices vary -->
+        <div class="fuzz-row" id="fuzzRandomOpts">
+          <span class="field">Bytes</span>
+          <span id="fuzzRandomBytes" class="fuzz-bytesel"></span>
+        </div>
+        <!-- Mask: per-byte fixed/random/increment -->
+        <div id="fuzzMaskOpts" style="display:none">
+          <table class="fuzz-mask"><thead><tr>
+            <th>Byte</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th>
+          </tr></thead><tbody id="fuzzMaskBody"></tbody></table>
+        </div>
+        <!-- Bit grid: 8x8, click cycles never→always→fuzz. Its controls sit beside it, not above,
+             so the tab fits a 768px-high screen. -->
+        <div id="fuzzBitgridOpts" class="fuzz-bitgrid-opts" style="display:none">
+          <div id="fuzzBitgrid" class="fuzz-grid" title="Click a bit to cycle it. MSB left."></div>
+          <div class="fuzz-col">
+            <span class="field">Pattern</span>
+            <div class="seg" data-fuzz="fuzzBitPat">
+              <button data-v="rand" class="active">Random</button><button data-v="seq">Sequential</button><button data-v="sweep">Sweep</button>
+            </div>
+            <span class="fuzz-note" title="Click a bit to cycle it. MSB left."><span class="fuzz-swatch fuzz-cell never"></span>never &nbsp; <span class="fuzz-swatch fuzz-cell always"></span>always &nbsp; <span class="fuzz-swatch fuzz-cell fuzz"></span>fuzz</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="fuzz-col">
+      <section class="fuzz-sec">
+        <div class="sec"><span class="fuzz-cap">DLC</span>
+          <div class="seg" data-fuzz="fuzzDlcMode">
+            <button data-v="fixed" class="active">Fixed</button><button data-v="rand">Random</button><button data-v="inc">Increment</button>
+          </div>
+          <select id="fuzzDlcFixed" class="fuzz-sel" onchange="fuzzCfgChange()" aria-label="Fixed DLC">
+            <option>0</option><option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option><option>7</option><option selected>8</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="fuzz-sec">
+        <div class="sec">Timing</div>
+        <div class="fuzz-row">
+          <label class="field">Gap (ms) <input type="number" id="fuzzGap" class="fuzz-num" min="1" value="50" oninput="fuzzCfgChange()" onchange="fuzzGapCommit()"></label>
+          <label class="field">Frames per tick <input type="number" id="fuzzBurst" class="fuzz-num" min="1" max="500" value="1" oninput="fuzzCfgChange()"></label>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Serial terminal main view -->
+<div id="termWrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-term" style="display:none">
+  <div id="termTrafficWarn" class="term-traffic-warn" style="display:none" title="Pause the bus, and close Carlito if it's running, to use the terminal cleanly.">
+    <span>⚠ Live traffic will clutter this console.</span>
+    <button class="btn btn-xs" id="termPauseBtn" onclick="busPauseClick()">Pause bus</button>
+  </div>
+  <div class="log-body term-body" id="termBody"></div>
+  <div class="term-input-row">
+    <span class="term-prompt">&gt;</span>
+    <input type="text" id="termInput" placeholder="Type command, Enter to send" disabled
+      class="bare-input term-input"
+      onkeydown="termKeydown(event)">
+    <button class="btn input-send-btn" onclick="termSend()">Send</button>
+  </div>
+</div>
+
+<div id="inspectWrap" class="inspect-wrap" role="tabpanel" aria-labelledby="vtab-inspect" style="display:none">
+  <div id="inspectContent">
+    <div id="inspectEmpty" class="empty" title="Click a frame in the ID List or Traffic Dump.">No frame selected.</div>
+  </div>
+</div>
+
+<div id="resizeHandle" class="resize-handle link-only" title="Drag to resize"></div>
+
+<!-- TX message scheduler panel -->
+<div id="txPanel" class="tx-panel link-only">
+  <div class="log-header clickable" onclick="toggleTxPanel()">
+    <span class="log-title">TX Scheduler</span>
+    <span id="txActiveBadge" class="tx-active-badge" style="display:none" title="One or more TX messages are actively transmitting onto the bus.">Transmitting</span>
+    <span id="fuzzActiveBadge" class="fuzz-active-badge" style="display:none" title="The fuzzer is actively transmitting frames onto the bus.">
+      Fuzzing <span id="fuzzActiveCount" class="mono">0</span>
+      <button class="fuzz-stop-btn" onclick="event.stopPropagation();window.fuzzStop&&window.fuzzStop()" title="Stop fuzzing">Stop</button>
+    </span>
+    <!-- OBD-II Quick Watch global indicator + stop -->
+    <span id="obdWatchActiveBadge" class="fuzz-active-badge" style="display:none" title="OBD-II Quick Watch is actively polling the bus.">
+      <span id="obdWatchActiveLabel">Quick Watch</span> <span id="obdWatchActiveCount" class="mono">0</span>
+      <button class="fuzz-stop-btn" onclick="event.stopPropagation();window.obdStop&&window.obdStop()" title="Stop Quick Watch">Stop</button>
+    </span>
+    <svg id="txChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon" style="transform:rotate(180deg)"><path d="M18 15l-6-6-6 6"/></svg>
+    <div class="log-title-sep"></div>
+    <button class="btn btn-sm" id="txSuspendBtn" onclick="event.stopPropagation();toggleTxSuspend()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ico-13"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      Suspend All
+    </button>
+    <button class="btn btn-sm" onclick="event.stopPropagation();addTxMessage()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ico-13"><path d="M12 5v14M5 12h14"/></svg>
+      Add
+    </button>
+  </div>
+  <div id="txContent">
+    <!-- Automatic (module-driven) messages - collapsible, shown above the custom rows. -->
+    <div id="txModuleSection" style="display:none">
+      <div id="txModuleHeader" onclick="toggleTxModule()" title="Frames transmitted by other modules (Quick Watch, Fuzzer) - read-only">
+        <svg id="txModuleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon-sm" style="transform:rotate(180deg)"><path d="M18 15l-6-6-6 6"/></svg>
+        <span>Automatic messages</span>
+        <span id="txModuleCount" class="tx-module-count">0</span>
+      </div>
+      <div id="txModuleBody" class="tx-module-body"></div>
+    </div>
+    <div id="txBody" class="tx-body" style="display:block"></div>
+  </div>
+</div>
+
+<div class="log-panel link-only" id="logPanel" style="height:28px">
+  <div class="log-header clickable" onclick="toggleConsole()">
+    <span class="log-title">Console</span>
+    <svg id="consoleChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon" style="transform:rotate(180deg)"><path d="M18 15l-6-6-6 6"/></svg>
+    <div class="log-title-sep"></div>
+    <span id="deviceInfo" class="device-info"></span>
+    <div class="w8"></div>
+    <label class="chk-inline console-open-only" title="Open the console automatically whenever an error is logged. Off by default so errors don't pop it open while you work." onclick="event.stopPropagation()">
+      <input type="checkbox" id="autoExpandErr" class="chk-sm ac-blue">
+      <span>auto-expand on error</span>
+    </label>
+    <button class="btn btn-sm console-open-only" onclick="event.stopPropagation();document.getElementById('pane-console').innerHTML=''">Clear</button>
+  </div>
+  <div id="pane-console" class="log-body" style="display:none"></div>
+</div>
+
+<div id="toastHost" class="toast-host"></div>
+
+<!-- Onboarding arrow - drawn from the welcome's Connect tile to the Connect popover's button -->
+<svg id="onboardArrow" aria-hidden="true">
+  <defs>
+    <marker id="oaHead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+  <path id="oaPath" fill="none" marker-end="url(#oaHead)"/>
+</svg>
+
+<script src="js/can-link.js"></script><!-- shared CAN transport (gs_usb + SLCAN) - must load before sloppycan.js (declares connMode/port/usbSerDev/… in shared global scope) -->
+<script src="js/diag-parse.js"></script><!-- OBD-II/UDS/KWP decoders - must load before sloppycan.js (tables read at eval time) -->
+<script src="js/sloppycan.js"></script>
+</body>
+</html>
