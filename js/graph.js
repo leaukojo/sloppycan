@@ -84,7 +84,11 @@ let graphLastTick = 0;
 let graphLastSigCount = -1;  // drives DPR re-cap when the number of signals changes
 let graphColorIdx = 0;
 let graphPlot     = null;    // last-draw geometry { L,R,T,B, tLo,tHi,win,tEnd }
-const GRAPH_CAP   = 4096;    // samples retained per signal
+let graphCanvasDpr = 1;      // DPR the backing store was sized with (drawGraph must use the same)
+const GRAPH_CAP   = 16384;   // samples retained per signal (the draw only walks the visible ones)
+// Every graph time is on the monotonic clock: a wall-clock step (NTP sync, resume from sleep,
+// a manual change) would unsort the rings, which the binary searches and the draw loop rely on.
+const graphNow = () => performance.now();
 
 // Trace palette - accent tokens + a few inspector swatch hexes; resolved fresh each draw.
 const GRAPH_TRACE_VARS = ['--green', '--blue', '--amber', '--red'];
@@ -179,7 +183,7 @@ function graphRecomputeSum(b) {
 function graphIngestFrame(frame) {
   if (!graphSignals.length) return;
   const key = graphFrameKey(frame);
-  const now = Date.now();
+  const now = graphNow();
   for (const sig of graphSignals) {
     if (sig.frameKey !== key) continue;
     const val = graphExtract(sig, frame.data);
@@ -383,7 +387,9 @@ function graphCtxClose() {
 
 // ── Pause / live ──────────────────────────────────────────────────────────────
 function graphSetPaused(on) {
-  if (on && !graphPaused) graphFrozenEnd = Date.now();
+  // Freeze at the edge on screen, not at "now": with the bus down the view holds at graphLiveEnd,
+  // and jumping to now would leave it blank.
+  if (on && !graphPaused) graphFrozenEnd = graphPlot ? graphPlot.tEnd : graphNow();
   if (!on) graphPan = 0;            // resuming → follow the live edge again (zoom kept; Live resets it)
   graphPaused = on;
   graphDirty = true;
@@ -414,6 +420,7 @@ function resizeGraphCanvas() {
   const w = Math.max(1, Math.round(r.width * dpr));
   const h = Math.max(1, Math.round(r.height * dpr));
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  graphCanvasDpr = dpr;
   graphDirty = true;
 }
 
@@ -433,7 +440,7 @@ function graphBusLive() {
 }
 
 (function loop() {
-  const now = Date.now();
+  const now = graphNow();
   // Only keep scrolling the live edge while the bus is live and the view isn't paused;
   // otherwise the window would slide and drag the (static) traces off-screen.
   if (graphBusLive() && !graphPaused && now - graphLastTick >= 33) { graphDirty = true; graphLastTick = now; }  // ~30fps live cap
@@ -488,7 +495,7 @@ function graphNoteOf(key) {
 function drawGraph() {
   const c = document.getElementById('graphCanvas');
   if (!c) return;
-  const dpr = graphEffectiveDpr();   // must match the backing store set by resizeGraphCanvas()
+  const dpr = graphCanvasDpr;   // the backing store's, set by resizeGraphCanvas()
   const W = c.width / dpr, H = c.height / dpr;
   const ctx = c.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -523,7 +530,7 @@ function drawGraph() {
   // live; when paused it sits at the captured freeze point, and when the bus is
   // disconnected/bus-paused it holds at the last live instant so traces don't drift.
   const busLive = graphBusLive();
-  const nowMs = Date.now();
+  const nowMs = graphNow();
   if (busLive && !graphPaused) graphLiveEnd = nowMs;
   const tEnd = graphPaused ? graphFrozenEnd : (busLive ? nowMs : (graphLiveEnd || nowMs));
   const win = graphWindowMs / graphZoom;
@@ -585,6 +592,9 @@ function drawGraph() {
     ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = 'bevel';
     ctx.beginPath();
     const start = (b.head - b.count + b.cap) % b.cap;
+    // Begin one sample before the window (the segment entering it) instead of at the ring's oldest,
+    // so the walk is bounded by what's visible, not by GRAPH_CAP.
+    const first = Math.max(0, graphLowerBound(b, tLo) - 1);
     // Min/max decimation: collapse all samples landing on the same x-pixel column into one
     // vertical min→max segment. Bounds the stroked path to ≤ plot width instead of up to
     // GRAPH_CAP points - this is what makes a dense/noisy trace cheap to rasterize (the trace
@@ -598,7 +608,7 @@ function drawGraph() {
       ctx.lineTo(curCol, colMax);
       ctx.lineTo(curCol, colLast);
     };
-    for (let i = 0; i < b.count; i++) {
+    for (let i = first; i < b.count; i++) {
       const idx = (start + i) % b.cap;
       const px = Math.round(x(b.t[idx])), py = y(b.v[idx]);
       // Skip path-building for samples off the plot's x-range (clip discards their stroke anyway),
@@ -686,18 +696,24 @@ function drawGraph() {
   graphLegendHtml();
 }
 
-// Samples ascend in time from `start`, so binary-search the logical index for the
-// closest timestamp instead of scanning the whole ring on every hover frame.
+// Samples ascend in time from the oldest, so binary-search instead of scanning the whole ring.
+// Logical index (0 = oldest) of the first sample at or after t, clamped to the newest.
+function graphLowerBound(b, t) {
+  const start = (b.head - b.count + b.cap) % b.cap;
+  let lo = 0, hi = Math.max(0, b.count - 1);
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (b.t[(start + mid) % b.cap] < t) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+
 function graphNearest(sig, t) {
   const b = sig.buf;
   if (!b.count) return null;
   const start = (b.head - b.count + b.cap) % b.cap;
   const at = j => b.t[(start + j) % b.cap];
-  let lo = 0, hi = b.count - 1;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (at(mid) < t) lo = mid + 1; else hi = mid;
-  }
+  const lo = graphLowerBound(b, t);
   let best = b.v[(start + lo) % b.cap];
   if (lo > 0 && Math.abs(at(lo - 1) - t) < Math.abs(at(lo) - t)) best = b.v[(start + lo - 1) % b.cap];
   return best;
@@ -815,7 +831,7 @@ function graphLegendHtml() {
     const w = Math.max(graphFmtVal(s.vmin).length, graphFmtVal(s.vmax).length);
     const fixed = v => `<span style="display:inline-block;min-width:${w}ch;text-align:right">${graphFmtVal(v)}</span>`;
     const rng = s.buf.count ? `${fixed(s.vmin)}…${fixed(s.vmax)}` : '-';
-    node.innerHTML = `${fixed(s.curVal)} <span style="color:var(--text2)">(${rng})</span>`;
+    setHtmlIfChanged(node, `${fixed(s.curVal)} <span style="color:var(--text2)">(${rng})</span>`);
   }
 }
 
@@ -938,6 +954,10 @@ window.graphApply           = graphApply;
   }
 
   window.addEventListener('resize', resizeGraphCanvas);
+  // The stage also shrinks when the legend wraps to another row (adding or renaming a signal) or
+  // other layout moves, with no window resize: re-size the backing store, else the trace is
+  // stretched and the hover crosshair drifts off the cursor.
+  if (c && window.ResizeObserver) new ResizeObserver(resizeGraphCanvas).observe(c);
 
   // Restore signals persisted before this (deferred) script loaded.
   if (window._graphPending) graphApply(window._graphPending);
