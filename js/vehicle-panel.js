@@ -11,7 +11,7 @@
 // never a widget on its dashboard.
 //
 // Integration: index.html (script after carlito_contract.js, before every panel; every panel
-// button ships style="display:none") · ramn.js (ramnSetDashOpen) · j1939.js + sloppycan.js
+// button ships style="display:none") · ramn.js (ramnSetDashOpen / ramnSetCtrlOpen) · j1939.js + sloppycan.js
 // (vehiclePanelRequestForProto, reflowHeader) · carlito.js (carlitoOnTelemetry, owned here).
 // Live-only: no persistence.
 
@@ -47,7 +47,6 @@
   function register(p) {
     if (!p || !p.id) return;
     panels.set(p.id, p);
-    if (p.family) families.add(p.family);
     syncButtons();
   }
 
@@ -77,6 +76,7 @@
   // ── The RAMN pair's titles ──────────────────────────────────────────────────
   // "Dashboard (Truck)" / "Control panel (Truck)" while a known machine is on the link, (RAMN)
   // otherwise - a car is the RAMN board's own machine. Decided before written, like syncButtons.
+  // Only machines with a section in the pair name it: the drone replaces the pair with its own.
   const families = new Set();
   let titleShown = null;
   function syncTitles() {
@@ -91,7 +91,7 @@
   // `takes` is what the panel REPLACES: 'pair' (dashboard + Control, for a machine the RAMN
   // controls do not fit) or 'dash' (the cluster alone, for one they do).
   let heldBy = '';          // id of the panel that currently has the screen
-  let ramnDashWasOpen = false, ramnPairTaken = false;
+  let ramnDashWasOpen = false, ramnCtrlWasOpen = false, ramnPairTaken = false;
   function claim(id, open, takes) {
     if (open) {
       if (heldBy === id) return;
@@ -110,6 +110,8 @@
       // has closed the Control Panel, a 'dash' panel taking over still owes both windows back.
       if (!handover) {
         ramnDashWasOpen = !!(window.ramnIsOpen && window.ramnIsOpen());
+        // Recorded on its own: the Control panel can be up with the dashboard closed.
+        ramnCtrlWasOpen = !!(window.ramnCtrlIsOpen && window.ramnCtrlIsOpen());
         ramnPairTaken = false;
       }
       ramnPairTaken = ramnPairTaken || (takes === 'pair');
@@ -124,9 +126,9 @@
       if (heldBy !== id) { syncButtons(); return; }
       heldBy = '';
       syncButtons();
-      if (!ramnDashWasOpen) return;   // a window the user had closed stays closed
-      if (ramnPairTaken) { if (window.ramnSetPairOpen) window.ramnSetPairOpen(true); }
-      else if (window.ramnSetDashOpen) window.ramnSetDashOpen(true);
+      // A window the user had closed stays closed; each of the pair on its own record.
+      if (ramnDashWasOpen && window.ramnSetDashOpen) window.ramnSetDashOpen(true);
+      if (ramnPairTaken && ramnCtrlWasOpen && window.ramnSetCtrlOpen) window.ramnSetCtrlOpen(true);
     }
   }
 
@@ -470,12 +472,14 @@
     else console.warn('Vehicle panels: ramnVehicleSlots is missing - load ramn.js before the panels.');
     families.add(o.family);
     let tel = null, live = false, rafPending = false;
+    // Only while its window is open, like makeVehiclePanel: the next push redraws it on opening.
+    const shown = () => live && !!sec.closest('.open');
     function markDirty() {
-      if (rafPending || !live) return;
+      if (rafPending || !shown()) return;
       rafPending = true;
       requestAnimationFrame(() => {
         rafPending = false;
-        if (!live) return;
+        if (!shown()) return;
         if (o.render) o.render(tel);
         if (slots) slots.refit();
       });

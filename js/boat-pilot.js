@@ -6,7 +6,7 @@
 // decoded off PGN 127245's rudder order, and otherwise the boat is steered on the RAMN 'steer'
 // axis, which InputRouter's own arbitration accepts as the rudder command when 'rudder' is absent.
 //
-// `sheet` is OWNED here: this window sources it into window.carlitoUplinkSources, permanently
+// `sheet` is OWNED here: this file sources it into window.carlitoUplinkSources, permanently
 // rather than as a claim, because nothing else on this side sources it (the carlito.js
 // MODULE_IN_SOURCES rule). nav_mode / heading_cmd are NOT - nmea2000.js owns them, because it
 // also reads them off the bus (PGN 127237) and carlito-bridge.html loads it and not this file. So
@@ -18,7 +18,7 @@
 // own header says, so its commands sit beside them rather than in a second window.
 //
 // HEADING KNOB CAPTURE: the contract states 'heading_cmd' is PRESENCE-IS-THE-COMMAND - sourcing
-// a number the moment this window loads would engage the pilot on an arbitrary bearing before
+// a number the moment this file loads would engage the pilot on an arbitrary bearing before
 // anyone touched a control. So the source stays undefined (nothing commanded) until the FIRST
 // nudge, and that nudge seeds itself off the boat's own 'heading_target' - the exact value the
 // contract says an engage would capture - rather than off zero.
@@ -84,11 +84,11 @@
     <div class="vp-sec-lbl" title="contract nav_mode - the request, mirrored verbatim. STANDBY hands the rudder to the helm; HEADING HOLD asks the pilot to steer the commanded course. What it is ACTUALLY doing (nav_mode_actual) reads back on the boat dashboard's Autopilot chip.">Mode</div>
     <div class="bap-seg">
       <button id="bapStandby" title="nav_mode = 0. Hand-steered on the RAMN rudder axis.">Standby</button>
-      <button id="bapAuto" title="nav_mode = 1. The pilot steers 'heading_cmd' if this window has sent one, or the course it captured at the moment you last engaged.">Auto</button>
+      <button id="bapAuto" title="nav_mode = 1. The pilot steers 'heading_cmd' if this panel has sent one, or the course it captured at the moment you last engaged.">Auto</button>
     </div>
 
     <div class="vp-rule"></div>
-    <div class="vp-sec-lbl" title="contract heading_cmd - a compass bearing, only meaningful in Auto. Presence IS the command: this window sends nothing until the first nudge below, so engaging Auto alone captures whatever course the boat is already on (the dashboard's Target chip reads it back) rather than steering to an arbitrary number.">Heading</div>
+    <div class="vp-sec-lbl" title="contract heading_cmd - a compass bearing, only meaningful in Auto. Presence IS the command: this panel sends nothing until the first nudge below, so engaging Auto alone captures whatever course the boat is already on (the dashboard's Target chip reads it back) rather than steering to an arbitrary number.">Heading</div>
     <div class="bap-hdg">
       <span class="bap-hdg-v uncaptured" id="bapHdgV">captured</span>
     </div>
@@ -110,7 +110,7 @@
 
   // ── Render ────────────────────────────────────────────────────────────────────
   // Also on every telemetry push while open: a 127237 on the bus can change the pilot state
-  // behind this window's back.
+  // behind this panel's back.
   function render() {
     const p = pilot();
     el.standby.classList.toggle('on', p.navMode === 0);

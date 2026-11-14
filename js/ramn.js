@@ -623,26 +623,28 @@ function ramnIsOpen() { return win.classList.contains('open'); }
 function setDashOpen(open) {
   win.classList.toggle('open', open);
   if (el.btn) el.btn.classList.toggle('active', open);
-  if (open) { dashScale(win.offsetWidth || BASE_W); dirty = true; requestAnimationFrame(renderDashboard); }
+  if (open) { fitWindow(win, dashScale); dirty = true; requestAnimationFrame(renderDashboard); }
 }
 
 // makeFloating fixes the scale wrapper's height in pixels, so a body that grew or shrank needs
-// its scale again; only when the height actually moved.
+// its scale again; only when the height actually moved. Every scale records the height it fitted,
+// or a section shown while the window was closed reads as "unchanged" against a stale record.
 const fitH = new WeakMap();
+function fitWindow(w, scale) {
+  scale(w.offsetWidth || BASE_W);
+  fitH.set(w, w.querySelector('.ramn-body').offsetHeight);
+}
 function refitWindows() {
   for (const [w, scale] of [[win, dashScale], [ctrlWin, ctrlScale]]) {
     if (!w.classList.contains('open')) continue;
-    const body = w.querySelector('.ramn-body');
-    if (fitH.get(w) === body.offsetHeight) continue;
-    scale(w.offsetWidth || BASE_W);
-    fitH.set(w, body.offsetHeight);
+    if (fitH.get(w) !== w.querySelector('.ramn-body').offsetHeight) fitWindow(w, scale);
   }
 }
 
 function setCtrlOpen(open) {
   ctrlWin.querySelector('.ramn-body').classList.toggle('ramn-live', !demoEnabled);
   ctrlWin.classList.toggle('open', open);
-  if (open) { syncCtrlUI(); ctrlScale(ctrlWin.offsetWidth || BASE_W); }
+  if (open) { syncCtrlUI(); fitWindow(ctrlWin, ctrlScale); }
 }
 
 // Paired toolbar toggle: opens BOTH the dashboard + the Control panel; if both are already open,
@@ -891,6 +893,9 @@ window.ramnCtrlToggle = ramnCtrlToggle;
 window.ramnSetPairOpen = ramnSetPairOpen;   // ← used by drone.js to hand the vehicle over
 // The DASHBOARD alone - vehicle-panel.js's 'dash' handoff, for a machine the RAMN controls fit.
 window.ramnSetDashOpen = setDashOpen;
+// The Control panel alone, for the 'pair' hand-back: it can be open with the dashboard closed.
+window.ramnCtrlIsOpen = () => ctrlWin.classList.contains('open');
+window.ramnSetCtrlOpen = setCtrlOpen;
 // The two windows are the vehicle's own Dashboard / Control panel: vehicle-panel.js mounts a
 // machine's sections into these slots and names the windows after it ("Dashboard (Truck)").
 // `refit` re-applies an open window's scale after a section changed its body's height.

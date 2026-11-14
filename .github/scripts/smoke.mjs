@@ -541,13 +541,15 @@ const panels = await page.evaluate(async (P) => {
     return !!c && !c.closest('.vp-hidden') &&
       document.querySelector('#ramnCtrlWindow .ramn-title').textContent === 'Control panel (' + label + ')';
   };
+  // A machine's read-backs with no dashboard of their own are a shown section of the RAMN one.
+  const dashSec = (id) => { const c = document.querySelector('#ramnWindow #' + id); return !!c && !c.closest('.vp-hidden'); };
   const CASES = [
     ['drone', () => open('droneWindow') && open('droneCtrlWindow')],
     ['truck', () => open('truckWindow') && document.getElementById('truckRpmV').textContent === '1400' && ctrlSec('truckCtlPto', 'Truck')],
     ['tractor', () => open('tractorWindow') && document.getElementById('tractorGroundV').textContent === '7.6 km/h' && ctrlSec('tractorCtlPto', 'Tractor')],
     ['boat', () => open('boatWindow') && document.getElementById('boatSog').textContent === '6.8' && ctrlSec('bapAuto', 'Boat')],
-    ['train', () => ctrlSec('trnPanto', 'Train')],
-    ['plane', () => ctrlSec('plnElev', 'Plane')],
+    ['train', () => ctrlSec('trnPanto', 'Train') && dashSec('trnPantoState')],
+    ['plane', () => ctrlSec('plnElev', 'Plane') && dashSec('plnFlapsActual')],
   ];
   const problems = [];
   try {
