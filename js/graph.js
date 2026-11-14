@@ -249,22 +249,23 @@ function graphOnShow() {
 
 // Re-list the Signal ID dropdown as new IDs appear on the bus, without disturbing an
 // open menu or the user's current pick (graphPopulateIdPicker preserves the selection).
-let graphIdCount = -1;
+// Keyed on the ID set, not its size: a cleared or capped ID list can refill to the same count
+// with different IDs.
+let graphIdKeys = null;
 let graphIdTick = 0;
 function graphMaybeRefreshIdPicker() {
   const wrap = document.getElementById('graphWrap');
   if (!wrap || wrap.style.display === 'none' || typeof frames === 'undefined') return;
-  if (frames.size === graphIdCount) return;
+  if ([...frames.keys()].join() === graphIdKeys) return;
   const active = document.activeElement;
   if (active && ['graphPickId', 'graphPickByte', 'graphPickWidth', 'graphPickEndian'].includes(active.id)) return;
-  graphIdCount = frames.size;
   graphPopulateIdPicker();
 }
 
 function graphPopulateIdPicker() {
   const sel = document.getElementById('graphPickId');
   if (!sel || typeof frames === 'undefined') return;
-  graphIdCount = frames.size;
+  graphIdKeys = [...frames.keys()].join();
   const prev = sel.value;
   const keys = [...frames.keys()].sort((a, b) => {
     const A = graphParseKey(a), B = graphParseKey(b);
@@ -654,8 +655,9 @@ function drawGraph() {
     ctx.beginPath(); ctx.moveTo(Math.round(graphHoverX) + 0.5, plotT); ctx.lineTo(Math.round(graphHoverX) + 0.5, plotB); ctx.stroke();
     hover = { tHover, rows: [] };
     let focused = null, focusedD = Infinity;
+    const slack = 8 * (tHi - tLo) / (plotR - plotL);   // 8 px of time
     for (const sig of graphSignals) {
-      const v = graphNearest(sig, tHover);
+      const v = graphNearest(sig, tHover, slack);
       if (v === null) continue;
       const color = graphSigColor(cs, sig);
       const py = normY(sig, v);
@@ -708,11 +710,16 @@ function graphLowerBound(b, t) {
   return lo;
 }
 
-function graphNearest(sig, t) {
+// null outside the signal's own data (before its first sample, or after it went quiet), with
+// `minSlack` ms or 1.5 average sample intervals of slack, else the readout shows a stale value.
+function graphNearest(sig, t, minSlack) {
   const b = sig.buf;
   if (!b.count) return null;
   const start = (b.head - b.count + b.cap) % b.cap;
   const at = j => b.t[(start + j) % b.cap];
+  const t0 = at(0), t1 = at(b.count - 1);
+  const slack = Math.max(minSlack, b.count > 1 ? 1.5 * (t1 - t0) / (b.count - 1) : 0);
+  if (t < t0 - slack || t > t1 + slack) return null;
   const lo = graphLowerBound(b, t);
   let best = b.v[(start + lo) % b.cap];
   if (lo > 0 && Math.abs(at(lo - 1) - t) < Math.abs(at(lo) - t)) best = b.v[(start + lo - 1) % b.cap];
@@ -890,14 +897,17 @@ window.graphApply           = graphApply;
 
   const c = document.getElementById('graphCanvas');
   if (c) {
+    // Pan on window, so a drag keeps going when the cursor leaves the canvas.
+    window.addEventListener('mousemove', e => {
+      if (!graphDragging || !graphPlot) return;
+      const dx = e.clientX - graphDragX;
+      graphDragX = e.clientX;
+      const msPerPx = graphPlot.win / (graphPlot.R - graphPlot.L);
+      graphPan -= dx * msPerPx;          // drag right → view moves into the past
+      graphDirty = true;
+    });
     c.addEventListener('mousemove', e => {
       const r = c.getBoundingClientRect();
-      if (graphDragging && graphPlot) {
-        const dx = e.clientX - graphDragX;
-        graphDragX = e.clientX;
-        const msPerPx = graphPlot.win / (graphPlot.R - graphPlot.L);
-        graphPan -= dx * msPerPx;          // drag right → view moves into the past
-      }
       graphHoverX = e.clientX - r.left;
       graphHoverY = e.clientY - r.top;
       graphDirty = true;
