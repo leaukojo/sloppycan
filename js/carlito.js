@@ -227,7 +227,19 @@
   // plenty for control input. Safe in the full app too - controls don't need 60Hz.
   let lastPumpT = 0;
   const UPLINK_MS = 28;   // ~33–36 Hz
-  let noDriveShown = false;   // last-applied state of the "no driving controls" bar note
+  let noDriveShown = '';   // last-applied "no driving controls" bar note: '' hidden, 'none', 'steer'
+  // 'steer': no pedals or steer, but a `rudder` / `guidance` order - the game's fallback keeps the
+  // bridge on the wheel for those (InputRouter.blend_local_driving), so only the pedals go local.
+  const NO_DRIVE_NOTE = {
+    none:  ['no driving controls', 'The built uplink has no accel, brake or steer - the game falls back to its own keyboard (not during a challenge)'],
+    steer: ['steer only', 'The built uplink steers (rudder / guidance order) but has no accel or brake - the game\'s own keyboard drives the pedals (not during a challenge)'],
+  };
+  function setNoDrive(mode) {
+    if (mode === noDriveShown) return;
+    noDriveShown = mode;
+    el.noDrive.classList.toggle('on', !!mode);
+    if (mode) [el.noDrive.textContent, el.noDrive.title] = NO_DRIVE_NOTE[mode];
+  }
   const el = {};
   const OUT_IDS = ['co_accel','co_brake','co_steer','co_hand','co_key','co_lights','co_gear','co_turn','co_horn','co_check','co_batt','co_brakelamp'];
   const IN_IDS = ['ci_kmh','ci_rpm','ci_gear','ci_throttle','ci_yaw','ci_acclong','ci_acclat','ci_steer','ci_slip','ci_ground','ci_head','ci_wind','ci_pos','ci_lat','ci_lon','ci_odo','ci_status','ci_impact','ci_fuel','ci_burn','ci_ratio','ci_coolant','ci_batt'];
@@ -508,7 +520,7 @@
         // Bar note, updated only when it changes - a DOM write every pump would fight the same
         // main-thread budget the render-skip above protects.
         const noDrive = v.accel === undefined && v.brake === undefined && v.steer === undefined;
-        if (noDrive !== noDriveShown) { noDriveShown = noDrive; el.noDrive.classList.toggle('on', noDrive); }
+        setNoDrive(!noDrive ? '' : (v.rudder !== undefined || v.guidance !== undefined) ? 'steer' : 'none');
         try { iframe.contentWindow.postMessage({ type: 'carlitoInput', version: CONTRACT_VERSION, hash: CONTRACT_HASH, values: v }, GAME_ORIGIN); } catch (e) { /* not ready */ }
       }
       // Skip the debug-panel DOM writes when it's collapsed (the default). renderOut/renderIn rewrite
@@ -1081,7 +1093,7 @@
       resetPackers();          // nothing announced on this link is on record any more
       notifyTelemetry(null);   // the link is gone - let a vehicle-specific panel close itself
       setChallenge(false);     // no game, no attempt
-      if (noDriveShown) { noDriveShown = false; el.noDrive.classList.remove('on'); }
+      setNoDrive('');
       if (el.placeholder) el.placeholder.style.display = '';
     }
     if (window.updateTermTrafficWarn) window.updateTermTrafficWarn(); // refresh serial-tab warning
@@ -1142,7 +1154,7 @@
       upOn = !upOn;
       el.up.classList.toggle('on', upOn);
       el.up.innerHTML = upOn ? 'Up ●' : 'Up ○';
-      if (!upOn && noDriveShown) { noDriveShown = false; el.noDrive.classList.remove('on'); }
+      if (!upOn) setNoDrive('');
       syncLinkDot();
     });
     el.down.addEventListener('click', () => {

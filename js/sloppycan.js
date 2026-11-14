@@ -2834,6 +2834,7 @@ function demoInjectN2k() {
 // ── Demo base-traffic engine ───────────────────────────────────────────────────
 // Exactly one base-traffic generator is active at a time (tracked by demoBaseTraffic).
 const DEMO_J1939_KINDS = ['j1939', 'nmea2000', 'iso11783'];
+const DEMO_N2K_RAMN_IDS = [0x024, 0x039];   // brake, accel - what the NMEA 2000 demo keeps of RAMN
 
 function demoStopBaseTimers() {
   demoTimers.forEach(t => clearInterval(t));
@@ -2857,6 +2858,13 @@ function demoStartBaseTimers() {
     if (window.dronecanDemoStart) window.dronecanDemoStart();
   } else { // j1939 / nmea2000 / iso11783
     demoTimers.push(setInterval(demoInjectN2k, 100));
+    // NMEA 2000 has no standard throttle command, so the boat's pedals stay RAMN frames beside the
+    // N2K traffic - the mixed 11/29-bit bus a RAMN board and a boat make live. Steer goes as the
+    // 127245 rudder order (j1939.js), so 0x062 is left off.
+    if (demoBaseTraffic === 'nmea2000') DEMO_N2K_RAMN_IDS.forEach(id => {
+      const { period } = DEMO_CONFIG.find(c => c.id === id);
+      demoTimers.push(setInterval(() => demoTick(id), period));
+    });
   }
 }
 

@@ -154,9 +154,9 @@
   // The DroneCAN tab holds one protocol, so showing it is the selection; the J1939 tab holds three,
   // so its MODE BUTTON is - a tab opened to read frames must not offer to restart a drive.
   // The J1939 traffics carry the RAMN Control Panel as J1939 driver-demand groups
-  // (j1939-flavor.js); NMEA 2000 carries only its steer, as a rudder order, so the game's keyboard
-  // drives the throttle; DroneCAN carries none, and the drone flies from Drone Control or falls
-  // back to the keyboard.
+  // (j1939-flavor.js); NMEA 2000 carries its steer as a rudder order and its pedals as RAMN
+  // frames beside it (it has no throttle command); DroneCAN carries none, and the drone flies from
+  // Drone Control or falls back to the keyboard.
   const J1939_DRIVES = ' Under this traffic the Control panel drives it through J1939 frames' +
                        ' (EEC2 / EBC1 / VDC2 / TC1 / CCVS).';
   const PROTO_PANEL = {
@@ -169,8 +169,8 @@
     iso11783: ['tractor', 'ISO 11783 is the tractor-implement bus: hitch, PTO, wheel and ground ' +
                           'speed, and the implement’s own address claim.' + J1939_DRIVES],
     nmea2000: ['boat', 'NMEA 2000 is a marine bus - heading, rudder and trim. Under this traffic ' +
-                       'the Control panel’s steer orders the rudder (PGN 127245) and the ' +
-                       'game’s own keyboard drives the throttle.'],
+                       'the Control panel’s steer orders the rudder (PGN 127245), and its ' +
+                       'pedals stay RAMN frames (NMEA 2000 has no throttle command).'],
   };
   function requestForProto(mode) {
     const m = PROTO_PANEL[mode];
