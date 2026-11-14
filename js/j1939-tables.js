@@ -222,6 +222,12 @@ const J1939_DB = {
   0x0100:{ name:'Transmission Control 1', abbr:'TC1', spns:[
     { spn:525, name:'Requested Gear', b:2, n:1, f:1, o:-125, u:'', dp:0 },
   ]},
+  // LCMD: only the turn pair j1939-flavor.js drives; positions off beta.isobus.net PGN 65089,
+  // states off its SPN 2367 page (ISO 11783-7).
+  0xFE41:{ name:'Lighting Command', abbr:'LCMD', spns:[
+    { spn:2369, name:'Right-turn Signal Lights Command', b:1, n:0, bit:4, bits:2, map:{0:'Deactivate',1:'Activate',2:'Reserved',3:"Don't care"} },
+    { spn:2367, name:'Left-turn Signal Lights Command',  b:1, n:0, bit:6, bits:2, map:{0:'Deactivate',1:'Activate',2:'Reserved',3:"Don't care"} },
+  ]},
   0xFEF1:{ name:'Cruise Control / Vehicle Speed', abbr:'CCVS1', spns:[
     { spn:70,  name:'Parking Brake Switch', b:0, n:0, bit:2, bits:2, map:{0:'Not set',1:'Set',2:'Error',3:'N/A'} },
     { spn:84,  name:'Vehicle Speed',       b:1, n:2, f:1/256, o:0, u:'km/h', dp:1 },
