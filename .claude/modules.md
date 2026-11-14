@@ -175,17 +175,24 @@ the CANopen tab.
 - **`ramn.js`:** `ingestFrame` → `ramnIngestFrame`; `clearFrames` → `ramnClear`;
   `disconnectSerial` → `ramnStop`; `demoTick` → `ramnCtrlPayload(id)`, returns early while
   `!ramnTrafficOn()`; `startDemo` → `ramnDemoStarted`; `demoSetBaseTraffic` → `ramnClear` on
-  leaving RAMN. `index.html`: `#ramnBtn` (`ramnToggle()`, opens the dashboard + the Control Panel
-  in demo). All DOM + CSS injected.
+  leaving RAMN. `index.html`: `#ramnBtn` (`ramnToggle()`, opens the dashboard + the Control panel;
+  off demo the driving widgets hide, `ramn-live`). All DOM + CSS injected. Exposes
+  `ramnVehicleSlots()` + `ramnSetTitles()` for `vehicle-panel.js`.
 - **`vehicle-panel.js`:** script after `carlito_contract.js`, before every panel; every panel
   button ships `style="display:none"`. `ramn.js` `ramnSetDashOpen`; `sloppycan.js`
   `switchViewTab('dronecan')` → `vehiclePanelRequestForProto` and `reflowHeader`; `j1939.js` as
   above; the demo follows the vehicle through `vehiclePanelSubscribe` +
   `vehiclePanelProtoTable()` (`demoOnTelemetry`).
-- **Panels** (`drone.js`, `truck.js`, `tractor.js`, `boat.js`, `boat-pilot.js`, `train.js`,
-  `plane.js`): a script tag after `vehicle-panel.js` + `ramn.js` (`drone.js` also after
-  `dronecan.js`), a toolbar button, the id in `sloppycan.js`'s `_buttonsWrap`
-  list. Everything else through `window.vehiclePanel*` and the uplink registries. Not loaded on
+- **Controls vs status:** what the user operates lives in the Control panel, what shows state on
+  a dashboard. The RAMN pair is titled after the machine on the link (`Dashboard (Truck)` /
+  `Control panel (Truck)`, `RAMN` for a car); a machine's commands are a `vehiclePanelSection`
+  (`where: 'ctrl'`) mounted into it, its read-backs with no dashboard of their own a `'dash'`
+  section. Never a control widget on a dashboard window. The drone, which replaces the pair, has
+  its own `Dashboard (Drone)` / `Control panel (Drone)`.
+- **Panels** (`drone.js`, `truck.js`, `tractor.js`, `boat.js`): a script tag after
+  `vehicle-panel.js` + `ramn.js` (`drone.js` also after `dronecan.js`), a toolbar button, the id in
+  `sloppycan.js`'s `_buttonsWrap` list. **Sections only** (`boat-pilot.js`, `train.js`,
+  `plane.js`, plus the truck / tractor commands): a script tag, no button. Everything else through `window.vehiclePanel*` and the uplink registries. Not loaded on
   `carlito-bridge.html` (`carlito-bridge.js` sets `window.droneIsOpen = () => true`).
 
 ## Script link (`script-link.js`)

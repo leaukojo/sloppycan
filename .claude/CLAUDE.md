@@ -41,8 +41,9 @@ Flavor packers (no tab): `isobus.js`, `j1939-flavor.js`, `nmea2000.js`, `cleanop
 `iso11992.js`, `canaerospace.js`.
 
 Carlito link and panels: `carlito.js` (the game window, telemetry → CAN, uplink), `ramn.js`
-(RAMN dashboard + Control Panel, `makeFloating`), `drone.js`, `truck.js`, `tractor.js`,
-`boat.js`, `boat-pilot.js`, `train.js`, `plane.js`.
+(the Dashboard + Control panel pair, `makeFloating`), `drone.js`, `truck.js`, `tractor.js`,
+`boat.js`, `boat-pilot.js`, `train.js`, `plane.js`. Controls go in the Control panel, status on a
+dashboard (`.claude/modules.md`).
 
 Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_relay.py`) ·
 `carlito-bridge.html` + `.js` (standalone RAMN↔Carlito bridge, no link to the app) ·
