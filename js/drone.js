@@ -93,9 +93,11 @@
 .drone-node {
   padding:4px 2px; border-radius:0; text-align:center; background:var(--bg);
   border:1px solid var(--border); font-size:var(--fs-s); letter-spacing:.03em; color:var(--text2);
-  cursor:pointer; user-select:none;
+  user-select:none;
 }
-.drone-node:hover { border-color:var(--border2); color:var(--text); }
+/* The Control panel's copy is the switch; the dashboard's is read-only. */
+.drone-nodes.ctl .drone-node { cursor:pointer; }
+.drone-nodes.ctl .drone-node:hover { border-color:var(--border2); color:var(--text); }
 .drone-node.ok   { background:var(--green-dim); color:var(--green); border-color:transparent; }
 .drone-node.warn { background:var(--amber-dim); color:var(--amber); border-color:transparent; }
 .drone-node.crit { background:var(--red-dim);   color:var(--red);   border-color:transparent; }
@@ -303,7 +305,7 @@
     </table>
 
     <div class="drone-rule"></div>
-    <div class="drone-sec-lbl" title="The eight DroneCAN nodes, in the contract's node_health order. Colour is the node's own health (green OK, amber WARNING, red CRITICAL); a struck-through cell is one YOU took off the bus. Killing an ESC costs the mixer a motor and is not compensated for; killing GNSS or AHRS refuses arming."><span>Bus</span><span class="v">click = fail / restore</span></div>
+    <div class="drone-sec-lbl" title="The eight DroneCAN nodes, in the contract's node_health order. Colour is the node's own health (green OK, amber WARNING, red CRITICAL); a struck-through cell is one YOU took off the bus (the Control panel's Bus nodes)."><span>Bus</span></div>
     <div class="drone-nodes" id="dnNodes"></div>
 `,
   });
@@ -353,6 +355,11 @@
       <div class="drone-sec-lbl"><span title="contract gimbal_pitch / gimbal_yaw in degrees - BRIDGE-ONLY, with no key in the game. Sends a DroneCAN camera_gimbal.AngularCommand and an actuator.ArrayCommand together, because which of the two a real mount answers to is a property of the mount. Both sliders' stops come off the contract's own ranges.">Gimbal</span><span><button class="drone-mini" id="dncGimbCentre" title="Command the mount back to looking straight ahead.">Centre</button> <span class="v" id="dncGimbV">+0&deg; / +0&deg;</span></span></div>
       <input type="range" class="drone-range gimbal" id="dncGimbP" min="-90" max="30" value="0" title="Gimbal pitch, + = up. The mount slews at a finite rate, so watch gimbal_pitch_actual on the dashboard chase this rather than match it.">
       <input type="range" class="drone-range gimbal" id="dncGimbY" min="-120" max="120" value="0" style="margin-top:4px" title="Gimbal yaw, + = right. Sent together with pitch: an orientation is both angles, so sending half of one is a lie about the other.">
+    </div>
+
+    <div class="drone-sec">
+      <div class="drone-sec-lbl"><span title="Take a DroneCAN node off the bus or restore it - a bench SWITCH, not damage. Killing an ESC costs the mixer a motor and is not compensated for; killing GNSS or AHRS refuses arming. Its health reads back on the dashboard's Bus row.">Bus nodes</span><span class="v">click = fail / restore</span></div>
+      <div class="drone-nodes ctl" id="dncNodes"></div>
     </div>
 
     <div class="drone-hint">
@@ -591,6 +598,7 @@
     el.gimbP.value = String(c.gimbalPitch);
     el.gimbY.value = String(c.gimbalYaw);
     el.gimbV.textContent = signed(c.gimbalPitch) + '° / ' + signed(c.gimbalYaw) + '°';
+    el.ctlNodeCells.forEach((cell, i) => cell.classList.toggle('cut', !!((c.failMask >> i) & 1)));
     syncArmNote();
   }
 
@@ -666,6 +674,9 @@
     // home, and this is node_health's bit order.
     const nodes = dashWin.querySelector('#dnNodes');
     nodes.innerHTML = ROSTER.map((r, i) =>
+      `<div class="drone-node" title="${esc(r.name + ', DroneCAN node ' + r.id + ' (contract node_health index ' + i + ').')}">${esc(r.name)}</div>`).join('');
+    const ctlNodes = ctrlWin.querySelector('#dncNodes');
+    ctlNodes.innerHTML = ROSTER.map((r, i) =>
       `<div class="drone-node" data-idx="${i}" title="${esc(NODE_HELP(r, i))}">${esc(r.name)}</div>`).join('');
 
     const escBody = dashWin.querySelector('#dnEscBody');
@@ -701,6 +712,7 @@
       modeSeg: modeSeg, packBtn: q(ctrlWin, 'dncPackBtn'), packV: q(ctrlWin, 'dncPackV'),
       hookBtn: q(ctrlWin, 'dncHookBtn'), beepBtn: q(ctrlWin, 'dncBeepBtn'), led: q(ctrlWin, 'dncLed'),
       gimbP: q(ctrlWin, 'dncGimbP'), gimbY: q(ctrlWin, 'dncGimbY'), gimbV: q(ctrlWin, 'dncGimbV'),
+      ctlNodeCells: [...ctlNodes.querySelectorAll('.drone-node')],
     };
 
     // Gimbal slider bounds come off the CONTRACT's own ranges rather than the markup's, so a
@@ -745,9 +757,9 @@
     el.gimbY.addEventListener('input', pushGimbal);
     q(ctrlWin, 'dncGimbCentre').addEventListener('click', () => { el.gimbP.value = '0'; el.gimbY.value = '0'; pushGimbal(); });
 
-    nodes.addEventListener('click', e => {
+    ctlNodes.addEventListener('click', e => {
       const cell = e.target.closest('.drone-node');
-      if (cell && window.dronecanToggleNodeFail) { window.dronecanToggleNodeFail(+cell.dataset.idx); markDirty(); }
+      if (cell && window.dronecanToggleNodeFail) { window.dronecanToggleNodeFail(+cell.dataset.idx); syncCtrlUI(); markDirty(); }
     });
 
     // ── Keyboard flying (control panel open, not typing in a field) ──
