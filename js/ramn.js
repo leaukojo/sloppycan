@@ -3,23 +3,26 @@
 //   1. RAMN dashboard - decodes the live CAN stream from a RAMN (Resistant
 //      Automotive Miniature Network) board into vehicle signals (brake, accel,
 //      steering, gear, lights, turn, key, handbrake, horn) and renders a car cluster.
-//   2. RAMN Control Panel (DEMO MODE ONLY) - lets the user "drive" the simulated
-//      car. Its control values replace the demo's fixed 0x0000 payload bytes, so
-//      moving a control changes the demo CAN frames, which the dashboard reflects.
+//   2. Control panel - in Demo, lets the user "drive" the simulated car: its control
+//      values replace the demo's fixed 0x0000 payload bytes, so moving a control changes
+//      the demo CAN frames, which the dashboard reflects. On a live bus the board drives,
+//      so those widgets hide and it carries only the uplink switches and the machine's
+//      own commands (vehicle-panel.js sections).
+//   Both are titled after the machine on the Carlito link: "Dashboard (Truck)" etc.
 //
 // Signal decode/encode is grounded in the RAMN firmware (ramn_sensors.h,
 // ramn_signal_defs.h, ramn_can_database.c, ramn_actuators.h) and
 // misc/busmaster_ramn.dbc. 16-bit analog values are big-endian, first 2 bytes.
 //
 // INTEGRATION POINTS - the only changes required in the main files:
-//   index.html    <script src="ramn.js" defer>  +  #ramnBtn (paired toggle opens dashboard + demo Control Panel)
+//   index.html    <script src="ramn.js" defer>  +  #ramnBtn (paired toggle opens the dashboard + Control panel)
 //   sloppycan.js  ingestFrame():  if (window.ramnIngestFrame) ramnIngestFrame(frame);
 //   sloppycan.js  clearFrames():  if (window.ramnClear) ramnClear();
 //   sloppycan.js  disconnect path: if (window.ramnStop) ramnStop();
 //   sloppycan.js  demoTick(): payload = window.ramnCtrlPayload ? ramnCtrlPayload(id) : [0,0];
 //   sloppycan.js  demoTick(): returns early while !ramnTrafficOn()  (the panel's Disable traffic)
 //   carlito.js    message handler: ramnSetTraffic(!challenge) on the envelope's challenge edges
-//   sloppycan.js  startDemo(): if (window.ramnDemoStarted) ramnDemoStarted();  (records demo → pairs Control Panel)
+//   sloppycan.js  startDemo(): if (window.ramnDemoStarted) ramnDemoStarted();  (records demo → shows the driving widgets)
 //// Live-only: no persistence of window position/state.
 
 // ── Inject CSS ────────────────────────────────────────────────────────────────
@@ -136,6 +139,8 @@
 .ramn-joypad button.on { background:var(--green-dim); color:var(--green); border-color:transparent; }
 /* Traffic off: the simulated frames stop, so the controls that feed them grey out. */
 .ramn-header .ramn-dot.ctrl.off { background:var(--text3); }
+/* Live bus: the board drives, so the demo's driving widgets (and the traffic switch) hide. */
+.ramn-live .ramn-sec[data-ctl], .ramn-live .ramn-traffic-sec, .ramn-live .ramn-drive-hint { display:none; }
 .ramn-ctrl-off .ramn-sec:not(.ramn-traffic-sec):not(.ramn-uplink-sec):not(.vp-section), .ramn-sec.ramn-sec-off { opacity:.35; pointer-events:none; }
 .ramn-base-note { margin-top:6px; font-size:var(--fs-s); color:var(--amber); }
 .ramn-hint {
@@ -395,8 +400,8 @@ ctrlWin.innerHTML = `
     </div>
     <div id="ramnCtrlVehicle"></div><!-- vehicle-panel.js sections: the machine's own commands -->
     <div class="ramn-hint">
-      <b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
-      <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.<br>
+      <span class="ramn-drive-hint"><b>Joystick</b>: ↑/↓ shift gear (P · R · 1-<span id="ramnCtrlGearTop">6</span>) · ←/→ toggle turn signal · ● horn.<br>
+      <b>Keys</b> (panel open): <b>W</b>/<b>S</b> accel/brake · <b>A</b>/<b>D</b> steer · <b>Space</b> handbrake - hold to drive.<br></span>
       <a href="https://github.com/ToyotaInfoTech/RAMN" target="_blank" rel="noopener">Learn more about RAMN ↗</a>
     </div>
    </div>
@@ -436,13 +441,13 @@ const ramnCtrl = {
 
 // The two switches with NO RAMN frame behind them (contract tcs_off / esc_off): the Control Panel
 // OWNS them and registers them in carlito.js's carlitoUplinkSources, like train.js's pantograph.
-// "Absence is meaningful": undefined while the panel is not in use (no demo; the bridge page), so
-// the game keeps its own default; the toggle's value while it is (absent and false both mean the
-// system is on). j1939-flavor.js's EBC1 decode claims tcs_off over this while a bus frame holds it.
-const ramnSw = { tcs_off: false, esc_off: false };
+// "Absence is meaningful": undefined while the panel is not in use (no demo and never touched; the
+// bridge page), so the game keeps its own default; the toggle's value while it is (absent and
+// false both mean the system is on). j1939-flavor.js's EBC1 decode claims tcs_off over this while a bus frame holds it.
+const ramnSw = { tcs_off: false, esc_off: false, touched: false };
 window.carlitoUplinkSources = window.carlitoUplinkSources || {};
-window.carlitoUplinkSources.tcs_off = () => demoEnabled ? ramnSw.tcs_off : undefined;
-window.carlitoUplinkSources.esc_off = () => demoEnabled ? ramnSw.esc_off : undefined;
+window.carlitoUplinkSources.tcs_off = () => (demoEnabled || ramnSw.touched) ? ramnSw.tcs_off : undefined;
+window.carlitoUplinkSources.esc_off = () => (demoEnabled || ramnSw.touched) ? ramnSw.esc_off : undefined;
 
 // Whether the demo emits the RAMN frames at all (sloppycan.js demoTick asks ramnTrafficOn).
 // Off is "nothing on the bus": the decoded state is cleared, so the uplink stops repeating the
@@ -609,8 +614,8 @@ function renderDashboard() {
 function ramnClear() { ramnState = blankState(); ramnSeenFields = new Set(); dirty = true; requestAnimationFrame(renderDashboard); }
 function ramnStop()  { ramnClear(); }
 
-// Demo mode pairs the driving Control Panel with the dashboard (#3). Recorded when
-// the core calls ramnDemoStarted(); on a live bus only the dashboard opens.
+// Demo mode shows the Control panel's driving widgets. Recorded when the core calls
+// ramnDemoStarted(); on a live bus the board drives and they hide (ramn-live).
 let demoEnabled = false;
 
 function ramnIsOpen() { return win.classList.contains('open'); }
@@ -635,21 +640,17 @@ function refitWindows() {
 }
 
 function setCtrlOpen(open) {
+  ctrlWin.querySelector('.ramn-body').classList.toggle('ramn-live', !demoEnabled);
   ctrlWin.classList.toggle('open', open);
   if (open) { syncCtrlUI(); ctrlScale(ctrlWin.offsetWidth || BASE_W); }
 }
 
-// Paired toolbar toggle: opens BOTH dashboard + (in demo) the Control Panel; if
-// everything is already open, closes both. The window close buttons / Esc still
-// close each window individually.
+// Paired toolbar toggle: opens BOTH the dashboard + the Control panel; if both are already open,
+// closes both. The window close buttons / Esc still close each window individually.
 function ramnToggle() {
-  const dashOpen = win.classList.contains('open');
-  const ctrlOpen = ctrlWin.classList.contains('open');
-  const allOpen = dashOpen && (!demoEnabled || ctrlOpen);
-  const open = !allOpen;
+  const open = !(win.classList.contains('open') && ctrlWin.classList.contains('open'));
   setDashOpen(open);
-  if (demoEnabled) setCtrlOpen(open);
-  else if (!open && ctrlOpen) setCtrlOpen(false); // stray panel safety
+  setCtrlOpen(open);
 }
 
 // Single toggle for the Control Panel - used by its close button + Esc only.
@@ -660,15 +661,16 @@ function ramnCtrlToggle() { setCtrlOpen(!ctrlWin.classList.contains('open')); }
 // each other rather than stack) - "put them back" must not be a guess about what was open.
 function ramnSetPairOpen(open) {
   setDashOpen(open);
-  if (demoEnabled) setCtrlOpen(open);
-  else if (!open) setCtrlOpen(false);   // stray panel safety, ramnToggle's rule
+  setCtrlOpen(open);
 }
 
-// Demo started - remember it so the paired toggle includes the Control Panel. If the
-// dashboard was already opened (pre-demo, no bus), pair the Control Panel in now too.
+// Demo started: the driving widgets show. If the dashboard was already opened (pre-demo, no
+// bus), pair the Control panel in now too.
 function ramnDemoStarted() {
   demoEnabled = true;
+  ctrlWin.querySelector('.ramn-body').classList.remove('ramn-live');
   if (win.classList.contains('open')) setCtrlOpen(true);
+  else refitWindows();
 }
 
 // The tallest drive byte is carlito-registry.js's window.carlitoGearTop() - the contract's, so the
@@ -836,8 +838,8 @@ function ramnSetTraffic(on) {
   cel.joypad.addEventListener('mousedown', joyPress);
 
   cel.hand.addEventListener('click', () => { ramnCtrl.handbrake = ramnCtrl.handbrake ? 0 : 1; syncCtrlUI(); });
-  cel.tcsOff.addEventListener('click', () => { ramnSw.tcs_off = !ramnSw.tcs_off; syncCtrlUI(); });
-  cel.escOff.addEventListener('click', () => { ramnSw.esc_off = !ramnSw.esc_off; syncCtrlUI(); });
+  cel.tcsOff.addEventListener('click', () => { ramnSw.tcs_off = !ramnSw.tcs_off; ramnSw.touched = true; syncCtrlUI(); });
+  cel.escOff.addEventListener('click', () => { ramnSw.esc_off = !ramnSw.esc_off; ramnSw.touched = true; syncCtrlUI(); });
 
   // Global mouse-up releases momentary joystick state (joy byte + horn).
   window.addEventListener('mouseup', () => {
@@ -859,7 +861,7 @@ function ramnSetTraffic(on) {
   };
   document.addEventListener('keydown', e => {
     // keyup stays ungated: a key held across the switch-off must still release.
-    if (!ctrlWin.classList.contains('open') || !ramnTraffic || isField(e.target) || e.repeat) return;
+    if (!ctrlWin.classList.contains('open') || !demoEnabled || !ramnTraffic || isField(e.target) || e.repeat) return;
     if (e.key === ' ') { e.preventDefault(); ramnCtrl.handbrake = 1; syncCtrlUI(); return; } // Space = handbrake (momentary)
     const m = DRIVE[e.key.toLowerCase()]; if (!m) return;
     e.preventDefault();

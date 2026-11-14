@@ -1070,7 +1070,7 @@
       const r = win.getBoundingClientRect();
       if (r.right  > window.innerWidth)  win.style.left = Math.max(8, window.innerWidth  - r.width  - 8) + 'px';
       if (r.bottom > window.innerHeight) win.style.top  = Math.max(8, window.innerHeight - r.height - 8) + 'px';
-      // Auto-open the RAMN dashboard (+ Control Panel in demo) so controls are visible.
+      // Auto-open the Dashboard + Control panel so controls are visible.
       if (window.ramnIsOpen && !window.ramnIsOpen() && window.ramnToggle) window.ramnToggle();
       if (!iframe) loadGame();
       startPump();
