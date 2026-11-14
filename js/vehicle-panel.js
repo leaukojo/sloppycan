@@ -158,7 +158,7 @@
   // beside it (it has no throttle command); DroneCAN carries none, and the drone flies from
   // Drone Control or falls back to the keyboard.
   const J1939_DRIVES = ' Under this traffic the Control panel drives it through J1939 frames' +
-                       ' (EEC2 / EBC1 / VDC2 / TC1 / CCVS).';
+                       ' (EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD).';
   const PROTO_PANEL = {
     dronecan: ['drone', 'The DroneCAN tab decodes the drone’s bus, and a car publishes none of it.' +
                         ' Fly it from Drone Control, or from the game’s own keyboard while that is' +

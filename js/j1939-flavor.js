@@ -390,6 +390,11 @@
   //   65265 CCVS  100 ms. 1.3 SPN 70 Parking Brake Switch, 00 not set / 01 set; 4.5 SPN 597
   //                       Brake Switch -> `brakeLamp`, the rear stop lamps (the bridge owns that
   //                       bit whenever it drives, so a pedal with no switch would brake unlit).
+  //   65089 LCMD  prio 3, on change of lamp state, max 1 s apart (ISO 11783-7, read off
+  //                       beta.isobus.net PGN 65089). 2.5 SPN 2369 Right-turn / 2.7 SPN 2367
+  //                       Left-turn signal lights - Command, 00 deactivate / 01 activate ->
+  //                       `turnR` / `turnL`. A lamp COMMAND, so the bit is lit-this-instant and
+  //                       the blink is the sender's (the demo's ramnBlinkOn, RAMN 0x1BB's clock).
   //
   // NOT AVAILABLE REFRESHES NOTHING: a 1-byte raw of 251+, a 2-byte raw above 0xFAFF and a 2-bit
   // 10/11 are the standard's error / not-available codes. That rule is also THE OWN-ADDRESS RULE
@@ -408,7 +413,9 @@
   const JF_DRIVE_TTL_MS = 300;
   const FULL_LOCK_RAD = 1.5 * 2 * Math.PI;
   const SA_SHIFT_CONSOLE = 0x05;   // Shift Console - Primary (isobus.net SourceAddress table)
+  const SA_BODY = 0x21;            // Body Controller (j1939-tables.js J1939_SA): the truck's lamp master
   const PGN_EEC2 = 61443, PGN_EBC1 = 61441, PGN_VDC2 = 61449, PGN_TC1 = 256, PGN_CCVS = 65265;
+  const PGN_LCMD = 65089;
   const GEAR_R_BYTE = 0xFF;        // the contract's reverse byte
   const GEAR_P_BYTE = 0xFE;        // the contract's park byte (v48)
   // The tallest drive byte is carlito-registry.js's window.carlitoGearTop(), read at call time.
@@ -420,6 +427,8 @@
     handbrake: { bus: undefined, at: 0 },
     brakeLamp: { bus: undefined, at: 0 },
     tcs_off:   { bus: undefined, at: 0 },   // claimed over ramn.js's panel toggle while fresh
+    turnL:     { bus: undefined, at: 0 },
+    turnR:     { bus: undefined, at: 0 },
   };
   const jfDriveFresh = (r) => r.bus !== undefined && Date.now() - r.at <= JF_DRIVE_TTL_MS;
   function jfDriveHold(name, v) { const r = jfDrive[name]; r.bus = v; r.at = Date.now(); }
@@ -448,20 +457,26 @@
     return Math.min(window.carlitoGearTop(), g);
   }
 
-  // The four frames the demo sends for a control state { accel, brake, steer, gear } (RAMN panel
-  // shape: % / % / -100 L..+100 R / 1..top gear, 'R' or 'P'). The parking brake and brake switch ride a CCVS
+  // The five frames the demo sends for a control state { accel, brake, steer, gear, turnL, turnR }
+  // (RAMN panel shape: % / % / -100 L..+100 R / 1..top gear, 'R' or 'P' / held switch). The parking brake and brake switch ride a CCVS
   // the demo already sends, so they are a patch onto its data rather than a frame of their own.
   // EEC2 and VDC2 come out of the encoders the game's groups use, with no game half (t = null).
   function j1939DriveFrames(c) {
     const ebc1 = jp.blank(), tc1 = jp.blank();
     jp.put(ebc1, 1, 1, Math.max(0, Math.min(100, Number(c.brake) || 0)), 0.4, 0);
     tc1[2] = jfGearRaw(c.gear);
+    // LCMD carries every lamp; only the turn pair is driven, the rest is 11 "don't care".
+    const lcmd = jp.blank();
+    const blink = typeof ramnBlinkOn === 'function' ? ramnBlinkOn() : true;
+    jp.bits(lcmd, 1, 4, 2, c.turnR && blink ? 1 : 0);
+    jp.bits(lcmd, 1, 6, 2, c.turnL && blink ? 1 : 0);
     const full = (f) => ({ id: f.id, isExt: true, isRtr: false, dlc: 8, data: f.data });
     return [
       full(jfEec2(c)),
       { id: jp.buildId(PGN_EBC1, 6, SA_BRAKES), isExt: true, isRtr: false, dlc: 8, data: ebc1 },
       full(jfVdc2(null, c)),
       { id: jp.buildId(PGN_TC1, 3, SA_SHIFT_CONSOLE, SA_TRANSMISSION), isExt: true, isRtr: false, dlc: 8, data: tc1 },
+      { id: jp.buildId(PGN_LCMD, 3, SA_BODY), isExt: true, isRtr: false, dlc: 8, data: lcmd },
     ];
   }
   // Writes SPN 70 (1.3, from `handbrake`) and SPN 597 (4.5, the pedal is down) into CCVS data,
@@ -499,6 +514,10 @@
       if (p <= 1) jfDriveHold('handbrake', p);
       const b = (jfB(d, 3) >> 4) & 3;
       if (b <= 1) jfDriveHold('brakeLamp', b);
+    } else if (pgn === PGN_LCMD) {
+      const r = (jfB(d, 1) >> 4) & 3, l = (jfB(d, 1) >> 6) & 3;
+      if (r <= 1) jfDriveHold('turnR', r === 1);
+      if (l <= 1) jfDriveHold('turnL', l === 1);
     }
   }
   window.carlitoUplinkDecoders = window.carlitoUplinkDecoders || [];
@@ -721,6 +740,11 @@
     eq('decoded brake switch', live('brakeLamp'), 1);
     jfDecodeDrive({ id: jp.buildId(PGN_CCVS, 6, SA_ENGINE), isExt: true, data: [0xFF, 0, 0, 0, 0, 0, 0, 0] });
     eq('CCVS with SPN 70 not available leaves it', live('handbrake'), 1);
+    //    LCMD: SPN 2369 at 2.5, SPN 2367 at 2.7; 11 refreshes nothing.
+    jfDecodeDrive({ id: jp.buildId(PGN_LCMD, 3, SA_BODY), isExt: true, data: [0xFF, 0x4F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
+    eq('decoded left turn', [live('turnL'), live('turnR')], [true, false]);
+    jfDecodeDrive({ id: jp.buildId(PGN_LCMD, 3, SA_BODY), isExt: true, data: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });
+    eq('LCMD "don\'t care" leaves the turn bits', [live('turnL'), live('turnR')], [true, false]);
     //    SPN 1238 at EBC1 3.7: 01 is traction control overridden, 00 is not, 11 refreshes nothing -
     //    which is also why the demo's EBC1 (byte 3 all ones) never touches it.
     const ebc1Tc = (b3) => ({ id: jp.buildId(PGN_EBC1, 6, SA_BRAKES), isExt: true, data: [0xFF, 0xFF, b3, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF] });

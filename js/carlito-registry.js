@@ -16,7 +16,7 @@ window.carlitoUplinkSources = window.carlitoUplinkSources || {};
 // asked before any source, highest prio first; `undefined` declines to the next. Register through
 // carlitoUplinkClaim, never by assigning. THE PRECEDENCE, stated once (higher wins):
 //   20  drone.js        the Drone Control panel's sticks, while it is flying
-//   10  j1939-flavor.js bus driver demand (EEC2 / EBC1 / VDC2 / TC1 / CCVS), while fresh
+//   10  j1939-flavor.js bus driver demand (EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD), while fresh
 window.carlitoUplinkOverrides = window.carlitoUplinkOverrides || {};
 window.carlitoUplinkClaim = window.carlitoUplinkClaim || function (name, prio, fn) {
   const list = window.carlitoUplinkOverrides[name] = window.carlitoUplinkOverrides[name] || [];

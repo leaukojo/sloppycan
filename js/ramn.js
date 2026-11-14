@@ -703,8 +703,8 @@ function syncCtrlUI() {
 // Steer as a PGN 127245 rudder order (nmea2000.js) and keeps the RAMN drive frames (sloppycan.js
 // DEMO_N2K_RAMN_IDS). A base traffic missing here carries none.
 const BASE_CARRIES = {
-  j1939:    { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'], via: 'EEC2 / EBC1 / VDC2 / TC1 / CCVS' },
-  iso11783: { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'], via: 'EEC2 / EBC1 / VDC2 / TC1 / CCVS' },
+  j1939:    { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'], via: 'EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD' },
+  iso11783: { ctl: ['brake', 'accel', 'steer', 'gear', 'handbrake'], via: 'EEC2 / EBC1 / VDC2 / TC1 / CCVS / LCMD' },
   nmea2000: { ctl: ['brake', 'accel', 'steer'], via: 'RAMN 0x024 / 0x039 / 0x062 and the PGN 127245 rudder order' },
 };
 
