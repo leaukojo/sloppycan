@@ -1,4 +1,4 @@
-// ── Boat autopilot control head ─────────────────────────────────────────────
+// ── Boat autopilot: a Control panel section ─────────────────────────────────
 // The commanded half boat.js deliberately left out: boat.js's own header says outright that
 // `sheet` / `rudder` / `nav_mode` / `heading_cmd` belong to "an autopilot control head", because
 // boat.js is TELEMETRY ONLY and none of those four has a telemetry echo worth drawing a widget
@@ -13,10 +13,9 @@
 // the mode buttons and the heading knob are a view over that state (nmea2000PilotCtl /
 // nmea2000SetPilot), the way drone.js is a view over dronecan.js's dcCtl.
 //
-// This window does NOT take the RAMN pair or the boat dashboard: the boat is still driven with
-// the RAMN accel/brake/steer axes exactly as boat.js's own header says, so there is nothing here
-// for vehiclePanelClaim to take - it only registers for the toolbar button's own show/hide, the
-// way every panel's `family` entry does.
+// Not a window: a section of the Control panel (vehiclePanelSection), shown while a boat is on
+// the link - the boat is still driven with the RAMN accel/brake/steer axes exactly as boat.js's
+// own header says, so its commands sit beside them rather than in a second window.
 //
 // HEADING KNOB CAPTURE: the contract states 'heading_cmd' is PRESENCE-IS-THE-COMMAND - sourcing
 // a number the moment this window loads would engage the pilot on an arbitrary bearing before
@@ -27,9 +26,8 @@
 // 'sheet' has no presence rule (mirrored verbatim, absent = 0 = hauled in), so it is always
 // sourced straight off the slider.
 //
-// Integration: index.html (script after boat.js - #boatPilotBtn ships
-// style="display:none", vehicle-panel.js shows it) · sloppycan.js (_buttonsWrap id list).
-// Live-only: no persistence.
+// Integration: index.html (script after vehicle-panel.js + ramn.js + boat.js). Live-only: no
+// persistence.
 
 (function () {
   'use strict';
@@ -79,8 +77,9 @@
   });
 
   // ── Panel ───────────────────────────────────────────────────────────────────
-  // No claim and no follow (see header): the window opens only by hand.
+  // A Control panel section (see header).
   const BODY = `
+    <div class="vp-sec-lbl"><span>Boat autopilot</span></div>
 
     <div class="vp-sec-lbl" title="contract nav_mode - the request, mirrored verbatim. STANDBY hands the rudder to the helm; HEADING HOLD asks the pilot to steer the commanded course. What it is ACTUALLY doing (nav_mode_actual) reads back on the boat dashboard's Autopilot chip.">Mode</div>
     <div class="bap-seg">
@@ -93,7 +92,7 @@
     <div class="bap-hdg">
       <span class="bap-hdg-v uncaptured" id="bapHdgV">captured</span>
     </div>
-    <div class="bap-nudges">
+    <div class="bap-nudges" id="bapNudges">
       <button data-d="-10" title="Nudge the commanded heading -10 degrees. The first press seeds it off the boat's current heading_target.">-10</button>
       <button data-d="-1"  title="Nudge the commanded heading -1 degree.">-1</button>
       <button data-d="1"   title="Nudge the commanded heading +1 degree.">+1</button>
@@ -107,13 +106,7 @@
     <input type="range" class="bap-range" id="bapSheet" min="0" max="100" value="0">
 
 `;
-  const panel = window.makeVehiclePanel({
-    id: 'boat-pilot', family: 'boat', btn: 'boatPilotBtn', winId: 'boatPilotWindow',
-    cssPrefix: 'bap', title: 'Boat autopilot', baseW: 230, left: 430, dot: 'var(--amber)',
-    headerTip: "Commands the boat's autopilot and sail over the uplink - the three contract 'in' signals boat.js's own dashboard has no widget for. 'rudder' is not here: the boat is still steered on the RAMN steering axis. Drag to move, grip the bottom-right corner to resize.",
-    bodyHtml: BODY,
-    render: () => render(),
-  });
+  const panel = window.vehiclePanelSection({ family: 'boat', where: 'ctrl', html: BODY, render: () => render() });
 
   // ── Render ────────────────────────────────────────────────────────────────────
   // Also on every telemetry push while open: a 127237 on the bus can change the pilot state
@@ -149,13 +142,13 @@
 
     el.standby.addEventListener('click', () => { setPilot({ navMode: 0 }); render(); });
     el.auto.addEventListener('click', () => { setPilot({ navMode: 1 }); render(); });
-    for (const btn of win.querySelectorAll('.bap-nudges button')) {
-      btn.addEventListener('click', () => nudgeHeading(parseInt(btn.dataset.d, 10)));
-    }
+    q('bapNudges').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-d]');
+      if (btn) nudgeHeading(parseInt(btn.dataset.d, 10));
+    });
     el.sheet.addEventListener('input', () => { bap.sheet = parseInt(el.sheet.value, 10) || 0; render(); });
 
     render();
   })();
 
-  window.boatPilotToggle = panel.toggle;
 })();

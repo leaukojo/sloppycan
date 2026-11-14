@@ -1598,7 +1598,7 @@ function stopRenderLoop() {
 // it's correct even though the buttons have different positioned offsetParents. The
 // deliberate full-width .header-sep break at ≤1200px is intentionally NOT counted.)
 function _buttonsWrap() {
-  const ids = ['connectBtn', 'demoBtn', 'ramnBtn', 'droneBtn', 'truckBtn', 'tractorBtn', 'boatBtn', 'boatPilotBtn', 'trainBtn', 'planeBtn', 'carlitoBtn', 'busPauseBtn', 'clearMainBtn', 'disconnectBtn'];
+  const ids = ['connectBtn', 'demoBtn', 'ramnBtn', 'droneBtn', 'truckBtn', 'tractorBtn', 'boatBtn', 'carlitoBtn', 'busPauseBtn', 'clearMainBtn', 'disconnectBtn'];
   const tops = ids.map(id => document.getElementById(id))
                   .filter(b => b && b.offsetParent !== null)
                   .map(b => Math.round(b.getBoundingClientRect().top));
