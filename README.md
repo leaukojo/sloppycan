@@ -14,10 +14,11 @@ The classic CAN (Controller Area Network) software tools: dump CAN traffic, filt
 
 SloppyCAN can be connected to [Carlito](https://github.com/leaukojo/carlito), a 3D driving simulator that also runs in a web browser.
 
+You can use candlelight and slcan CAN adapters. If you own a [RAMN](https://github.com/ToyotaInfoTech/RAMN), you can connect it without installing anything and get started immediately. If you don't have any hardware, you can use the demo mode.
+
 SloppyCAN's goal is to help people learn the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939 / NMEA 2000 / ISOBUS, CANopen and CHAdeMO.
 It includes many interactive explainer pages (example: [ISO-TP explainer](https://leaukojo.github.io/sloppycan/explainers/isotp-explainer.html)).
 
-If you own a [RAMN](https://github.com/ToyotaInfoTech/RAMN), you can connect it without installing anything and get started immediately. If you don't have one, you can use the demo mode.
 
 ## Requirements
 
