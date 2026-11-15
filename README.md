@@ -1,6 +1,6 @@
 # SloppyCAN
 
-Want to learn about the CAN bus, but too lazy to install anything? 
+Want to learn about the CAN bus, but too lazy to install anything?
 
 SloppyCAN is a CAN tool that runs entirely in a web browser.
 
@@ -14,18 +14,18 @@ The classic CAN (Controller Area Network) software tools: dump CAN traffic, filt
 
 SloppyCAN can be connected to [Carlito](https://github.com/leaukojo/carlito), a 3D driving simulator that also runs in a web browser.
 
-SloppyCAN's goal is to facilitate the learning of the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939/NMEA 2000/ISOBUS, CANopen, CHAdeMO.
-It includes many interactive explainer pages (see for example  [ISO-TP explainer](https://leaukojo.github.io/sloppycan/explainers/isotp-explainer.html)).
+SloppyCAN's goal is to help people learn the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939 / NMEA 2000 / ISOBUS, CANopen and CHAdeMO.
+It includes many interactive explainer pages (example: [ISO-TP explainer](https://leaukojo.github.io/sloppycan/explainers/isotp-explainer.html)).
 
-If you own a [RAMN](https://github.com/ToyotaInfoTech/RAMN), you can connect it without installing anything and get started immediately. If you do not own hardware, you can use the demo mode.
+If you own a [RAMN](https://github.com/ToyotaInfoTech/RAMN), you can connect it without installing anything and get started immediately. If you don't have one, you can use the demo mode.
 
 ## Requirements
 
-**Chrome or Edge**. Android partially supported.
+**Chrome or Edge**. Android is partially supported.
 
-## Running Locally
+## Running locally
 
-Open `index.html` directly, everything except Carlito works straight from `file://`. To run a
+Open `index.html` directly; everything except Carlito works straight from `file://`. To run a
 modified version of Carlito, you will need to serve it locally with Python:
 
 ```
@@ -33,7 +33,7 @@ python -m http.server 8000 --bind 127.0.0.1      # then open http://localhost:80
 ```
 
 By default, the Carlito tab loads the hosted **stable** build of
-[Carlito](https://github.com/leaukojo/carlito) (The promoted one, at
+[Carlito](https://github.com/leaukojo/carlito) (the promoted one, at
 <https://leaukojo.github.io/carlito/stable/>). The **stable | dev** selector in the Carlito window
 header switches to the dev channel (<https://leaukojo.github.io/carlito/dev/>); `?carlitoBuild=dev` does the same from a link.
 
@@ -48,15 +48,15 @@ click **Script** (top right) and **Connect**, then run a script, e.g. `python sc
 see every frame sloppyCAN sees, and what they send is transmitted when a bus is open.
 
 The relay's TCP port `29541` uses `cansend`-style lines (`123#DEADBEEF`), so `nc 127.0.0.1 29541` is a live candump.
-Chrome will ask once to allow local network access when the hosted page connects. 
+Chrome will ask once to allow local network access when the hosted page connects.
 
-If you want to open from`file://`, start the relay with `--allow-file-origin`.
+When opening the page from `file://`, start the relay with `--allow-file-origin`.
 
 ### Remote SLCAN over TCP tunnel (`socket://` compatible)
 
 Use the Adapter mode **SLCAN (socket tunnel)** to connect through a WebSocket endpoint that bridges
 to a remote raw TCP SLCAN socket. The protocol is still plain SLCAN lines delimited by `\r` (`Sx`,
-`O`/`L`, `C`, `t`/`T`/`r`/`R`) - no telnet commands/options are sent or expected.
+`O`/`L`, `C`, `t`/`T`/`r`/`R`); no telnet commands/options are sent or expected.
 
 Recommended boundary:
 
