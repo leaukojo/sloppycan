@@ -900,7 +900,7 @@ function syncTrafficUI() {
   const note = baseNotRamn && !carries
     ? 'RAMN traffic is off - the base traffic is ' + window.demoBaseTrafficLabel() + '.'
     : silentNames.length && ramnTraffic
-      ? 'ECU ' + silentNames.join(', ') + ' silenced (a Carlito challenge, or UDS 31 01 02 00): their controls do nothing.'
+      ? 'ECU ' + silentNames.join(', ').replace(/, (\w)$/, ' and $1') + ' silenced.'
       : '';
   cel.baseNote.style.display = note ? '' : 'none';
   cel.baseNote.textContent = note;
