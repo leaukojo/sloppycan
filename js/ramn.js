@@ -21,6 +21,8 @@
 //   sloppycan.js  disconnect path: if (window.ramnStop) ramnStop();
 //   sloppycan.js  demoTick(): payload = window.ramnCtrlPayload ? ramnCtrlPayload(id) : [0,0];
 //   sloppycan.js  demoTick(): returns early while !ramnTrafficOn()  (the panel's Disable traffic)
+//                 or ramnIdSilenced(id)  (the frame's ECU got UDS 31 01 02 00)
+//   sloppycan.js  demoIsoTpRespond(): ramnUdsAnswer(txId, payload) first  (the ISO-TP tab's asks)
 //   carlito.js    message handler: ramnSetTraffic(!challenge) on the envelope's challenge edges
 //   sloppycan.js  startDemo(): if (window.ramnDemoStarted) ramnDemoStarted();  (records demo → shows the driving widgets)
 //// Live-only: no persistence of window position/state.
@@ -507,9 +509,92 @@ function ramnCtrlPayload(id) {
   }
 }
 
+// ── RAMN diagnostics: the "Request Silence" routine (Demo only) ──────────────────
+// A RAMN ECU answers UDS on its request id (0x7E0-0x7E3, the answer on id + 8) and on the
+// functional 0x7DF. RoutineControl 0x0200 (firmware ramn_uds.c, RequestSilence): 31 01 02 00
+// stops the ECU's periodic frames, 31 02 02 00 starts them again; diagnostics still answer
+// either way. The demo plays ECUs B-D with the frames each sends (ramn_dbc.c periodicTxCANMsgs,
+// ids from ramn_signal_defs.h). Routine 0x0201 is Erase EEPROM on a reprogramming build: refused
+// as a build without reprogramming refuses it (7F 31 31). On a live bus the board answers itself.
+const RAMN_ECU_FRAMES = {
+  0x7E1: [0x062, 0x1D3, 0x150],               // ECU B: steering, sidebrake, lights command
+  0x7E2: [0x024, 0x039, 0x077, 0x098, 0x1A7], // ECU C: brake, accel, shift, horn, turn indicator
+  0x7E3: [0x1B8, 0x1BB],                      // ECU D: engine key, lights status
+};
+const RAMN_UDS_FUNCTIONAL = 0x7DF;
+const ramnSilentEcus = new Set();             // request ids of the ECUs told to stop
+
+// ECU `ecu`'s answer (by its request id) to the UDS request `req`, or null for anything this
+// simulation does not play (another service or routine), [] for a suppressed positive answer
+// (sub-function bit 7). Applies the routine's effect.
+function ramnUdsAnswer(ecu, req) {
+  if (!RAMN_ECU_FRAMES[ecu] || req[0] !== 0x31 || req.length < 4) return null;
+  const routine = (req[2] << 8) | req[3];
+  if (routine === 0x0201) return [0x7F, 0x31, 0x31];
+  if (routine !== 0x0200) return null;
+  if (req.length !== 4) return [0x7F, 0x31, 0x13];
+  const sub = req[1] & 0x7F, suppress = (req[1] & 0x80) !== 0;
+  if (sub === 0x01) ramnSilentEcus.add(ecu);
+  else if (sub === 0x02) ramnSilentEcus.delete(ecu);
+  else return [0x7F, 0x31, 0x12];
+  if (window.log) window.log(`RAMN demo: ECU ${ecu.toString(16).toUpperCase()} periodic frames ` +
+    (sub === 0x01 ? 'stopped' : 'resumed') + ' (UDS routine 0x0200)');
+  return suppress ? [] : [0x71, sub, 0x02, 0x00];
+}
+
+function ramnUdsSelfTest() {
+  const failures = [], saved = new Set(ramnSilentEcus), log = window.log;
+  const eq = (what, got, want) => {
+    if (JSON.stringify(got) !== JSON.stringify(want)) failures.push(`${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+  };
+  window.log = null;
+  try {
+    ramnSilentEcus.clear();
+    eq('silence ECU C', ramnUdsAnswer(0x7E2, [0x31, 0x01, 0x02, 0x00]), [0x71, 0x01, 0x02, 0x00]);
+    eq('its frames stop', window.ramnIdSilenced(0x024), true);
+    eq('another ECU keeps sending', window.ramnIdSilenced(0x062), false);
+    eq('resume ECU C', ramnUdsAnswer(0x7E2, [0x31, 0x02, 0x02, 0x00]), [0x71, 0x02, 0x02, 0x00]);
+    eq('its frames are back', window.ramnIdSilenced(0x024), false);
+    eq('suppressed positive answer', ramnUdsAnswer(0x7E3, [0x31, 0x81, 0x02, 0x00]), []);
+    eq('...still silences', window.ramnIdSilenced(0x1B8), true);
+    eq('read results is not supported', ramnUdsAnswer(0x7E1, [0x31, 0x03, 0x02, 0x00]), [0x7F, 0x31, 0x12]);
+    eq('a wrong length', ramnUdsAnswer(0x7E1, [0x31, 0x01, 0x02, 0x00, 0x00]), [0x7F, 0x31, 0x13]);
+    eq('Erase EEPROM is refused', ramnUdsAnswer(0x7E1, [0x31, 0x01, 0x02, 0x01]), [0x7F, 0x31, 0x31]);
+    eq('another routine is not played', ramnUdsAnswer(0x7E1, [0x31, 0x01, 0xF0, 0x0F]), null);
+    eq('ECU A has no demo frames', ramnUdsAnswer(0x7E0, [0x31, 0x01, 0x02, 0x00]), null);
+  } finally {
+    ramnSilentEcus.clear();
+    saved.forEach(e => ramnSilentEcus.add(e));
+    window.log = log;
+  }
+  if (failures.length) console.error('RAMN UDS self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
+  else console.log('RAMN UDS self-test: all checks passed.');
+  return failures;
+}
+
+// A single-frame request on the bus (a script, the Transmit tab), answered after an ECU-like
+// latency as an RX single frame from the ECU's response id. The ISO-TP tab asks through
+// demoIsoTpRespond instead (sloppycan.js), which calls ramnUdsAnswer itself.
+function ramnUdsFrame(frame) {
+  if (!window.demoIsActive || !window.demoIsActive() || frame.isRtr || !frame.data) return;
+  const d = frame.data, len = (d[0] || 0) & 0x0F;
+  if (((d[0] || 0) >> 4) !== 0 || len < 1 || len > d.length - 1) return;
+  const req = Array.from(d).slice(1, 1 + len);
+  const ecus = frame.id === RAMN_UDS_FUNCTIONAL ? Object.keys(RAMN_ECU_FRAMES).map(Number) : [frame.id];
+  for (const ecu of ecus) {
+    const ans = ramnUdsAnswer(ecu, req);
+    if (!ans || !ans.length) continue;
+    const data = [ans.length, ...ans];
+    setTimeout(() => {
+      if (window.ingestFrame) window.ingestFrame({ id: ecu + 8, isExt: false, isRtr: false, dlc: data.length, data });
+    }, 50 + Math.random() * 60);
+  }
+}
+
 // ── Frame ingest ──────────────────────────────────────────────────────────────
 function ramnIngestFrame(frame) {
   if (frame.isExt) return;            // RAMN uses 11-bit IDs
+  if (frame.id === RAMN_UDS_FUNCTIONAL || RAMN_ECU_FRAMES[frame.id]) { ramnUdsFrame(frame); return; }
   const d = frame.data, st = ramnState;
   switch (frame.id) {
     case 0x024: st.brakeRaw = be16(d) & 0xFFF; st.brake = st.brakeRaw / 0xFFF * 100; ramnSeenFields.add('brake'); break;
@@ -918,6 +1003,10 @@ window.ramnDemoStarted = ramnDemoStarted;
 window.ramnSetTraffic = ramnSetTraffic;               // ← carlito.js, on a challenge starting / ending
 window.ramnSyncTrafficUI = syncTrafficUI;             // ← sloppycan.js demoSetBaseTraffic
 window.ramnTrafficOn = () => ramnTraffic;             // ← sloppycan.js demoTick
+// A demo RAMN id whose ECU was told to stop (UDS routine 0x0200), and that routine's answer.
+window.ramnIdSilenced = (id) => [...ramnSilentEcus].some(ecu => RAMN_ECU_FRAMES[ecu].includes(id)); // ← demoTick
+window.ramnUdsAnswer = ramnUdsAnswer;                 // ← sloppycan.js demoIsoTpRespond
+window.ramnUdsSelfTest = ramnUdsSelfTest;
 // Live interpreted signal state (decoded from CAN - hardware or demo). Read by carlito.js.
 window.ramnGetState = () => ({ ...ramnState });
 // The panel's own values, for a demo that encodes them in another protocol (j1939.js).

@@ -2803,6 +2803,7 @@ function crc32(bytes) {
 
 function demoTick(id) {
   if (window.ramnTrafficOn && !window.ramnTrafficOn()) return;   // RAMN Control's Disable traffic
+  if (window.ramnIdSilenced && window.ramnIdSilenced(id)) return; // its ECU got UDS 31 01 02 00 (ramn.js)
   const cnt = (demoCounters[id] = ((demoCounters[id] || 0) + 1) & 0xFFFF);
   // RAMN Control Panel (demo only) supplies the payload bytes; default 0x0000.
   const payload = window.ramnCtrlPayload ? window.ramnCtrlPayload(id) : [0x00, 0x00];
@@ -3051,11 +3052,15 @@ function demoIsoTpRespond(requestPayload, cfg) {
     return;
   }
 
-  const respPayload = isObd
+  // A RAMN ECU's own routine (ramn.js: Request Silence) answers before the generic responder.
+  const ramnAnswer = !isObd && obdProtoMode !== 'kwp' && window.ramnUdsAnswer
+    ? window.ramnUdsAnswer(cfg.txId, requestPayload) : null;
+  if (ramnAnswer && !ramnAnswer.length) return;   // a suppressed positive answer
+  const respPayload = ramnAnswer || (isObd
     ? demoObdResponse(requestPayload)
     : obdProtoMode === 'kwp'
       ? demoKwpResponse(requestPayload)
-      : demoUdsResponse(requestPayload);
+      : demoUdsResponse(requestPayload));
   if (!respPayload) return; // unsupported OBD ask → no reply (timeout)
   demoInjectIsoTp(respPayload, cfg.rxId, cfg);
 }

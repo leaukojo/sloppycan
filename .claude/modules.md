@@ -174,7 +174,8 @@ the CANopen tab.
   game deploys from its own repo.
 - **`ramn.js`:** `ingestFrame` → `ramnIngestFrame`; `clearFrames` → `ramnClear`;
   `disconnectSerial` → `ramnStop`; `demoTick` → `ramnCtrlPayload(id)`, returns early while
-  `!ramnTrafficOn()`; `startDemo` → `ramnDemoStarted`; `demoSetBaseTraffic` → `ramnClear` on
+  `!ramnTrafficOn()` or `ramnIdSilenced(id)`; `demoIsoTpRespond` → `ramnUdsAnswer` (the RAMN ECUs'
+  UDS routine 0x0200, also answered off the bus by `ramnIngestFrame`); `startDemo` → `ramnDemoStarted`; `demoSetBaseTraffic` → `ramnClear` on
   leaving RAMN. `index.html`: `#ramnBtn` (`ramnToggle()`, opens the dashboard + the Control panel;
   off demo the driving widgets hide, `ramn-live`). All DOM + CSS injected. Exposes
   `ramnVehicleSlots()` + `ramnSetTitles()` for `vehicle-panel.js`.
