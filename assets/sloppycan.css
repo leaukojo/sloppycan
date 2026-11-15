@@ -757,7 +757,7 @@ body.no-link .link-only:not(.show-err) { display: none !important; }
   letter-spacing: 0.05em;
   color: var(--amber);
 }
-.welcome-sub { font-size: var(--fs-l); color: var(--text2); }
+.welcome-sub { font-size: var(--fs-xl); color: var(--text2); }
 .welcome-tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -799,7 +799,7 @@ body.no-link .link-only:not(.show-err) { display: none !important; }
   position: relative; width: 100%; padding: 10px 0;
   background: var(--bg2); border-top: 1px solid var(--border2);
 }
-.welcome-explainers { font-size: var(--fs-l); color: var(--blue); text-decoration: none; }
+.welcome-explainers { font-size: var(--fs-xl); color: var(--blue); text-decoration: none; }
 .welcome-explainers:hover { color: var(--text); }
 /* Narrow screens: stack the tiles. */
 @media (max-width: 640px) {
