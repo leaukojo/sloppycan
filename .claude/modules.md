@@ -219,3 +219,12 @@ page's own comments.
   board closes the channel. Move the read pump to a dedicated Worker (Web Serial and WebUSB both
   work there) and post parsed frames to the page; the bridge reuses the transport too. Stopgap
   now: the SLCAN re-open watchdog in `sloppycan.js` (re-sends `O`/`L` after 2 s with no RX).
+- **RAMN demo ↔ physical board parity.** Challenges (by hand or by solver) should feel the same in
+  Demo as on a RAMN; not yet audited end to end. Trust the board's firmware (`RAMN_HF25_priv`) and
+  the DBC over the GitHub tree, which byte-swaps every 16-bit signal (0x1A7 read reversed). Known gaps:
+  - A challenge silences demo ECUs B and C itself; on the board only a script's `31 01 02 00` does,
+    so a hand-driving player there fights B and C's frames.
+  - Demo 0x1BB never sets the battery bit (firmware: ECU D's own key at On / Ignition) nor check
+    engine on CAN errors.
+  - The panel key defaults to Ignition; the board's is wherever the physical key is.
+  - Demo frames ride a 100 ms `setInterval` (drifts); the board's flasher is a firm 1 Hz.
