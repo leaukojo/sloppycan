@@ -1110,13 +1110,15 @@ function n2kI32(v) { v = Math.round(v); if (v < 0) v += 0x100000000; v = v >>> 0
 
 // The RAMN Control Panel, when it is what drives: j1939-flavor.js encodes it as the J1939
 // driver-demand groups (EEC2 / EBC1 / VDC2 / TC1, SPN 70 / 597 in CCVS), nmea2000.js its steer
-// as a rudder order. Null while the panel's traffic is off (Disable traffic, or a Carlito
-// challenge), so hand-sent frames are the only driver then - and while a DRONE is on the link: a
+// as a rudder order. Null while the panel's traffic is off (Disable traffic) or its pedals and
+// wheel are silenced (RAMN ECUs B / C: a Carlito challenge, or UDS 31 01 02 00), so hand-sent
+// frames are the only driver then - and while a DRONE is on the link: a
 // live pedal makes the bridge drive outright, and the drone's always-sourced DroneCAN `arm` would
 // then keep it grounded with the keyboard locked out, where the fallback lets the keyboard fly it.
 function j1939DemoDriveCtrl() {
   if (!window.ramnCtrlGet) return null;
   if (window.ramnTrafficOn && !window.ramnTrafficOn()) return null;
+  if (window.ramnDriveSilenced && window.ramnDriveSilenced()) return null;
   if (window.vehiclePanelIsFamily && window.carlitoTelemetry &&
       window.vehiclePanelIsFamily('drone', window.carlitoTelemetry())) return null;
   return window.ramnCtrlGet();

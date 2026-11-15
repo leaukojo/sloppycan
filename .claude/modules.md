@@ -170,7 +170,8 @@ the CANopen tab.
   `window.ramnGetState` (RAMN `key` defaults to Ignition so demo driving passes the engine gate),
   `window.canForward`, owns `carlitoOnTelemetry` (fanned out by `vehicle-panel.js`), flips
   `ramnChallengeEdge` on the game's `challenge` edges (silences demo ECUs B and C; D, which builds
-  0x1BB from the 0x150 / 0x1A7 it hears, stays on). `carlitoBusReady` is called on bus open (also
+  0x1BB from the 0x150 / 0x1A7 it hears, stays on; `j1939.js` stops the panel's drive while B or C
+  is silent, via `ramnDriveSilenced`). `carlitoBusReady` is called on bus open (also
   by `carlito-bridge.js`). The game side is `carlito/src/bridge/` (see `carlito/CLAUDE.md`); the
   game deploys from its own repo.
 - **`ramn.js`:** `ingestFrame` → `ramnIngestFrame`; `clearFrames` → `ramnClear`;

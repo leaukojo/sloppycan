@@ -596,8 +596,10 @@ function ramnUdsSelfTest() {
     eq('a challenge silences ECU B', window.ramnIdSilenced(0x150), true);
     eq('...and ECU C', window.ramnIdSilenced(0x1A7), true);
     eq('...but not ECU D', window.ramnIdSilenced(0x1BB), false);
+    eq('...and the panel stops driving J1939', window.ramnDriveSilenced(), true);
     ramnChallengeEdge(false);
     eq('its end resumes them', window.ramnIdSilenced(0x150) || window.ramnIdSilenced(0x1A7), false);
+    eq('...and the panel drives again', window.ramnDriveSilenced(), false);
     // ECU D lights what it hears (frames as a script sends them), not the panel.
     const lamps = () => ramnCtrlPayload(0x1BB)[0];
     Object.assign(ramnEcuD, { lights: 1, warn: false, turnL: false, turnR: false, brake: 0, sidebrake: false });
@@ -1059,6 +1061,8 @@ window.makeFloating = makeFloating;         // ← shared window mechanics (vehi
 window.makeDraggable = makeDraggable;       // ← the drag half alone (carlito.js)
 window.ramnDemoStarted = ramnDemoStarted;
 window.ramnChallengeEdge = ramnChallengeEdge;         // ← carlito.js, on a challenge starting / ending
+// The panel's pedals and wheel are ECU B and C's frames: either silenced, the panel does not drive.
+window.ramnDriveSilenced = () => RAMN_CHALLENGE_SILENT.some(ecu => ramnSilentEcus.has(ecu)); // ← j1939.js
 window.ramnSyncTrafficUI = syncTrafficUI;             // ← sloppycan.js demoSetBaseTraffic
 window.ramnTrafficOn = () => ramnTraffic;             // ← sloppycan.js demoTick
 // A demo RAMN id whose ECU was told to stop (UDS routine 0x0200), and that routine's answer.

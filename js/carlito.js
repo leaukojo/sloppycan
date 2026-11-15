@@ -1017,7 +1017,8 @@
   // frames the player sends, which the demo's ECUs B and C would overwrite every 10 ms, so they
   // are silenced when an attempt starts and resumed when it ends (ramnChallengeEdge). ECU D stays
   // on: it lights the lamps from the player's light commands, as on the board. EDGES ONLY: in
-  // between, UDS 31 0x 02 00 is the user's, so a resume mid-challenge sticks. The field is false, or
+  // between, the RAMN silence routine (31 01 / 31 02 02 00) is the user's, so a resume sticks. The
+  // panel stops driving the J1939 / N2K demo too (ramnDriveSilenced). The field is false, or
   // {id, state: running|passed|failed, t, msg} while a challenge is on (an older game sends plain
   // true, or no field at all, which reads false and never toggles).
   let lastChallenge = false;
