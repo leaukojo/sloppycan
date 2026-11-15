@@ -395,11 +395,12 @@
 <div class="table-wrap" id="tableWrap" role="tabpanel" aria-labelledby="vtab-ids">
   <div class="welcome" id="emptyState">
     <div class="welcome-title">sloppyCAN</div>
-    <div class="welcome-sub">Read and explore any CAN bus in your browser.</div>
+    <div class="welcome-sub">Connect to a CAN bus and start learning.</div>
     <div class="welcome-tiles">
       <button class="welcome-tile welcome-connect" onclick="toggleConnectPopover(true);flashEls('connectConfirmBtn');onboardArrowTo(this,'#connectConfirmBtn',3500)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        <span>Connect adapter</span>
+        <span>Connect CAN adapter</span>
+        <span class="welcome-tile-note">SLCAN (RAMN) or candleLight</span>
       </button>
       <button class="welcome-tile welcome-demo" onclick="startDemo()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/></svg>

@@ -764,7 +764,7 @@ body.no-link .link-only:not(.show-err) { display: none !important; }
   gap: 16px;
   width: 100%;
   max-width: 1200px;
-  height: 40vh;
+  height: 30vh;
   min-height: 200px;
   margin-top: 10px;
 }
@@ -787,11 +787,12 @@ body.no-link .link-only:not(.show-err) { display: none !important; }
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.welcome-tile svg { width: 40px; height: 40px; }
+.welcome-tile svg { width: 64px; height: 64px; }
 .welcome-tile:hover, .welcome-tile:focus-visible { border-color: var(--amber); background: var(--bg3); outline: none; }
 .welcome-connect { color: var(--green); }
 .welcome-connect:hover, .welcome-connect:focus-visible { border-color: var(--green); }
 .welcome-demo { color: var(--amber); }
+.welcome-tile-note { margin-top: -8px; font-size: var(--fs-m); font-weight: 400; color: var(--text3); }
 /* Carlito: the screenshot fills the tile, its label sits on a band along the bottom. */
 .welcome-carlito { justify-content: flex-end; }
 .welcome-carlito img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
