@@ -56,7 +56,7 @@
   let dropOut = 0, dropIn = 0, badLines = 0, injectErr = 0, lastWarn = 0;
   // A file:// page sends Origin: null, which the relay refuses unless run with --allow-file-origin.
   const FILE_PAGE = location.protocol === 'file:';
-  const RELAY_CMD = 'python sloppycan_relay.py' + (FILE_PAGE ? ' --allow-file-origin' : '');
+  const RELAY_CMD = 'python scripting/sloppycan_relay.py' + (FILE_PAGE ? ' --allow-file-origin' : '');
 
   const say = (msg, level) => { if (window.log) window.log(msg, level); };
 
@@ -288,7 +288,7 @@
   <ol>
     <li>Start the relay on this computer: <code>${RELAY_CMD}</code>${FILE_PAGE ? ' - this page was opened from a file, which the relay only accepts with that flag (or serve the folder with <code>python -m http.server</code>)' : ''}</li>
     <li>Click <b>Connect</b> below.</li>
-    <li>Run a script, e.g. <code>python example.py</code></li>
+    <li>Run a script, e.g. <code>python scripting/example.py</code></li>
   </ol>
   <p><b>Connect opens a WebSocket to <code>ws://127.0.0.1:${wsPort}</code></b>, the relay on your own
   machine. On the hosted site Chrome then asks to allow <b>Local network access</b> - allow it. If it was
