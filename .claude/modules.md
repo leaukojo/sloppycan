@@ -208,3 +208,11 @@ challenge edges as `#challenge` info lines (`challengeInfoLines`).
 Standalone (no app import). One link in: the `<a href="can-signals-explainer.html?bits=…">` in
 `inspectFrame`'s "Bitstream with Bit Stuffing" title. Its deliberate design choices are in the
 page's own comments.
+
+## TODO
+
+- **Worker RX pump.** The Carlito iframe is same-site, so it shares the app's main thread: a level
+  load stalls `readLoop` / `usbSerialPump` (`can-link.js`), RAMN's USB buffer overflows and the
+  board closes the channel. Move the read pump to a dedicated Worker (Web Serial and WebUSB both
+  work there) and post parsed frames to the page; the bridge reuses the transport too. Stopgap
+  now: the SLCAN re-open watchdog in `sloppycan.js` (re-sends `O`/`L` after 2 s with no RX).

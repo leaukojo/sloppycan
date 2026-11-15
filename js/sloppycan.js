@@ -1178,6 +1178,21 @@ async function busOpen() {
   }
 }
 
+// SLCAN re-open watchdog. A same-site Carlito iframe shares this main thread, so a level load stalls
+// the RX pump; RAMN's device→host buffer overflows and the board closes the channel itself. With
+// no RX bytes for 2 s on an open, unpaused SLCAN bus, re-send the open command (harmless if still open).
+// The real fix is a Worker RX pump (TODO in .claude/modules.md).
+let slcanWatchBytes = -1, slcanWatchWarned = false;
+setInterval(() => {
+  const armed = busIsOpen && !paused && !demoMode && !terminalMode && connMode !== 'gsusb' && (port || usbSerDev || slcanSocket);
+  if (armed && bytesReceived === slcanWatchBytes) {
+    sendCommand(getOpenCmd()).catch(() => {});
+    if (!slcanWatchWarned) log('No RX for 2 s - re-sending SLCAN open command until traffic resumes', 'warn');
+    slcanWatchWarned = true;
+  } else slcanWatchWarned = false;
+  slcanWatchBytes = armed ? bytesReceived : -1;
+}, 2000);
+
 function toggleTxSuspend() {
   txSuspended = !txSuspended;
   const btn = document.getElementById('txSuspendBtn');
