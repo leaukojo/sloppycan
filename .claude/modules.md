@@ -202,7 +202,7 @@ the CANopen tab.
 via `window.canForward`. `index.html` `#scriptBtn` + `#scriptLinkStatus`. Relay, client helper and
 examples in `scripting/`. `carlito.js` `setChallenge` → `scriptLinkInfo`: the game envelope's
 challenge edges as `#challenge` info lines (`challengeInfoLines`). A script's `#challenge open
-<id>` → `onScriptInfo` → `carlitoOpenChallenge`: the `?challenge=` deep-link reload.
+<id>` → `onScriptInfo` → `carlitoOpenChallenge`: a live `carlitoCommand` (the `?challenge=` link if shut).
 
 ## CAN Signals explainer (`explainers/can-signals-explainer.html`)
 

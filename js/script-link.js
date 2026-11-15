@@ -12,8 +12,8 @@
 // digits = 11-bit, exactly 8 = 29-bit), `123#R` / `123#R4` remote. Unparseable lines are ignored.
 // A line starting with `#` is an INFO line, never a frame: this page sends `#challenge ...` lines
 // (carlito.js challengeInfoLines: start / pass / fail / exit) via scriptLinkInfo(). A script's
-// `#challenge open <id>` asks Carlito for that challenge (carlitoOpenChallenge reloads the game
-// into it); any other `#` line from a script is dropped without counting as unparseable.
+// `#challenge open <id>` asks Carlito for that challenge (carlitoOpenChallenge asks the running
+// game, or opens it on that challenge); any other `#` line from a script is dropped without counting as unparseable.
 // No CAN FD, no timestamps. Scripts use TCP 29541; the relay's own docstring covers its security
 // (Origin allowlist, Host check, 127.0.0.1 bind, HTTP-looking TCP connections dropped).
 //

@@ -45,7 +45,7 @@ Info lines: a line starting with '#' is never a frame. sloppyCAN sends
     #challenge fail <id> <t> <why>   failed (time limit, a constraint, ...)
     #challenge exit <id>             the challenge was left, or the game closed
 A script may send
-    #challenge open <id>             reload Carlito straight into that challenge
+    #challenge open <id>             start that Carlito challenge
 and sloppyCAN ignores every other '#' line from scripts. sloppybus.py drops
 '#' lines like any non-frame.
 

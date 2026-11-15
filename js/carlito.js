@@ -506,15 +506,19 @@
     loadGame();
     return true;
   }
-  // A script's `#challenge open <id>` (script-link.js): the same reload, with `?challenge=<id>`,
-  // which boots the game straight into that attempt (an id it does not list boots its default
-  // level). Unlike a vehicle request it opens a shut window; with no live bus that opening waits
-  // as a click does (carlitoBusReady), and the request waits with it.
+  // A script's `#challenge open <id>` (script-link.js). A running game is asked live with
+  // {type:'carlitoCommand', challenge} (its head-include stashes it until the shell can start
+  // it: no reload, no reboot). A shut window opens with the deep link `?challenge=<id>` instead,
+  // which boots straight into the attempt; with no live bus that opening waits as a click does
+  // (carlitoBusReady), and the request with it. The game drops an id it does not list.
   function carlitoOpenChallenge(id) {
     if (!/^[a-z0-9_]{1,64}$/.test(String(id))) return false;
+    if (win.classList.contains('open') && iframe && iframe.contentWindow) {
+      try { iframe.contentWindow.postMessage({ type: 'carlitoCommand', challenge: String(id) }, GAME_ORIGIN); } catch (e) { return false; }
+      return true;
+    }
     pendingChallenge = String(id);
-    if (win.classList.contains('open')) loadGame();
-    else carlitoToggle();   // opening builds the iframe, which loads the request
+    carlitoToggle();   // opening builds the iframe, which loads the request
     return true;
   }
 
