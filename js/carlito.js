@@ -1012,11 +1012,12 @@
     if (values == null) { lastTel = null; resetPackers(); notifyTelemetry(null); setChallenge(false); return; }
     acceptTelemetry({ values, version: CONTRACT_VERSION, hash: CONTRACT_HASH, challenge: (opts && opts.challenge) || false }, true);
   };
-  // ── Challenge attempts: the RAMN demo traffic steps aside ───────────────────
+  // ── Challenge attempts: the RAMN demo's ECUs B and C step aside ─────────────
   // The game's envelope carries `challenge` (not a contract signal). A challenge is driven by
-  // frames the player sends, which the demo's RAMN frames would overwrite every 10 ms, so traffic
-  // goes off when an attempt starts and back on when it ends. EDGES ONLY: in between, the RAMN
-  // Control toggle is the user's, so re-enabling mid-challenge sticks. The field is false, or
+  // frames the player sends, which the demo's ECUs B and C would overwrite every 10 ms, so they
+  // are silenced when an attempt starts and resumed when it ends (ramnChallengeEdge). ECU D stays
+  // on: it lights the lamps from the player's light commands, as on the board. EDGES ONLY: in
+  // between, UDS 31 0x 02 00 is the user's, so a resume mid-challenge sticks. The field is false, or
   // {id, state: running|passed|failed, t, msg} while a challenge is on (an older game sends plain
   // true, or no field at all, which reads false and never toggles).
   let lastChallenge = false;
@@ -1030,10 +1031,10 @@
     const ch = !!value;
     if (ch === lastChallenge) return;
     lastChallenge = ch;
-    if (window.ramnSetTraffic) window.ramnSetTraffic(!ch);
+    if (window.ramnChallengeEdge) window.ramnChallengeEdge(ch);
     if (window.log && window.demoIsActive && window.demoIsActive()) window.log(ch
-      ? 'Carlito: challenge started - RAMN demo traffic disabled (re-enable it in the Control panel)'
-      : 'Carlito: challenge ended - RAMN demo traffic re-enabled');
+      ? 'Carlito: challenge started - RAMN demo ECUs B and C silenced (ECU D keeps the lamps)'
+      : 'Carlito: challenge ended - RAMN demo ECUs B and C resumed');
   }
 
   // ── Challenge info lines for scripts ──

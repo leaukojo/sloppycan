@@ -23,7 +23,7 @@
 //   sloppycan.js  demoTick(): returns early while !ramnTrafficOn()  (the panel's Disable traffic)
 //                 or ramnIdSilenced(id)  (the frame's ECU got UDS 31 01 02 00)
 //   sloppycan.js  demoIsoTpRespond(): ramnUdsAnswer(txId, payload) first  (the ISO-TP tab's asks)
-//   carlito.js    message handler: ramnSetTraffic(!challenge) on the envelope's challenge edges
+//   carlito.js    message handler: ramnChallengeEdge(challenge) on the envelope's challenge edges
 //   sloppycan.js  startDemo(): if (window.ramnDemoStarted) ramnDemoStarted();  (records demo → shows the driving widgets)
 //// Live-only: no persistence of window position/state.
 
@@ -477,6 +477,22 @@ const ramnSteerSpan = (side) => side > 0 ? 0x800 : 0x7FF;
 // demo must toggle that bit at blink rate to make the indicator visibly blink.
 const ramnBlinkOn = () => (Math.floor(Date.now() / 500) % 2) === 0;
 
+// Demo ECU D: what it last heard on the bus, from the demo's ECUs B and C or from a script that
+// silenced them. Firmware ramn_simulator.c lights D's LEDs from these, never from its own panel:
+// taillamp / low / high from 0x150 byte 0 (switch position 2 / 3 / 4), check engine from 0x150
+// byte 1 non-zero, the turn lamps from 0x1A7 (byte 0 left, byte 1 right; big-endian u16),
+// blinked by D at 1 Hz, and the sidebrake LED from 0x024 >= 0x010 or 0x1D3 non-zero. Values
+// latch, as on the board. Fed by ramnIngestFrame.
+const ramnEcuD = { lights: 1, warn: false, turnL: false, turnR: false, brake: 0, sidebrake: false };
+function ramnEcuDHear(id, d) {
+  switch (id) {
+    case 0x150: ramnEcuD.lights = d[0] || 0; ramnEcuD.warn = (d[1] || 0) !== 0; break;
+    case 0x1A7: ramnEcuD.turnL = (d[0] || 0) !== 0; ramnEcuD.turnR = (d[1] || 0) !== 0; break;
+    case 0x024: ramnEcuD.brake = be16(d); break;
+    case 0x1D3: ramnEcuD.sidebrake = (d[0] || 0) !== 0; break;
+  }
+}
+
 // Returns the 2 payload bytes for a demo RAMN ID, from current control state.
 function ramnCtrlPayload(id) {
   const c = ramnCtrl;
@@ -490,17 +506,18 @@ function ramnCtrlPayload(id) {
     case 0x098: return [c.horn ? 1 : 0, 0];
     case 0x150: return [c.lights, 0];
     case 0x1A7: return [c.turnL ? 1 : 0, c.turnR ? 1 : 0];
-    // LED status byte mirrors the actual lit LEDs, built from the control state, matching
-    // ramnIngestFrame's decode. Lamp bits are cumulative by level (clearance≤low≤high).
+    // ECU D's LED status: the lamps it lights from the commands it HEARD (ramnEcuD), never from
+    // the panel, so a script's 0x150 / 0x1A7 light them with ECUs B and C silenced.
     case 0x1BB: {
+      const e = ramnEcuD, p = e.lights, blink = ramnBlinkOn();
       let b = 0;
-      const blink = ramnBlinkOn();
-      if (c.turnL && blink) b |= 0x40;
-      if (c.turnR && blink) b |= 0x80;
-      if (c.handbrake || c.brake > 5) b |= 0x04;   // sidebrake / brake-pedal → rear stop lamp
-      if (c.lights >= 2) b |= 0x08;   // clearance / taillamp
-      if (c.lights >= 3) b |= 0x10;   // low beam
-      if (c.lights >= 4) b |= 0x20;   // high beam
+      if (e.warn) b |= 0x02;                            // check engine
+      if (e.brake >= 0x010 || e.sidebrake) b |= 0x04;   // sidebrake LED → rear stop lamp
+      if (p >= 2 && p <= 4) b |= 0x08;                  // taillamp
+      if (p === 3 || p === 4) b |= 0x10;                // low beam
+      if (p === 4) b |= 0x20;                           // high beam
+      if (e.turnL && blink) b |= 0x40;                  // D blinks the turn lamps itself
+      if (e.turnR && blink) b |= 0x80;
       return [b, 0];
     }
     case 0x1B8: return [c.key, 0];
@@ -542,8 +559,19 @@ function ramnUdsAnswer(ecu, req) {
   return suppress ? [] : [0x71, sub, 0x02, 0x00];
 }
 
+// A Carlito challenge starting silences the demo's ECUs B and C, as a script's 31 01 02 00 would,
+// so the player's frames drive; ECU D stays on to light the lamps from the player's light
+// commands. Their decoded values drop (demo only: on a live bus clearing would blip key Off), so
+// the game does not keep the panel's last pedals and steering. The challenge ending resumes them.
+const RAMN_CHALLENGE_SILENT = [0x7E1, 0x7E2];
+function ramnChallengeEdge(on) {
+  RAMN_CHALLENGE_SILENT.forEach(ecu => on ? ramnSilentEcus.add(ecu) : ramnSilentEcus.delete(ecu));
+  if (on && demoEnabled) ramnClear();
+}
+
 function ramnUdsSelfTest() {
   const failures = [], saved = new Set(ramnSilentEcus), log = window.log;
+  const savedDemo = demoEnabled, savedEcuD = { ...ramnEcuD };
   const eq = (what, got, want) => {
     if (JSON.stringify(got) !== JSON.stringify(want)) failures.push(`${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
   };
@@ -562,9 +590,38 @@ function ramnUdsSelfTest() {
     eq('Erase EEPROM is refused', ramnUdsAnswer(0x7E1, [0x31, 0x01, 0x02, 0x01]), [0x7F, 0x31, 0x31]);
     eq('another routine is not played', ramnUdsAnswer(0x7E1, [0x31, 0x01, 0xF0, 0x0F]), null);
     eq('ECU A has no demo frames', ramnUdsAnswer(0x7E0, [0x31, 0x01, 0x02, 0x00]), null);
+    ramnSilentEcus.clear();
+    demoEnabled = false;                         // no ramnClear: the dashboard state is not ours
+    ramnChallengeEdge(true);
+    eq('a challenge silences ECU B', window.ramnIdSilenced(0x150), true);
+    eq('...and ECU C', window.ramnIdSilenced(0x1A7), true);
+    eq('...but not ECU D', window.ramnIdSilenced(0x1BB), false);
+    ramnChallengeEdge(false);
+    eq('its end resumes them', window.ramnIdSilenced(0x150) || window.ramnIdSilenced(0x1A7), false);
+    // ECU D lights what it hears (frames as a script sends them), not the panel.
+    const lamps = () => ramnCtrlPayload(0x1BB)[0];
+    Object.assign(ramnEcuD, { lights: 1, warn: false, turnL: false, turnR: false, brake: 0, sidebrake: false });
+    eq('nothing heard, nothing lit', lamps(), 0);
+    ramnEcuDHear(0x150, [3, 0]);
+    eq('low beam command', lamps(), 0x18);
+    ramnEcuDHear(0x150, [4, 1]);
+    eq('high beam + check engine', lamps(), 0x3A);
+    ramnEcuDHear(0x150, [5, 0]);
+    eq('no such switch position', lamps(), 0);
+    ramnEcuDHear(0x024, [0x00, 0x10]);
+    eq('brake pedal lights the sidebrake LED', lamps(), 0x04);
+    ramnEcuDHear(0x024, [0x00, 0x0F]);
+    ramnEcuDHear(0x1D3, [1]);
+    eq('so does the sidebrake', lamps(), 0x04);
+    ramnEcuDHear(0x1D3, [0]);
+    ramnEcuDHear(0x1A7, [0, 1]);
+    eq('right turn command: only the right lamp blinks', lamps() & 0x40, 0);
+    eq('...and it is latched', ramnEcuD.turnR, true);
   } finally {
     ramnSilentEcus.clear();
     saved.forEach(e => ramnSilentEcus.add(e));
+    demoEnabled = savedDemo;
+    Object.assign(ramnEcuD, savedEcuD);
     window.log = log;
   }
   if (failures.length) console.error('RAMN UDS self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
@@ -596,6 +653,7 @@ function ramnIngestFrame(frame) {
   if (frame.isExt) return;            // RAMN uses 11-bit IDs
   if (frame.id === RAMN_UDS_FUNCTIONAL || RAMN_ECU_FRAMES[frame.id]) { ramnUdsFrame(frame); return; }
   const d = frame.data, st = ramnState;
+  ramnEcuDHear(frame.id, d);           // the demo's ECU D listens to the same bus
   switch (frame.id) {
     case 0x024: st.brakeRaw = be16(d) & 0xFFF; st.brake = st.brakeRaw / 0xFFF * 100; ramnSeenFields.add('brake'); break;
     case 0x039: st.accel = (be16(d) & 0xFFF) / 0xFFF * 100; ramnSeenFields.add('accel'); break;
@@ -1000,7 +1058,7 @@ window.ramnSetTitles = (label) => {
 window.makeFloating = makeFloating;         // ← shared window mechanics (vehicle-panel.js reuses them)
 window.makeDraggable = makeDraggable;       // ← the drag half alone (carlito.js)
 window.ramnDemoStarted = ramnDemoStarted;
-window.ramnSetTraffic = ramnSetTraffic;               // ← carlito.js, on a challenge starting / ending
+window.ramnChallengeEdge = ramnChallengeEdge;         // ← carlito.js, on a challenge starting / ending
 window.ramnSyncTrafficUI = syncTrafficUI;             // ← sloppycan.js demoSetBaseTraffic
 window.ramnTrafficOn = () => ramnTraffic;             // ← sloppycan.js demoTick
 // A demo RAMN id whose ECU was told to stop (UDS routine 0x0200), and that routine's answer.
