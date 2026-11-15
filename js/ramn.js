@@ -361,7 +361,7 @@ ctrlWin.innerHTML = `
   <div class="ramn-scaleouter" id="ramnCtrlScaleOuter">
    <div class="ramn-body" id="ramnCtrlBody">
     <div class="ramn-sec ramn-traffic-sec">
-      <div class="ramn-toggle" id="ramnCtrlTraffic" title="Stop / resume the simulated RAMN frames. While stopped, the RAMN dashboard and Carlito read only the frames you send yourself. Turned off automatically when a Carlito challenge starts and back on when it ends.">Disable traffic</div>
+      <div class="ramn-toggle" id="ramnCtrlTraffic" title="Stop / resume the simulated RAMN frames. While stopped, the RAMN dashboard and Carlito read only the frames you send yourself. A Carlito challenge does not turn it off: it silences ECUs B and C, whose controls grey out, and ECU D keeps the key and the lamps.">Disable traffic</div>
       <div class="ramn-base-note" id="ramnCtrlBaseNote" style="display:none;"></div>
     </div>
     <div class="ramn-sec" data-ctl="brake">
@@ -555,6 +555,7 @@ function ramnUdsAnswer(ecu, req) {
   if (sub === 0x01) ramnSilentEcus.add(ecu);
   else if (sub === 0x02) ramnSilentEcus.delete(ecu);
   else return [0x7F, 0x31, 0x12];
+  ramnSilenceChanged();
   if (window.log) window.log(`RAMN demo: ECU ${ecu.toString(16).toUpperCase()} periodic frames ` +
     (sub === 0x01 ? 'stopped' : 'resumed') + ' (UDS routine 0x0200)');
   return suppress ? [] : [0x71, sub, 0x02, 0x00];
@@ -568,7 +569,13 @@ const RAMN_CHALLENGE_SILENT = [0x7E1, 0x7E2];
 function ramnChallengeEdge(on) {
   RAMN_CHALLENGE_SILENT.forEach(ecu => on ? ramnSilentEcus.add(ecu) : ramnSilentEcus.delete(ecu));
   if (on && demoEnabled) ramnClear();
+  ramnSilenceChanged();
 }
+// A demo RAMN id whose ECU was told to stop; whether the panel's pedals and wheel (ECU B and C's
+// frames) are, which stops it driving the J1939 / N2K demo too. Declarations, not window.*
+// assignments: syncTrafficUI asks them during the panel's own init.
+function ramnIdSilenced(id) { return [...ramnSilentEcus].some(ecu => RAMN_ECU_FRAMES[ecu].includes(id)); }
+function ramnDriveSilenced() { return RAMN_CHALLENGE_SILENT.some(ecu => ramnSilentEcus.has(ecu)); }
 
 function ramnUdsSelfTest() {
   const failures = [], saved = new Set(ramnSilentEcus), log = window.log;
@@ -632,6 +639,7 @@ function ramnUdsSelfTest() {
     demoEnabled = savedDemo;
     Object.assign(ramnEcuD, savedEcuD);
     window.log = log;
+    ramnSilenceChanged();
   }
   if (failures.length) console.error('RAMN UDS self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
   else console.log('RAMN UDS self-test: all checks passed.');
@@ -873,7 +881,11 @@ function syncTrafficUI() {
   const base = window.demoGetBaseTraffic ? window.demoGetBaseTraffic() : 'ramn';
   const baseNotRamn = base !== 'ramn';
   const carries = BASE_CARRIES[base];
-  const live = (ctl) => !baseNotRamn || (carries && carries.ctl.includes(ctl));
+  // A control whose ECU is silenced (UDS 31 01 02 00, or a Carlito challenge) greys out too: on
+  // RAMN traffic by its own frame's ECU; on a J1939 / N2K base the panel drives nothing while B or
+  // C is silent (ramnDriveSilenced).
+  const silent = (ctl) => baseNotRamn ? ramnDriveSilenced() : ramnIdSilenced(CTL_FRAME[ctl]);
+  const live = (ctl) => (!baseNotRamn || (carries && carries.ctl.includes(ctl))) && !silent(ctl);
   const allOff = !ramnTraffic || (baseNotRamn && !carries);
   cel.body.classList.toggle('ramn-ctrl-off', allOff);
   cel.dot.classList.toggle('off', allOff);
@@ -883,10 +895,22 @@ function syncTrafficUI() {
   cel.brake.disabled = allOff || !live('brake');
   cel.accel.disabled = allOff || !live('accel');
   cel.steer.disabled = allOff || !live('steer');
-  // Only a base traffic that carries none of the controls gets a note: everything is greyed out.
-  cel.baseNote.style.display = baseNotRamn && !carries ? '' : 'none';
-  if (baseNotRamn && !carries) cel.baseNote.textContent = 'RAMN traffic is off - the base traffic is ' + window.demoBaseTrafficLabel() + '.';
+  // A note when a whole base traffic carries none of the controls, or when ECUs are silenced.
+  const silentNames = [...ramnSilentEcus].sort().map(ecu => RAMN_ECU_NAMES[ecu]);
+  const note = baseNotRamn && !carries
+    ? 'RAMN traffic is off - the base traffic is ' + window.demoBaseTrafficLabel() + '.'
+    : silentNames.length && ramnTraffic
+      ? 'ECU ' + silentNames.join(', ') + ' silenced (a Carlito challenge, or UDS 31 01 02 00): their controls do nothing.'
+      : '';
+  cel.baseNote.style.display = note ? '' : 'none';
+  cel.baseNote.textContent = note;
 }
+// The frame each panel section drives, so its ECU (RAMN_ECU_FRAMES) says whether it is silenced.
+// The joystick (gear section) also sends horn 0x098 and turn 0x1A7, all ECU C's like 0x077.
+const CTL_FRAME = { brake: 0x024, accel: 0x039, steer: 0x062, gear: 0x077, lights: 0x150, key: 0x1B8, handbrake: 0x1D3 };
+const RAMN_ECU_NAMES = { 0x7E1: 'B', 0x7E2: 'C', 0x7E3: 'D' };
+// The silenced set changed (the routine, a challenge edge, the self-test's restore): re-grey.
+function ramnSilenceChanged() { if (cel.body) syncTrafficUI(); }
 
 function ramnSetTraffic(on) {
   on = !!on;
@@ -1068,12 +1092,11 @@ window.makeFloating = makeFloating;         // ← shared window mechanics (vehi
 window.makeDraggable = makeDraggable;       // ← the drag half alone (carlito.js)
 window.ramnDemoStarted = ramnDemoStarted;
 window.ramnChallengeEdge = ramnChallengeEdge;         // ← carlito.js, on a challenge starting / ending
-// The panel's pedals and wheel are ECU B and C's frames: either silenced, the panel does not drive.
-window.ramnDriveSilenced = () => RAMN_CHALLENGE_SILENT.some(ecu => ramnSilentEcus.has(ecu)); // ← j1939.js
+window.ramnDriveSilenced = ramnDriveSilenced;         // ← j1939.js
 window.ramnSyncTrafficUI = syncTrafficUI;             // ← sloppycan.js demoSetBaseTraffic
 window.ramnTrafficOn = () => ramnTraffic;             // ← sloppycan.js demoTick
 // A demo RAMN id whose ECU was told to stop (UDS routine 0x0200), and that routine's answer.
-window.ramnIdSilenced = (id) => [...ramnSilentEcus].some(ecu => RAMN_ECU_FRAMES[ecu].includes(id)); // ← demoTick
+window.ramnIdSilenced = ramnIdSilenced;               // ← demoTick
 window.ramnUdsAnswer = ramnUdsAnswer;                 // ← sloppycan.js demoIsoTpRespond
 window.ramnUdsSelfTest = ramnUdsSelfTest;
 // Live interpreted signal state (decoded from CAN - hardware or demo). Read by carlito.js.
