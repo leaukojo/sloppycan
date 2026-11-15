@@ -1044,8 +1044,10 @@ function ramnSetTraffic(on) {
   document.addEventListener('keydown', e => {
     // keyup stays ungated: a key held across the switch-off must still release.
     if (!ctrlWin.classList.contains('open') || !demoEnabled || !ramnTraffic || isField(e.target) || e.repeat) return;
-    if (e.key === ' ') { e.preventDefault(); ramnCtrl.handbrake = 1; syncCtrlUI(); return; } // Space = handbrake (momentary)
-    const m = DRIVE[e.key.toLowerCase()]; if (!m) return;
+    // A greyed section (syncTrafficUI: its ECU silenced, or a base traffic without it) takes no keys.
+    const off = (ctl) => cel.body.querySelector(`.ramn-sec[data-ctl="${ctl}"]`).classList.contains('ramn-sec-off');
+    if (e.key === ' ') { if (off('handbrake')) return; e.preventDefault(); ramnCtrl.handbrake = 1; syncCtrlUI(); return; } // Space = handbrake (momentary)
+    const m = DRIVE[e.key.toLowerCase()]; if (!m || off(m[0])) return;
     e.preventDefault();
     ramnCtrl[m[0]] = m[1];
     syncCtrlUI();
