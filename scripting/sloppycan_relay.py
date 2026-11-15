@@ -39,6 +39,13 @@ Frame grammar is the same as `cansend` / `candump -L` use:
     ignored by receivers - this relay does not need to know the grammar at
     all, it just forwards lines, but scripts using sloppybus.py rely on it.
 
+Info lines: a line starting with '#' is never a frame. sloppyCAN sends
+    #challenge start <id>            a Carlito challenge attempt began (clock at 0)
+    #challenge pass <id> <t>         passed after t seconds
+    #challenge fail <id> <t> <why>   failed (time limit, a constraint, ...)
+    #challenge exit <id>             the challenge was left, or the game closed
+and ignores '#' lines from scripts. sloppybus.py drops them like any non-frame.
+
 Semantics: a line represents a frame that appeared on the bus. Exactly like a
 real CAN controller, THE SENDER NEVER GETS ITS OWN LINE BACK. There are no
 acknowledgements and no timestamps on the wire - receivers stamp frames on

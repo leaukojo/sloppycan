@@ -970,7 +970,7 @@
   // forward with the Carlito window closed (CI has no game and no iframe).
   function acceptTelemetry(d, anyWindow) {
     checkContractVersion(d.version, d.hash);   // both sides warn on a version or content mismatch (plan §3)
-    setChallenge(!!d.challenge);
+    setChallenge(d.challenge);
     // A link resuming after a gap that ended it is a NEW link: what the packers announced on the
     // old one (a claim, a latched command) is announced again.
     if (!lastTel || performance.now() - lastTelT >= TELEMETRY_STALE_MS) resetPackers();
@@ -989,21 +989,29 @@
   // can already put frames on the bus through window.canForward. The payload goes STALE after
   // TELEMETRY_STALE_MS (600 ms) exactly like real telemetry (carlitoTelemetry() reads null), so a
   // test that needs a LIVE link must re-inject every 50-100 ms. The slow ids ride every
-  // other call, as they ride every other game message. opts.challenge sets the envelope flag.
+  // other call, as they ride every other game message. opts.challenge sets the envelope field.
   // `null` is the link going away - what closing the window does - so a test can end its link
   // and the vehicle panels see it end, rather than waiting on a staleness nobody announces.
   window.carlitoDebugInjectTelemetry = (values, opts) => {
     if (values == null) { lastTel = null; resetPackers(); notifyTelemetry(null); setChallenge(false); return; }
-    acceptTelemetry({ values, version: CONTRACT_VERSION, hash: CONTRACT_HASH, challenge: !!(opts && opts.challenge) }, true);
+    acceptTelemetry({ values, version: CONTRACT_VERSION, hash: CONTRACT_HASH, challenge: (opts && opts.challenge) || false }, true);
   };
   // ── Challenge attempts: the RAMN demo traffic steps aside ───────────────────
   // The game's envelope carries `challenge` (not a contract signal). A challenge is driven by
   // frames the player sends, which the demo's RAMN frames would overwrite every 10 ms, so traffic
   // goes off when an attempt starts and back on when it ends. EDGES ONLY: in between, the RAMN
-  // Control toggle is the user's, so re-enabling mid-challenge sticks. An older game sends no
-  // field, reads false, and never toggles.
+  // Control toggle is the user's, so re-enabling mid-challenge sticks. The field is false, or
+  // {id, state: running|passed|failed, t, msg} while a challenge is on (an older game sends plain
+  // true, or no field at all, which reads false and never toggles).
   let lastChallenge = false;
-  function setChallenge(ch) {
+  let lastAttempt = null;   // the last object form, for the script-link info lines
+  function setChallenge(value) {
+    const attempt = (value && typeof value === 'object') ? value : null;
+    for (const line of challengeInfoLines(lastAttempt, attempt)) {
+      if (window.scriptLinkInfo) window.scriptLinkInfo(line);
+    }
+    lastAttempt = attempt;
+    const ch = !!value;
     if (ch === lastChallenge) return;
     lastChallenge = ch;
     if (window.ramnSetTraffic) window.ramnSetTraffic(!ch);
@@ -1011,6 +1019,65 @@
       ? 'Carlito: challenge started - RAMN demo traffic disabled (re-enable it in the Control panel)'
       : 'Carlito: challenge ended - RAMN demo traffic re-enabled');
   }
+
+  // ── Challenge info lines for scripts ──
+  // What one envelope step tells a script (script-link.js sends them; `#` lines are never frames):
+  //   #challenge start <id>            the attempt clock started (first start, RETRY, a respawn)
+  //   #challenge pass <id> <t>         passed after t seconds
+  //   #challenge fail <id> <t> <why>   failed (a constraint, the time limit, ...)
+  //   #challenge exit <id>             the challenge was left (or the game closed)
+  // A clock that went backwards is a restart. Printable ASCII only, capped at the relay's 128.
+  function challengeInfoLines(prev, cur) {
+    const ascii = (s) => String(s == null ? '' : s).replace(/[^\x20-\x7E]/g, '?');
+    const name = (a) => ascii(a.id).replace(/ /g, '_') || '?';
+    const secs = (a) => (Number(a.t) || 0).toFixed(2);
+    const out = [];
+    const same = !!(prev && cur && prev.id === cur.id);
+    if (prev && !same) out.push(`#challenge exit ${name(prev)}`);
+    if (cur) {
+      const restarted = !same || Number(cur.t) < Number(prev.t);
+      if (cur.state === 'running') {
+        if (restarted || prev.state !== 'running') out.push(`#challenge start ${name(cur)}`);
+      } else if (restarted || prev.state === 'running') {
+        if (restarted) out.push(`#challenge start ${name(cur)}`);
+        out.push(cur.state === 'passed' ? `#challenge pass ${name(cur)} ${secs(cur)}`
+                                        : `#challenge fail ${name(cur)} ${secs(cur)} ${ascii(cur.msg)}`.trimEnd());
+      }
+    }
+    return out.map((l) => l.slice(0, 128));
+  }
+
+  function carlitoChallengeInfoSelfTest() {
+    const failures = [];
+    const eq = (what, got, want) => {
+      if (JSON.stringify(got) !== JSON.stringify(want)) failures.push(`${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+    };
+    const run = (t) => ({ id: 'car_box_stop', state: 'running', t });
+    eq('nothing to nothing', challengeInfoLines(null, null), []);
+    eq('a start', challengeInfoLines(null, run(0)), ['#challenge start car_box_stop']);
+    eq('the clock running is quiet', challengeInfoLines(run(1), run(1.05)), []);
+    eq('a respawn restarts', challengeInfoLines(run(5), run(0.02)), ['#challenge start car_box_stop']);
+    eq('a pass', challengeInfoLines(run(9), { id: 'car_box_stop', state: 'passed', t: 9.5 }),
+      ['#challenge pass car_box_stop 9.50']);
+    eq('a fail says why', challengeInfoLines(run(9), { id: 'car_box_stop', state: 'failed', t: 9.8, msg: 'Ran past the box' }),
+      ['#challenge fail car_box_stop 9.80 Ran past the box']);
+    eq('the result panel is quiet', challengeInfoLines({ id: 'car_box_stop', state: 'passed', t: 9.5 },
+      { id: 'car_box_stop', state: 'passed', t: 9.5 }), []);
+    eq('RETRY starts again', challengeInfoLines({ id: 'car_box_stop', state: 'failed', t: 9.8 }, run(0)),
+      ['#challenge start car_box_stop']);
+    eq('leaving', challengeInfoLines(run(3), null), ['#challenge exit car_box_stop']);
+    eq('another challenge', challengeInfoLines(run(3), { id: 'car_lights', state: 'running', t: 0 }),
+      ['#challenge exit car_box_stop', '#challenge start car_lights']);
+    eq('a fail before any running message still starts', challengeInfoLines(null,
+      { id: 'car_lights', state: 'failed', t: 0, msg: 'did not start' }),
+      ['#challenge start car_lights', '#challenge fail car_lights 0.00 did not start']);
+    const long = challengeInfoLines(run(1), { id: 'car_box_stop', state: 'failed', t: 1, msg: 'x'.repeat(300) + 'é' });
+    eq('capped at 128 characters', long[0].length, 128);
+    if (failures.length) console.error('Carlito challenge-info self-test: ' + failures.length + ' failure(s)\n' + failures.join('\n'));
+    else console.log('Carlito challenge-info self-test: all checks passed.');
+    return failures;
+  }
+  window.carlitoChallengeInfoSelfTest = carlitoChallengeInfoSelfTest;
 
   // ── Telemetry hook: "which machine is on the link" ───────────────────────────
   // This file is the only place the game's telemetry arrives, and it knows no vehicle types -

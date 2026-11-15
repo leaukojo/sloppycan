@@ -10,6 +10,9 @@
 //
 // Wire protocol: one frame per '\n'-terminated line, cansend grammar - `123#DEADBEEF` (3 hex id
 // digits = 11-bit, exactly 8 = 29-bit), `123#R` / `123#R4` remote. Unparseable lines are ignored.
+// A line starting with `#` is an INFO line, never a frame: this page sends `#challenge ...` lines
+// (carlito.js challengeInfoLines: start / pass / fail / exit) via scriptLinkInfo(), and drops
+// any `#` line a script sends without counting it as unparseable.
 // No CAN FD, no timestamps. Scripts use TCP 29541; the relay's own docstring covers its security
 // (Origin allowlist, Host check, 127.0.0.1 bind, HTTP-looking TCP connections dropped).
 //
@@ -101,6 +104,13 @@
     if (!flushQueued) { flushQueued = true; queueMicrotask(flush); }
   };
 
+  // An info line (starting with '#') rides the same batch, so it stays in order with the frames.
+  window.scriptLinkInfo = function (line) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    outBatch.push(line);
+    if (!flushQueued) { flushQueued = true; queueMicrotask(flush); }
+  };
+
   function flush() {
     flushQueued = false;
     const lines = outBatch;
@@ -116,7 +126,7 @@
     if (typeof ev.data !== 'string') return;
     for (const raw of ev.data.split('\n')) {
       const line = raw.trim();
-      if (!line) continue;
+      if (!line || line[0] === '#') continue;
       const f = parseLine(line);
       if (!f) { badLines++; continue; }
       if (rxQueue.length >= RX_QUEUE_MAX) { dropIn++; continue; }
