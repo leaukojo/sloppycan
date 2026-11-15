@@ -480,14 +480,15 @@ const ramnBlinkOn = () => (Math.floor(Date.now() / 500) % 2) === 0;
 // Demo ECU D: what it last heard on the bus, from the demo's ECUs B and C or from a script that
 // silenced them. Firmware ramn_simulator.c lights D's LEDs from these, never from its own panel:
 // taillamp / low / high from 0x150 byte 0 (switch position 2 / 3 / 4), check engine from 0x150
-// byte 1 non-zero, the turn lamps from 0x1A7 (byte 0 left, byte 1 right; big-endian u16),
+// byte 1 non-zero, the turn lamps from 0x1A7 (byte 0 RIGHT, byte 1 LEFT: a little-endian u16,
+// left 0xFF00 / right 0x00FF, never byte-swapped like the analog signals; DBC TurnIndicators),
 // blinked by D at 1 Hz, and the sidebrake LED from 0x024 >= 0x010 or 0x1D3 non-zero. Values
 // latch, as on the board. Fed by ramnIngestFrame.
 const ramnEcuD = { lights: 1, warn: false, turnL: false, turnR: false, brake: 0, sidebrake: false };
 function ramnEcuDHear(id, d) {
   switch (id) {
     case 0x150: ramnEcuD.lights = d[0] || 0; ramnEcuD.warn = (d[1] || 0) !== 0; break;
-    case 0x1A7: ramnEcuD.turnL = (d[0] || 0) !== 0; ramnEcuD.turnR = (d[1] || 0) !== 0; break;
+    case 0x1A7: ramnEcuD.turnR = (d[0] || 0) !== 0; ramnEcuD.turnL = (d[1] || 0) !== 0; break;
     case 0x024: ramnEcuD.brake = be16(d); break;
     case 0x1D3: ramnEcuD.sidebrake = (d[0] || 0) !== 0; break;
   }
@@ -505,7 +506,7 @@ function ramnCtrlPayload(id) {
     case 0x077: return [c.gear === 'R' ? 0xFF : (c.gear === 'P' ? 0xFE : c.gear), c.joy];
     case 0x098: return [c.horn ? 1 : 0, 0];
     case 0x150: return [c.lights, 0];
-    case 0x1A7: return [c.turnL ? 1 : 0, c.turnR ? 1 : 0];
+    case 0x1A7: return [c.turnR ? 1 : 0, c.turnL ? 1 : 0];   // byte 0 right, byte 1 left (ramnEcuD)
     // ECU D's LED status: the lamps it lights from the commands it HEARD (ramnEcuD), never from
     // the panel, so a script's 0x150 / 0x1A7 light them with ECUs B and C silenced.
     case 0x1BB: {
@@ -616,9 +617,15 @@ function ramnUdsSelfTest() {
     ramnEcuDHear(0x1D3, [1]);
     eq('so does the sidebrake', lamps(), 0x04);
     ramnEcuDHear(0x1D3, [0]);
-    ramnEcuDHear(0x1A7, [0, 1]);
+    ramnEcuDHear(0x1A7, [1, 0]);                 // byte 0 is RIGHT (the board, the DBC)
     eq('right turn command: only the right lamp blinks', lamps() & 0x40, 0);
-    eq('...and it is latched', ramnEcuD.turnR, true);
+    eq('...and it is latched', [ramnEcuD.turnL, ramnEcuD.turnR], [false, true]);
+    ramnEcuDHear(0x1A7, [0, 1]);
+    eq('byte 1 is the left turn', [ramnEcuD.turnL, ramnEcuD.turnR], [true, false]);
+    const ctrl = { turnL: ramnCtrl.turnL, turnR: ramnCtrl.turnR };
+    Object.assign(ramnCtrl, { turnL: 1, turnR: 0 });
+    eq("the panel's left turn is byte 1", ramnCtrlPayload(0x1A7), [0, 1]);
+    Object.assign(ramnCtrl, ctrl);
   } finally {
     ramnSilentEcus.clear();
     saved.forEach(e => ramnSilentEcus.add(e));
