@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for taking a look at SloppyCAN.
+Thanks for taking a look at sloppyCAN.
 
 ## Before you start
 

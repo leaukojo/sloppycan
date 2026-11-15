@@ -1,22 +1,22 @@
-# SloppyCAN
+# sloppyCAN
 
 Want to learn about the CAN bus, but too lazy to install anything?
 
-SloppyCAN is a CAN tool that runs entirely in a web browser.
+sloppyCAN is a CAN tool that runs entirely in a web browser.
 
 **Try it:** [https://leaukojo.github.io/sloppycan/](https://leaukojo.github.io/sloppycan/)
 
-![SloppyCAN demo](assets/demo.jpg)
+![sloppyCAN demo](assets/demo.jpg)
 
 ## Features
 
 The classic CAN (Controller Area Network) software tools: dump CAN traffic, filter CAN messages, send CAN messages, graph specific bytes, etc.
 
-SloppyCAN can be connected to [Carlito](https://github.com/leaukojo/carlito), a 3D driving simulator that also runs in a web browser.
+sloppyCAN can be connected to [Carlito](https://github.com/leaukojo/carlito), a 3D driving simulator that also runs in a web browser.
 
 You can use candlelight and slcan CAN adapters. If you own a [RAMN](https://github.com/ToyotaInfoTech/RAMN), you can connect it without installing anything and get started immediately. If you don't have any hardware, you can use the demo mode.
 
-SloppyCAN's goal is to help people learn the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939 / NMEA 2000 / ISOBUS, CANopen and CHAdeMO.
+sloppyCAN's goal is to help people learn the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939 / NMEA 2000 / ISOBUS, CANopen and CHAdeMO.
 It includes many interactive explainer pages (example: [ISO-TP explainer](https://leaukojo.github.io/sloppycan/explainers/isotp-explainer.html)).
 
 
@@ -39,12 +39,12 @@ By default, the Carlito tab loads the hosted **stable** build of
 header switches to the dev channel (<https://leaukojo.github.io/carlito/dev/>); `?carlitoBuild=dev` does the same from a link.
 
 To point it at your own build instead (e.g. after modifying the game and re-exporting it), serve
-the folder holding your build alongside SloppyCAN and open it with a `carlitoUrl` query param:
+the folder holding your build alongside sloppyCAN and open it with a `carlitoUrl` query param:
 `http://localhost:8000/sloppycan/index.html?carlitoUrl=../carlito/build/web/index.html`.
 
 ### Scripting
 
-You can run local scripts that read and write CAN messages from SloppyCAN. Run `python scripting/sloppycan_relay.py`,
+You can run local scripts that read and write CAN messages from sloppyCAN. Run `python scripting/sloppycan_relay.py`,
 click **Script** (top right) and **Connect**, then run a script, e.g. `python scripting/example.py`. Scripts
 see every frame sloppyCAN sees, and what they send is transmitted when a bus is open.
 
@@ -70,7 +70,7 @@ Example with `websocat` on the machine that can reach the remote adapter:
 websocat -E ws-l:127.0.0.1:29542 tcp:REMOTE_HOST:REMOTE_PORT
 ```
 
-Then in SloppyCAN set the tunnel URL to `ws://127.0.0.1:29542/`.
+Then in sloppyCAN set the tunnel URL to `ws://127.0.0.1:29542/`.
 
 > **Warning**: A WebSocket SLCAN listener exposed to a network allows anyone on that network to send CAN traffic — there is no authentication.
 > Prefer binding the tunnel to localhost (`127.0.0.1`) or a tightly scoped private interface, and enforce an origin allowlist and TLS on any shared endpoint.
@@ -92,4 +92,4 @@ license. See [`LICENSE`](LICENSE) for the full text.
 
 ---
 
-⚠️ SloppyCAN was built with Claude Code under human supervision for testing and fact-checking, so review it yourself before relying on it.
+⚠️ sloppyCAN was built with Claude Code under human supervision for testing and fact-checking, so review it yourself before relying on it.

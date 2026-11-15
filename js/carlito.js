@@ -124,8 +124,8 @@
     <div class="carlito-bar">
       <button id="carlitoReload" title="Reload the game">Reload</button>
       <button id="carlitoKbd" title="Block physical keyboard from reaching the game (JS bridge still drives)">⌨ on</button>
-      <button class="carlito-link on" id="carlitoUp" title="Uplink: send RAMN controls into the game (SloppyCAN → Carlito)">Up ●</button>
-      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52E and its protocol frames (Carlito → SloppyCAN)">Down ●</button>
+      <button class="carlito-link on" id="carlitoUp" title="Uplink: send RAMN controls into the game (sloppyCAN → Carlito)">Up ●</button>
+      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52E and its protocol frames (Carlito → sloppyCAN)">Down ●</button>
       <span class="carlito-nodrive" id="carlitoNoDrive" title="The built uplink has no accel, brake or steer - the game falls back to its own keyboard (not during a challenge)">no driving controls</span>
       <button class="carlito-iocaret" id="carlitoIoCaret" title="Show/hide debug panel">▸ debug</button>
     </div>
@@ -1232,7 +1232,7 @@
       el.kbd.classList.toggle('on', kbdBlocked);
       if (kbdBlocked) stealFocus();
     });
-    // Uplink (SloppyCAN → Carlito control push) and Downlink (Carlito → SloppyCAN telemetry
+    // Uplink (sloppyCAN → Carlito control push) and Downlink (Carlito → sloppyCAN telemetry
     // forward) toggle independently. The header dot is green if either direction is live.
     function syncLinkDot() { el.dot.style.background = (upOn || downOn) ? 'var(--green)' : 'var(--text3)'; }
     el.up.addEventListener('click', () => {

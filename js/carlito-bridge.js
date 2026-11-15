@@ -1,5 +1,5 @@
 // ── carlito-bridge.js - host shims for the standalone Carlito↔RAMN bridge ───────
-// This page reuses three SloppyCAN files unchanged: can-link.js (CAN transport),
+// This page reuses three sloppyCAN files unchanged: can-link.js (CAN transport),
 // ramn.js (RAMN frame decode → window.ramnGetState), and carlito.js (the floating
 // Carlito game + control push + telemetry return). Those files reference a handful of
 // "host" globals that the full app gets from sloppycan.js; here we provide minimal
@@ -51,7 +51,7 @@ function ingestFrame(frame) {
 }
 window.ingestFrame = ingestFrame;
 
-// ── Connection (thin connectSerial/disconnectSerial, no SloppyCAN UI) ───────────
+// ── Connection (thin connectSerial/disconnectSerial, no sloppyCAN UI) ───────────
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
 async function bridgeConnect() {

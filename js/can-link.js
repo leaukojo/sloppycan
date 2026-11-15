@@ -1,6 +1,6 @@
 // ── can-link.js - shared CAN transport layer ───────────────────────────────────
 // Device + protocol primitives extracted from sloppycan.js so that BOTH the full
-// SloppyCAN monitor (index.html) and the standalone Carlito↔RAMN bridge
+// sloppyCAN monitor (index.html) and the standalone Carlito↔RAMN bridge
 // (carlito-bridge.html) can reuse one battle-tested transport instead of forking it.
 //
 // LOAD ORDER: this is a classic (non-defer) script and MUST load before
@@ -14,7 +14,7 @@
 //   ingestFrame(frame)         - sink for a parsed RX frame
 //   paused                     - when true, RX frames are counted but not ingested
 //   demoMode                   - when true, SLCAN writes are suppressed
-//   terminalMode, termLog(d,l) - SLCAN serial-terminal passthrough (SloppyCAN only)
+//   terminalMode, termLog(d,l) - SLCAN serial-terminal passthrough (sloppyCAN only)
 //   escHtml(s)                 - HTML-escape for raw-line diagnostics
 //   parseErrors, totalFrames, frameRateBuffer, bytesReceived - RX stat counters
 //     (frameRateBuffer is fed through countRxFrame / rateWindowPush below)

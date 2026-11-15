@@ -1239,7 +1239,7 @@ function hwConnectWarning() {
       + `<div style="font-weight:600;font-size:var(--fs-l);margin-bottom:10px;color:var(--amber)">Connect to hardware?</div>`
       + `<div style="font-size:var(--fs-m);line-height:1.5;color:var(--text2)">This AI-built tool is for education only. `
       + `Use it only with testbeds and simulators. Connecting to a real vehicle is dangerous, strongly discouraged, `
-      + `and against SloppyCAN's license.</div>`
+      + `and against sloppyCAN's license.</div>`
       + `<label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:var(--fs-m);color:var(--text2);cursor:pointer">`
       + `<input type="checkbox" id="hwWarnDismiss"> Don't show again for this workspace</label>`
       + `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">`
