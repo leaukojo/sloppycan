@@ -11,8 +11,9 @@
 // Wire protocol: one frame per '\n'-terminated line, cansend grammar - `123#DEADBEEF` (3 hex id
 // digits = 11-bit, exactly 8 = 29-bit), `123#R` / `123#R4` remote. Unparseable lines are ignored.
 // A line starting with `#` is an INFO line, never a frame: this page sends `#challenge ...` lines
-// (carlito.js challengeInfoLines: start / pass / fail / exit) via scriptLinkInfo(), and drops
-// any `#` line a script sends without counting it as unparseable.
+// (carlito.js challengeInfoLines: start / pass / fail / exit) via scriptLinkInfo(). A script's
+// `#challenge open <id>` asks Carlito for that challenge (carlitoOpenChallenge reloads the game
+// into it); any other `#` line from a script is dropped without counting as unparseable.
 // No CAN FD, no timestamps. Scripts use TCP 29541; the relay's own docstring covers its security
 // (Origin allowlist, Host check, 127.0.0.1 bind, HTTP-looking TCP connections dropped).
 //
@@ -126,7 +127,8 @@
     if (typeof ev.data !== 'string') return;
     for (const raw of ev.data.split('\n')) {
       const line = raw.trim();
-      if (!line || line[0] === '#') continue;
+      if (!line) continue;
+      if (line[0] === '#') { onScriptInfo(line); continue; }
       const f = parseLine(line);
       if (!f) { badLines++; continue; }
       if (rxQueue.length >= RX_QUEUE_MAX) { dropIn++; continue; }
@@ -134,6 +136,14 @@
     }
     warnThrottled();
     if (!draining) drain();
+  }
+
+  // A script's info line. Only `#challenge open <id>` means anything; the rest are dropped.
+  function onScriptInfo(line) {
+    const m = /^#challenge open ([a-z0-9_]{1,64})$/.exec(line);
+    if (m && window.carlitoOpenChallenge && window.carlitoOpenChallenge(m[1])) {
+      say('Script: opening the Carlito challenge ' + m[1]);
+    }
   }
 
   // canForward ingests synchronously (so `injecting` marks exactly that frame for the echo guard in

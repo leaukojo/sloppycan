@@ -476,7 +476,7 @@
     }
     loaded = false;
     el.placeholder.style.display = 'none';
-    iframe.src = gameUrlWithVehicle();
+    iframe.src = gameUrlWithRequest();
   }
 
   // ── Asking the game for a particular vehicle ────────────────────────────────
@@ -490,19 +490,31 @@
   // why this function does no confirming of its own. The request is spent on the load it causes:
   // a later Reload or a channel switch goes back to the game's own saved session rather than
   // pinning it to whatever was asked for once.
-  let pendingVehicle = '';
-  function gameUrlWithVehicle() {
-    if (!pendingVehicle) return GAME_URL;
-    const v = pendingVehicle;
-    pendingVehicle = '';
-    const sep = GAME_URL.includes('?') ? '&' : '?';
-    return GAME_URL + sep + 'vehicle=' + encodeURIComponent(v);
+  let pendingVehicle = '', pendingChallenge = '';
+  function gameUrlWithRequest() {
+    const params = [];
+    if (pendingVehicle) params.push('vehicle=' + encodeURIComponent(pendingVehicle));
+    if (pendingChallenge) params.push('challenge=' + encodeURIComponent(pendingChallenge));
+    pendingVehicle = pendingChallenge = '';
+    if (!params.length) return GAME_URL;
+    return GAME_URL + (GAME_URL.includes('?') ? '&' : '?') + params.join('&');
   }
   // Returns false when there is no game to ask (window shut / iframe never built).
   function carlitoSelectVehicle(variant) {
     if (!variant || !win.classList.contains('open')) return false;
     pendingVehicle = String(variant);
     loadGame();
+    return true;
+  }
+  // A script's `#challenge open <id>` (script-link.js): the same reload, with `?challenge=<id>`,
+  // which boots the game straight into that attempt (an id it does not list boots its default
+  // level). Unlike a vehicle request it opens a shut window; with no live bus that opening waits
+  // as a click does (carlitoBusReady), and the request waits with it.
+  function carlitoOpenChallenge(id) {
+    if (!/^[a-z0-9_]{1,64}$/.test(String(id))) return false;
+    pendingChallenge = String(id);
+    if (win.classList.contains('open')) loadGame();
+    else carlitoToggle();   // opening builds the iframe, which loads the request
     return true;
   }
 
@@ -1276,6 +1288,7 @@
 
   window.carlitoToggle = carlitoToggle;
   window.carlitoSelectVehicle = carlitoSelectVehicle;   // ← deep-link reload into a named variant
+  window.carlitoOpenChallenge = carlitoOpenChallenge;   // ← deep-link reload into a challenge (script-link.js)
   window.carlitoIsOpen = carlitoIsOpen;   // ← used by the serial-tab traffic warning
   window.carlitoBusReady = carlitoBusReady; // ← core calls this when a bus/demo goes live
   // True only for a message whose source IS our game iframe. Lets the standalone bridge add the

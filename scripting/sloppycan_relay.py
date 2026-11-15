@@ -44,7 +44,10 @@ Info lines: a line starting with '#' is never a frame. sloppyCAN sends
     #challenge pass <id> <t>         passed after t seconds
     #challenge fail <id> <t> <why>   failed (time limit, a constraint, ...)
     #challenge exit <id>             the challenge was left, or the game closed
-and ignores '#' lines from scripts. sloppybus.py drops them like any non-frame.
+A script may send
+    #challenge open <id>             reload Carlito straight into that challenge
+and sloppyCAN ignores every other '#' line from scripts. sloppybus.py drops
+'#' lines like any non-frame.
 
 Semantics: a line represents a frame that appeared on the bus. Exactly like a
 real CAN controller, THE SENDER NEVER GETS ITS OWN LINE BACK. There are no

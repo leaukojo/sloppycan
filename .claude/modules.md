@@ -201,7 +201,8 @@ the CANopen tab.
 `sloppycan.js` `ingestFrameBody` (at its top) and `recordTxFrame` → `scriptLinkFrame`; inbound
 via `window.canForward`. `index.html` `#scriptBtn` + `#scriptLinkStatus`. Relay, client helper and
 examples in `scripting/`. `carlito.js` `setChallenge` → `scriptLinkInfo`: the game envelope's
-challenge edges as `#challenge` info lines (`challengeInfoLines`).
+challenge edges as `#challenge` info lines (`challengeInfoLines`). A script's `#challenge open
+<id>` → `onScriptInfo` → `carlitoOpenChallenge`: the `?challenge=` deep-link reload.
 
 ## CAN Signals explainer (`explainers/can-signals-explainer.html`)
 
