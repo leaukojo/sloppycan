@@ -55,6 +55,7 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
   share one lexical scope. **Never redeclare a name across them** (a SyntaxError spanning scripts).
   Bolt-on modules are deferred, talk via `window.*`, and should reuse core helpers
   (`window.withTxLock`, `canHexBytes`, `txReady`, …) rather than copy them.
+- **Name:** always `sloppyCAN` in prose and UI (even at a sentence start); `sloppycan` only for repo / file / URL names.
 - **`… remove to revert` hook comments are navigation aids**, not a promise that every module is
   independently removable.
 - **Bus data is untrusted:** ids, bytes and decoded strings go through `escHtml()` or
