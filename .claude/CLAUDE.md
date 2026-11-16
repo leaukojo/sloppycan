@@ -83,10 +83,10 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
   (0 would mean "centred").
 - **Numbers come off a primary source, never a plan document or web summary:** DSDL files +
   pydronecan for DroneCAN; J1939-71 / J1939-81 / isobus.net for J1939 and ISOBUS. This has caught
-  wrong tables more than once. One approved exception: `iso11992.js`'s [SEC]-tagged PGNs
-  (ISO 11992-2 is paywalled). J1939-71 Table 1 judges a value by its **top byte**, so encoders
-  (`J1939Pack.put`) clamp to 0xFA / 0xFAFF / 0xFAFFFFFF. A mode or value shown only in a figure is
-  not written; leave the field "not available".
+  wrong tables more than once. ISO 11992-2 is paywalled: UN R13 Annexes 16/17 and EU 2015/68
+  quote its fields; an LLM's recall of it was wrong. J1939-71 Table 1 judges a value by its
+  **top byte**, so encoders (`J1939Pack.put`) clamp to 0xFA / 0xFAFF / 0xFAFFFFFF. A mode or
+  value shown only in a figure is not written; leave the field "not available".
 - **`carlito_contract.js` is generated:** never hand-edit it; regenerate in the `carlito` repo
   (`node tools/gen_js_contract.mjs`). It loads before `carlito.js`. Drift guards: the runtime
   version / content-hash mismatch warning, and CI re-hashing the body against `CARLITO_CONTRACT_HASH`.

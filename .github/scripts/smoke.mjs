@@ -390,8 +390,8 @@ if (tabMode.again !== 'nmea2000') fail(where, `second show: mode is ${tabMode.ag
 
 // ── 4c. Contract coverage ────────────────────────────────────────────────────
 // One frame assertion per packer the 2026-10-31 audit's bundle 06 added (CleANopen TPDO1, ISO 11992
-// EBS21 / EBS22, the train's 0x52D / 0x52E, CANaerospace on 1500), the TC / ESC switches' sources,
-// the implement's claim answered on request and re-sent when a bus opens, and decision 2's DroneCAN
+// EBS21 / EBS22, EBS11 since; the train's 0x52D / 0x52E, CANaerospace on 1500), the TC / ESC
+// switches' sources, the implement's claim answered on request and re-sent when a bus opens, and decision 2's DroneCAN
 // re-emit on link-up. Two injections cover one slow tick.
 where = 'contract coverage';
 await load('index.html');
@@ -422,9 +422,11 @@ const cov = await page.evaluate(async (P) => {
     expect('CleANopen TPDO1', fr, 0x190, false, '02280023');
     expect('ISO 11992 EBS21 (VDC passive)', fr, 0x180320C8, true, 'FFFCFFFFFFFFFFFF');
     expect('ISO 11992 EBS22 (ABS passive)', fr, 0x18FEC4C8, true, 'FCFFFFFFFFFFFFFF');
+    expect('ISO 11992 EBS11 (10 % demand)', fr, 0x0C02C820, true, 'FFFF000DFFFFFFFF');
     fr = await run({ ...P.truck, body_bus: false, trailer_connected: false });
     if (find(fr, 0x190).length) bad('a TPDO1 while body_bus is false');
     if (find(fr, 0x18FEC4C8, true).length) bad('an EBS22 while no trailer is connected');
+    if (find(fr, 0x0C02C820, true).length) bad('an EBS11 while no trailer is connected');
 
     const train = { ...P.train }; delete train.grade;
     fr = await run(train);

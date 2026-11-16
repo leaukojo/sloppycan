@@ -411,7 +411,10 @@ const J1939_DB = {
   0xEE00:{ name:'Address Claimed', abbr:'AC', spns:[] },
   // ISO 11992-2 trailer messages, which share this id space (iso11992.js packs them). They are not
   // SAE parameters, so no SPN numbers. Field positions are EU 2015/68 Annex XII's / UN R13's quoting
-  // of the standard; the two PGNs are SECONDARY-sourced - see iso11992.js's provenance header.
+  // of the standard, the PGNs isobus.net's - see iso11992.js's provenance header.
+  0x0200:{ name:'ISO 11992 EBS11 - towing to towed vehicle', abbr:'EBS11', spns:[
+    { name:'Service/secondary brake demand value', b:2, n:2, f:5/256, o:0, u:'kPa', dp:0 },
+  ]},
   0x0300:{ name:'ISO 11992 EBS21 - towed to towing vehicle', abbr:'EBS21', spns:[
     { name:'VDC active/passive', b:1, n:0, bit:0, bits:2, map:{0:'Passive',1:'Active',2:'Error',3:'N/A'} },
   ]},
