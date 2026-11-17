@@ -218,7 +218,14 @@ page's own comments.
   load stalls `readLoop` / `usbSerialPump` (`can-link.js`), RAMN's USB buffer overflows and the
   board closes the channel. Move the read pump to a dedicated Worker (Web Serial and WebUSB both
   work there) and post parsed frames to the page; the bridge reuses the transport too. Stopgap
-  now: the SLCAN re-open watchdog in `sloppycan.js` (re-sends `O`/`L` after 2 s with no RX).
+  now: the SLCAN re-open watchdog in `sloppycan.js` (re-sends `O`/`L` when no RX frame arrives for 2 s, only within 5 s of a main-thread stall).
+  Budget (RAMN GitHub firmware, default traffic): ECU A receives ~370 frames/s × 22 B ≈ 8.1 kB/s
+  into a 15 000 B USB TX stream buffer (full in ~1.8 s), then one `xStreamBufferSend` waits 2 s
+  before `CLOSE_DEVICE_ON_USB_TX_OVERFLOW` closes SLCAN: **~3.8 s without host reads**, a bit more
+  with host-side and 2 kB staging buffers. Desktop Web Serial now opens with a 1 MB `bufferSize`
+  (`SERIAL_BUFFER_SIZE`, `can-link.js`), which the browser fills during a stall; Android WebUSB
+  still needs the Worker. Queuing several `transferIn` does not help: each completes on RAMN's
+  next short packet (~1 frame), so a queue is used up in milliseconds.
 - **RAMN demo ↔ physical board parity.** Challenges (by hand or by solver) should feel the same in
   Demo as on a RAMN; not yet audited end to end. Trust the board's firmware (`RAMN_HF25_priv`) and
   the DBC over the GitHub tree, which byte-swaps every 16-bit signal (0x1A7 read reversed). Known gaps:

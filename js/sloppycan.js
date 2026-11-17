@@ -1180,17 +1180,27 @@ async function busOpen() {
 
 // SLCAN re-open watchdog. A same-site Carlito iframe shares this main thread, so a level load stalls
 // the RX pump; RAMN's device→host buffer overflows and the board closes the channel itself. With
-// no RX bytes for 2 s on an open, unpaused SLCAN bus, re-send the open command (harmless if still open).
+// no RX frames for 2 s on an open, unpaused SLCAN bus, re-send the open command.
+// Count frames, not bytes: a closed RAMN still transmits our `t` frames and acks each with `\r`, so
+// Carlito's telemetry keeps the byte count moving while no frame comes back.
+// Only within 5 s of a main-thread stall (this tick arriving late): a bus the user silenced on
+// purpose (challenges, UDS) is quiet without a stall, and RAMN's `O` resets its CAN peripheral.
 // The real fix is a Worker RX pump (TODO in .claude/modules.md).
-let slcanWatchBytes = -1, slcanWatchWarned = false;
+let slcanWatchFrames = -1, slcanWatchWarned = false, slcanWatchLast = performance.now(), slcanRecoverUntil = 0;
 setInterval(() => {
+  const now = performance.now();
+  // Stalled: RAMN may have closed. Only re-baseline on this tick - the pump hasn't drained what
+  // queued during the stall yet, so comparing counts across it would fire on a board still open.
+  const stalled = now - slcanWatchLast > 2500;
+  if (stalled) slcanRecoverUntil = now + 5000;
+  slcanWatchLast = now;
   const armed = busIsOpen && !paused && !demoMode && !terminalMode && connMode !== 'gsusb' && (port || usbSerDev || slcanSocket);
-  if (armed && bytesReceived === slcanWatchBytes) {
+  if (armed && !stalled && now < slcanRecoverUntil && totalFrames === slcanWatchFrames) {
     sendCommand(getOpenCmd()).catch(() => {});
-    if (!slcanWatchWarned) log('No RX for 2 s - re-sending SLCAN open command until traffic resumes', 'warn');
+    if (!slcanWatchWarned) log('No RX frames for 2 s after a stall - re-sending SLCAN open command', 'warn');
     slcanWatchWarned = true;
   } else slcanWatchWarned = false;
-  slcanWatchBytes = armed ? bytesReceived : -1;
+  slcanWatchFrames = armed ? totalFrames : -1;
 }, 2000);
 
 function toggleTxSuspend() {
@@ -1293,7 +1303,7 @@ async function connectSerial() {
     } else {
       connMode = 'serial';
       port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
+      await port.open({ baudRate: 115200, bufferSize: SERIAL_BUFFER_SIZE });
       log('Port opened successfully', 'ok');
       startReadLoop();
     }

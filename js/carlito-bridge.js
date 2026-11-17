@@ -73,7 +73,7 @@ async function bridgeConnect() {
     } else {
       connMode = 'serial';
       port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
+      await port.open({ baudRate: 115200, bufferSize: SERIAL_BUFFER_SIZE });
       startReadLoop();
     }
 

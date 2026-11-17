@@ -557,6 +557,10 @@ async function usbSerialPump() {
   }
 }
 
+// Web Serial `bufferSize` for port.open (default 255 B ≈ 30 ms of RAMN traffic). The browser keeps
+// draining the device into this buffer while the page's main thread stalls (a Carlito level load),
+// so RAMN's own buffer doesn't overflow and close SLCAN (~3.8 s, .claude/modules.md). 1 MB ≈ 2 min.
+const SERIAL_BUFFER_SIZE = 1 << 20;
 // The running readLoop's promise: it settles once the loop's finally has released the reader lock.
 let readLoopDone = null;
 function startReadLoop() { readLoopDone = readLoop(); }
