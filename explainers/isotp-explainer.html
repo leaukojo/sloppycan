@@ -620,16 +620,16 @@ main {
         <table>
           <thead><tr><th class="mono">Nibble</th><th>Frame type</th><th>Lower nibble / next byte</th></tr></thead>
           <tbody>
-            <tr><td class="mono">0x0</td><td>Single Frame (SF)</td><td>Payload length (0-7)</td></tr>
+            <tr><td class="mono">0x0</td><td>Single Frame (SF)</td><td>Payload length (1-7)</td></tr>
             <tr><td class="mono">0x1</td><td>First Frame (FF)</td><td>High bits of a 12-bit total length</td></tr>
             <tr><td class="mono">0x2</td><td>Consecutive Frame (CF)</td><td>Sequence number (1-15, wraps to 0)</td></tr>
-            <tr><td class="mono">0x3</td><td>Flow Control (FC)</td><td>Flow status (0=CTS, 1=Wait, 2=Abort)</td></tr>
+            <tr><td class="mono">0x3</td><td>Flow Control (FC)</td><td>Flow status (0=CTS, 1=Wait, 2=Overflow)</td></tr>
           </tbody>
         </table>
 
         <h2>Single Frame: it all fits already</h2>
         <p>
-          If the payload is 7 bytes or less (6 with <a href="isotp-2016.html">extended addressing</a>),
+          If the payload is 7 bytes or less (6 with extended addressing),
           it travels in one frame. The PCI byte's upper nibble is <code>0</code>, the lower nibble is
           the byte count. No handshake needed, nothing else to send.
         </p>
@@ -645,7 +645,7 @@ main {
           doesn't fit in one byte: the lower nibble holds the top 4 bits of that length, and the
           <strong>entire next byte</strong> holds the remaining 8 bits. So the length header is two
           bytes wide, and only the 6 bytes after it (5 with
-          <a href="isotp-2016.html">extended addressing</a>) are actual payload data.
+          extended addressing) are actual payload data.
         </p>
         <div class="ex-card">
           <span class="ex-desc">14-byte payload, too big for a Single Frame: starts with a

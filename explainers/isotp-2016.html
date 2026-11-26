@@ -342,11 +342,11 @@ table.cmp td.no  { color: var(--text3); }
   <p class="subtitle">Two escape sequences that push classic ISO-TP past its original limits</p>
 
   <div class="callout">
-    <strong>What's on this page?</strong> Classic ISO-TP (ISO 15765-2, published 2003) tops out at
+    <strong>What's on this page?</strong> Classic ISO-TP (ISO 15765-2, published 2004) tops out at
     <strong>4 095 bytes</strong> per message and <strong>7 bytes</strong> per single frame. The 2016
     revision adds two escape sequences for bigger payloads, mostly to keep up with
     <strong>CAN FD</strong> (Flexible Data-Rate), which lets a single CAN frame carry up to 64 bytes.
-    Neither escape touches the FC/CF handshake. They only change how the first frame's header is encoded.
+    Neither escape touches the FC/CF handshake. They only change how the SF / FF header is encoded.
   </div>
 
   <hr class="divider">
@@ -399,8 +399,8 @@ table.cmp td.no  { color: var(--text3); }
   <h2>Extension 1: CAN FD Single Frame escape (SF_DL = 0)</h2>
 
   <p>Classic SF stores its length in the lower nibble of the PCI byte, which caps it at
-  <strong>15</strong>, but only <strong>7</strong> bytes are ever valid on classic CAN since the rest
-  of the byte has to be data. CAN FD frames can carry up to 64 bytes, so a single frame needed a way
+  <strong>15</strong>, but only <strong>7</strong> bytes are ever valid on classic CAN since the frame has
+  only 7 bytes left for data. CAN FD frames can carry up to 64 bytes, so a single frame needed a way
   to carry more than 7 bytes of payload.</p>
 
   <p>The fix: when the lower nibble is <strong><code>0</code></strong>, the <em>next</em> byte
@@ -508,7 +508,7 @@ table.cmp td.no  { color: var(--text3); }
           <div class="arrow-bytes">
             <span class="b-pci">00</span> <span class="b-new">0C</span>
             <span class="b-data"> D0 D1 D2 D3 D4 D5 D6 D7 D8 D9 DA DB</span>
-            <span class="b-pad"> CC CC CC</span>
+            <span class="b-pad"> CC CC</span>
           </div>
         </div>
         <div class="dir-col">→ ECU</div>
@@ -591,7 +591,7 @@ table.cmp td.no  { color: var(--text3); }
             <span class="b-len"> 00</span>
           </div>
         </div>
-        <div class="dir-col">← Receiver</div>
+        <div class="dir-col">← Sender</div>
       </div>
 
       <div class="ladder-row">
@@ -685,9 +685,9 @@ table.cmp td.no  { color: var(--text3); }
     <tbody>
       <tr>
         <td>Defined in</td>
-        <td>ISO 15765-2:2003</td>
+        <td>ISO 15765-2:2004</td>
         <td>ISO 15765-2:2016</td>
-        <td>ISO 15765-2:2003</td>
+        <td>ISO 15765-2:2004</td>
         <td>ISO 15765-2:2016</td>
       </tr>
       <tr>
@@ -739,7 +739,7 @@ table.cmp td.no  { color: var(--text3); }
 
   <div class="callout">
     <strong>Practical note:</strong> most automotive ECUs on classic CAN buses still only implement
-    the 2003 standard. You'll mainly find the 32-bit escape and FD SF escape on ECUs with CAN FD
+    the 2004 standard. You'll mainly find the 32-bit escape and FD SF escape on ECUs with CAN FD
     hardware, newer body control modules, gateway ECUs, ADAS controllers and the like. Check the
     ECU's communication spec before assuming either escape is supported.
   </div>

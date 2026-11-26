@@ -199,8 +199,9 @@ td.mono, th.mono { font-family: var(--mono); }
 
   <h2>Services you'll actually use</h2>
   <p>
-    There are dozens of services in ISO 14229, but a handful cover most day-to-day work. These
-    are exactly the buttons in sloppyCAN's UDS palette:
+    There are dozens of services in ISO 14229, but a handful cover most day-to-day work. All but
+    <code>2E</code> are buttons in sloppyCAN's UDS palette (which also has <code>87</code>
+    LinkControl):
   </p>
   <div class="card">
     <table>
@@ -290,7 +291,7 @@ td.mono, th.mono { font-family: var(--mono); }
     <table>
       <tr><th class="mono">ID</th><th>Standard</th><th>What it does</th><th>Limitation</th></tr>
       <tr><td class="mono">7DF</td><td>OBD-II</td><td>Functional request, "whoever supports this PID, answer"</td><td>Multiple ECUs may all reply, staggered by the stack. Fine for polling, unusable for anything needing a single deterministic response</td></tr>
-      <tr><td class="mono">18DB33F1</td><td>UDS (extended)</td><td>Functional addressing equivalent of 7DF for 29-bit UDS</td><td>Same multi-responder problem; also can't carry a SecurityAccess-gated unlock meant for one ECU</td></tr>
+      <tr><td class="mono">18DB33F1</td><td>OBD-II / UDS (29-bit)</td><td>Functional addressing equivalent of 7DF on 29-bit IDs (<code>33</code> is the OBD functional address)</td><td>Same multi-responder problem; also can't carry a SecurityAccess-gated unlock meant for one ECU</td></tr>
       <tr><td class="mono">PDU1 to DA <code>0xFF</code></td><td>J1939</td><td>Global destination address <code>0xFF</code> in a PDU1 message (and every PDU2 broadcast), "all nodes," used for things like time/date broadcasts</td><td>Nothing tells you <em>who</em> received it: the Acknowledgment PGN (59392) is only sent by a node that was addressed specifically, so a global request may get many answers, or none</td></tr>
     </table>
   </div>

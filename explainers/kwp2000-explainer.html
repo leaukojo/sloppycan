@@ -207,7 +207,8 @@ td.mono, th.mono { font-family: var(--mono); }
 
   <h2>Where It Differs From UDS</h2>
   <p>
-    Several KWP service IDs <strong>share a number with UDS but mean something different</strong>.
+    Several KWP service IDs <strong>don't exist in UDS, or share a number with UDS but mean
+    something different</strong>.
     sloppyCAN keeps separate KWP tables instead of patching the UDS ones, since
     decoding <code>21</code> as a UDS service would be wrong.
   </p>
@@ -220,21 +221,24 @@ td.mono, th.mono { font-family: var(--mono); }
       <tr><td class="mono">82</td><td>StopCommunication</td><td>KWP-only</td></tr>
       <tr><td class="mono">83</td><td>AccessTimingParameters</td><td>AccessTimingParameter</td></tr>
       <tr><td class="mono">3B</td><td>WriteDataByLocalIdentifier</td><td>Uses 2E by DID</td></tr>
+      <tr><td class="mono">31</td><td>StartRoutineByLocalIdentifier</td><td>RoutineControl (sub-function + 16-bit routine ID)</td></tr>
     </table>
   </div>
   <p>
     The negative-response-code list also differs in spots. The routing codes
     <code>0xA0 ecuNotResponding</code> and <code>0xA1 ecuAddressUnknown</code> are a KWP thing,
     left over from the K-line world where a gateway sat between the tester and the ECU, and UDS
-    doesn't define them. (The block-transfer codes around <code>0x71</code>-<code>0x73</code> look
-    like a difference but aren't: UDS kept them.) sloppyCAN's KWP mode names these from the
+    doesn't define them. The transfer codes only partly match: <code>0x71</code> transferSuspended
+    survived into UDS, but UDS reuses <code>0x72</code> (KWP's transferAborted) as
+    generalProgrammingFailure. sloppyCAN's KWP mode names these from the
     ISO 14230 table.
   </p>
 
   <h2>A Typical Session</h2>
   <p>
     Unlike OBD-II, where you can fire a request at a broadcast address, a KWP session is
-    explicitly opened and closed:
+    explicitly opened and closed (<code>81</code>/<code>82</code> come from the K-line
+    world; many KWP-on-CAN ECUs skip them and start at <code>10</code>):
   </p>
   <div class="card">
     <table>

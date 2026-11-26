@@ -208,7 +208,7 @@ td.mono, th.mono { font-family: var(--mono); }
   <p>
     A scan tool broadcasts to the <strong>functional</strong> address <code>0x7DF</code>.
     Any ECU that can answer replies on its own address in the range
-    <code>0x7E8</code>-<code>0x7EF</code>. The engine ECU almost always answers first, on
+    <code>0x7E8</code>-<code>0x7EF</code>. The engine ECU is almost always the one on
     <code>0x7E8</code>.
   </p>
   <div class="flow">
@@ -249,7 +249,7 @@ td.mono, th.mono { font-family: var(--mono); }
       <tr><td class="mono">03</td><td>Stored DTCs</td><td class="mono">03</td></tr>
       <tr><td class="mono">04</td><td>Clear DTCs &amp; reset MIL</td><td class="mono">04</td></tr>
       <tr><td class="mono">06</td><td>On-board monitor test results</td><td class="mono">06 &lt;mid&gt;</td></tr>
-      <tr><td class="mono">07</td><td>Pending DTCs (this drive cycle)</td><td class="mono">07</td></tr>
+      <tr><td class="mono">07</td><td>Pending DTCs (current or last drive cycle)</td><td class="mono">07</td></tr>
       <tr><td class="mono">08</td><td>Control on-board component</td><td class="mono">08 …</td></tr>
       <tr><td class="mono">09</td><td>Vehicle info (VIN, CalID, CVN)</td><td class="mono">09 &lt;pid&gt;</td></tr>
       <tr><td class="mono">0A</td><td>Permanent DTCs</td><td class="mono">0A</td></tr>

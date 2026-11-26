@@ -209,12 +209,13 @@ td.mono, th.mono { font-family: var(--mono); }
       charger (EVSE). Its <strong>duty cycle encodes the available current</strong>, and the
       car pulls the CP voltage down through a diode and resistor to announce its state.</li>
     <li><strong>Proximity Pilot (PP)</strong>: a resistor ladder that tells the car a plug
-      is seated and, on portable cords, the cable's current rating.</li>
+      is seated and whether its latch button is pressed. (On the European Type 2 plug, PP also
+      encodes the cable's current rating.)</li>
   </ul>
 
   <h3>Control Pilot: duty cycle to amps</h3>
   <p>For most of the range the rule is linear: <code>available A = duty% × 0.6</code>.
-    Above 85% a second, steeper linear rule takes over, and past 96% it stops encoding a
+    Above 85% a second, steeper linear rule takes over, 96–97% means a flat 80 A, and past 97% it stops encoding a
     number at all.</p>
   <div class="lane">CP, 1 kHz, ~50% duty ≈ 30 A available</div>
   <div class="pwm">

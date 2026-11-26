@@ -276,7 +276,7 @@ td.mono, th.mono { font-family: var(--mono); }
   <h2>SDO - the read/write channel</h2>
   <p>
     The <strong>Service Data Object</strong> protocol reads and writes any entry in a node's
-    object dictionary. Every SDO frame is 8 bytes: a <strong>command specifier</strong>, the
+    object dictionary. Every SDO frame is 8 bytes; an expedited or initiate frame holds a <strong>command specifier</strong>, the
     16-bit <strong>index</strong> (LE), an 8-bit <strong>sub-index</strong>, then data.
   </p>
   <div class="card">
@@ -321,7 +321,7 @@ td.mono, th.mono { font-family: var(--mono); }
     TPDO/RPDO carry the actual application data, motor speed, I/O states, with
     <strong>no protocol header at all</strong>. Which bytes mean what is defined by the device's
     <strong>PDO mapping</strong> objects (<code>0x1600</code>/<code>0x1A00</code>...) in its object
-    dictionary. Without that mapping (which lives in the device's EDS file, not on the wire) a
+    dictionary. Without that mapping (readable over SDO or taken from the device's EDS file, but never inside the PDO itself) a
     sniffer can only show <strong>which PDO of which node</strong> plus the <strong>raw
     bytes</strong>. That's what the tab does; user-supplied mappings are future work.
   </p>

@@ -188,8 +188,8 @@ td.mono, th.mono { font-family: var(--mono); }
   <p>
     The <strong>PGN</strong> (Parameter Group Number) identifies <em>what</em> the message
     is, e.g. <code>127250</code> Vessel Heading, <code>130306</code> Wind Data. sloppyCAN
-    reuses its J1939 ID parser verbatim and just swaps in a marine PGN dictionary when you
-    pick <strong>NMEA 2000</strong> from the protocol dropdown in the J1939 / N2K tab.
+    reuses its J1939 ID parser verbatim and just swaps in a marine PGN dictionary in the
+    <strong>NMEA 2000</strong> tab.
   </p>
   <div class="note">
     The bus runs at <strong>250 kbit/s</strong>. Set the header <strong>Speed</strong>
@@ -249,8 +249,9 @@ td.mono, th.mono { font-family: var(--mono); }
   <h2>Field encoding</h2>
   <p>
     NMEA 2000 fields are little-endian and frequently <strong>bit-packed</strong>: a field
-    can be 2, 4 or 6 bits wide and start anywhere, not just on a byte boundary. (J1939's
-    whole-byte SPN model can't express this, so the marine decoder works in bit offsets.)
+    can be 2, 4 or 6 bits wide and start anywhere, not just on a byte boundary. (J1939 has
+    sub-byte fields too, mostly 2-bit states inside one byte, but N2K fields straddle byte
+    boundaries freely, so the marine decoder works in bit offsets.)
     Each field has a resolution, an optional offset, and a unit; the all-ones value means
     <em>data not available</em> and the next value down means <em>out of range</em>.
   </p>
@@ -329,12 +330,12 @@ td.mono, th.mono { font-family: var(--mono); }
 
   <h2>Worked Example: 127237 Heading/Track Control</h2>
   <p>
-    A 21-byte Fast Packet message (so it arrives as three CAN frames — the shape from the
+    A 21-byte Fast Packet message (so it arrives as four CAN frames — the shape from the
     Fast Packet section above). sloppyCAN's boat only ever fills two of its many fields: the
     Steering Mode bits (which of the pilot's own two states it is in) and the
     Heading-To-Steer, both of which double as the closest legal expression of the contract's
-    <code>nav_mode_actual</code> / <code>heading_target</code>. Every other field — the four
-    limit-exceeded flags, Turn Mode, both rudder-order fields, the track and cross-track
+    <code>nav_mode_actual</code> / <code>heading_target</code>. Every other field — the three
+    limit-exceeded flags and Override, Turn Mode, both rudder-order fields, the track and cross-track
     limits — stays <em>not available</em>, because this boat runs heading-hold alone and has
     no route, no cross-track error, and no distinct rudder order to publish.
   </p>
@@ -350,7 +351,7 @@ td.mono, th.mono { font-family: var(--mono); }
     </ul>
   </div>
   <p>
-    In STANDBY the same two fields read <code>0</code> (Heading Control off) and the boat's
+    In STANDBY the same two fields read <code>0</code> (Main Steering: the pilot is not steering) and the boat's
     current heading — never a sentinel, because the contract wants a bus that engages the
     pilot with no course of its own to capture whatever heading the boat is already on rather
     than steer to an arbitrary bearing.

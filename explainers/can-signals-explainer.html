@@ -523,7 +523,7 @@ canvas#scope, canvas#arbScope { display: block; }
   </div>
   <p class="note"><strong>Nothing gets corrupted.</strong> Unlike an Ethernet collision, no frame is lost.
      The high-priority frame goes out with zero delay; the loser just retries the moment the bus is free.
-     The ID is the only thing arbitration looks at, so the ID <em>is</em> the priority.</p>
+     Arbitration looks only at the ID (plus the RTR/IDE bits right after it), so the ID <em>is</em> the priority.</p>
 
   <h3>Which messages get the low IDs?</h3>
   <p>

@@ -497,13 +497,13 @@ main { flex: 1; overflow-y: auto; }
         <span class="ex-desc">An <strong>Address Claimed</strong> frame: PGN 60928 is PDU1, sent to
           the global destination <code>FF</code>, source <code>00</code>. The payload is the 64-bit
           NAME; the decoder breaks out its fields.</span>
-        <button class="ex-btn" onclick="loadExample('18EEFF00','25 03 60 04 00 81 00 20')">Try it</button>
+        <button class="ex-btn" onclick="loadExample('18EEFF00','25 03 60 04 00 00 00 10')">Try it</button>
       </div>
 
       <h2>Practical notes</h2>
       <p>
         The classic J1939 bus runs at 250 kbit/s (J1939-14 later added a 500 kbit/s profile), so
-        set the speed before connecting a real adapter. In sloppyCAN, the J1939 / N2K tab does live
+        set the speed before connecting a real adapter. In sloppyCAN, the J1939 tab does live
         what this page does statically: it splits every 29-bit ID, names the PGN, decodes the
         SPNs, reassembles TP transfers, and tracks address claims. The <strong>Demo</strong> button
         generates J1939 traffic (engine, cruise-control, electrical and driver-demand groups plus an

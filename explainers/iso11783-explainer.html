@@ -177,8 +177,7 @@ td.mono, th.mono { font-family: var(--mono); }
     split the way J1939 does it: priority, data page, PDU format, PDU specific,
     source address. The <strong>PGN</strong> (Parameter Group Number) says <em>what</em> the
     message is. sloppyCAN reuses its J1939 ID parser verbatim and swaps in the ISOBUS
-    dictionary when you pick <strong>ISO 11783</strong> from the protocol dropdown in the
-    J1939 / N2K tab.
+    dictionary in the <strong>ISOBUS</strong> tab.
   </p>
   <p>
     Because the data link is identical, <strong>standard J1939 Transport Protocol</strong>
@@ -292,13 +291,14 @@ td.mono, th.mono { font-family: var(--mono); }
     <div class="cell">DIR<small>byte 7</small></div>
   </div>
   <div class="card">
-    <p style="margin-bottom:8px"><strong>Payload:</strong> <code>D0 07 A0 86 01 00 FF 40</code></p>
+    <p style="margin-bottom:8px"><strong>Payload:</strong> <code>D0 07 A0 86 01 00 FF FD</code></p>
     <ul style="margin-bottom:0">
       <li><strong>Wheel Speed</strong> = bytes 0–1 LE = <code>0x07D0</code> = 2000 × 0.001 m/s =
         <strong>2.0 m/s</strong></li>
       <li><strong>Wheel Distance</strong> = bytes 2–5 LE = <code>0x000186A0</code> = 100 000 ×
         0.001 m = <strong>100 m</strong></li>
-      <li><strong>Direction</strong> = byte 7 bits 6–7 = <code>01</code> = <strong>Forward</strong></li>
+      <li><strong>Direction</strong> = byte 7 bits 0–1 = <code>01</code> = <strong>Forward</strong> (the other three 2-bit
+      fields in byte 7 read <code>11</code>, not available)</li>
     </ul>
   </div>
   <p>

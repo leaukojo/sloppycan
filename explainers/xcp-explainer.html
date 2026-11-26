@@ -182,7 +182,9 @@ td.mono, th.mono { font-family: var(--mono); }
   <h2>CRO and DTO</h2>
   <p>
     XCP-on-CAN uses exactly <strong>two CAN identifiers</strong>, configured from the ECU's A2L
-    file. There's no standard pair, every project picks its own, so always check the A2L:
+    file. There's no standard pair, every project picks its own, so always check the A2L. (CRO/DTO
+    are names inherited from CCP, XCP's predecessor; the XCP spec itself calls command, response,
+    error and event packets CTOs, and only DAQ/STIM packets DTOs.)
   </p>
   <ul>
     <li><strong>CRO: Command Receive Object</strong> (master → slave). The first byte is the
@@ -195,7 +197,7 @@ td.mono, th.mono { font-family: var(--mono); }
     <div class="lane">CRO: master → slave (e.g. 0x7E0)</div>
     <div class="frame">
       <div class="cell pid">F4<small>SHORT_UPLOAD</small></div>
-      <div class="cell data">08<small>#bytes</small></div>
+      <div class="cell data">07<small>#bytes</small></div>
       <div class="cell">00<small>rsvd</small></div>
       <div class="cell flag">00<small>addr ext</small></div>
       <div class="cell data">00 10 00 20<small>address (per byte order)</small></div>
