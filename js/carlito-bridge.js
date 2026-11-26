@@ -219,7 +219,7 @@ let txDraining = false, txBatch = 0, txBatchOpen = false;
 
 window.canForward = function (frame) {
   const txReady = busIsOpen && (port || usbSerDev) && !document.getElementById('listenOnly').checked;
-  // NOTE: do NOT ingestFrame() here. Telemetry ids (0x520+) aren't RAMN signals (the decoder
+  // NOTE: do NOT ingestFrame() here. Telemetry ids (0x520+, or PGN 0xFF2x on a truck / tractor / boat, CANaerospace ids on a plane) aren't RAMN signals (the decoder
   // ignores them) and this page has no dashboards, so ingesting them did nothing except inflate the
   // RX counter - making the bar's "RX n/s" look alive when the adapter was actually sending nothing.
   // rxCount now reflects ONLY real frames received from the bus (via parseSLCAN / gsUsbPump).

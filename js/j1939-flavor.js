@@ -34,13 +34,18 @@
 //               the left; byte 8 SPN 1810 Longitudinal Acceleration, 0.1 m/s², -12.5, + "when the
 //               vehicle speed increases, regardless of driving the vehicle forward or backward".
 //               (pp. 220-221, 308.)
-// And the five MIRRORS (see "Decision 1" below), off the same document's group and SPN pages:
+// And the CARRIERS of CAN_MAP signals (see "One carrier" below), off the same document's pages:
 //   61444 EEC1  engine speed dependent, prio 3. Bytes 4-5 SPN 190 Engine Speed, 0.125 rpm/bit.
 //   65265 CCVS  100 ms, prio 6. Bytes 2-3 SPN 84 Wheel-Based Vehicle Speed, 1/256 km/h per bit.
 //   65262 ET1   1 s, prio 6. Byte 1 SPN 110 Engine Coolant Temperature, 1 degC/bit, -40 offset.
 //   65276 DD    1 s, prio 6. Byte 2 SPN 96 Fuel Level, 0.4 %/bit.
 //   65271 VEP1  1 s, prio 6 ("VEP" in that edition). Bytes 5-6 SPN 168 Electrical Potential
 //               (Voltage), 0.05 V/bit.
+//   65267 VP    5 s, prio 6. Bytes 1-4 SPN 584 Latitude, 5-8 SPN 585 Longitude, both 10^-7
+//               deg/bit, -210 deg offset.
+//   65217 VDHR  1 s, prio 6. Bytes 1-4 SPN 917 High Resolution Total Vehicle Distance, 5 m/bit;
+//               bytes 5-8 SPN 918 Trip Distance stay "not available" (the game has no trip).
+// (ETC2's gear and VDC2's yaw / accelerations, above, carry CAN_MAP signals too.)
 // Source addresses come off j1939.js's own J1939_SA table (checked against isobus.net's
 // SourceAddress table). All three groups are in j1939.js's J1939_DB with their neighbouring
 // SPNs, so they decode named and scaled - a decode table is not scoped to what this packer
@@ -60,7 +65,7 @@
 //                        traffic builds EEC1 / ET1 / CCVS / VEP1 / DD through
 //                        window.j1939FlavorFrames and paces them by window.j1939FlavorMsgs' `ms`
 //   isobus.js            sends EEC1 (with its engine_load) through window.j1939Eec1Frame
-//   carlito-registry.js  window.carlitoJ1939Network, the mirrors' truck-or-tractor gate;
+//   carlito-registry.js  window.carlitoJ1939Network, the carriers' truck-or-tractor gate;
 //                        window.carlitoUplinkClaim (DRIVER DEMAND, read by carlito.js)
 //   carlito.js           window.carlitoUplinkDecoders (DRIVER DEMAND)
 //
@@ -95,6 +100,8 @@
   // Instrument Cluster #1 sends DD: the fuel level sender is wired to the cluster, which drives the
   // gauge and publishes the level - an engine controller is a DD listener, not its source.
   const SA_CLUSTER = 0x17;
+  // Vehicle Navigation sends VP: the position comes off the navigation unit's GNSS.
+  const SA_NAV = 0x1C;
 
   // ── Message table ───────────────────────────────────────────────────────────
   // Data, not call sites. `ms` is the standard's own transmission repetition rate - no cadence in
@@ -112,7 +119,7 @@
     // EEC2 carries the demo's pedal only (SPN 91): the game publishes no pedal position, and
     // `engine_load` is NOT EEC2's SPN 92 (the contract says so) - see EEC1.
     EEC2: { pgn: 61443, prio: 3, sa: SA_ENGINE, ms: 50 },
-    // EEC1: the rpm mirror (SPN 190) and `engine_load` (SPN 513 Actual Engine - Percent Torque,
+    // EEC1: the rpm (SPN 190) and `engine_load` (SPN 513 Actual Engine - Percent Torque,
     // J1939-71 p.56: byte 3, 1 %/bit, -125 % offset - the contract's "SPN 513-like"). Its rate
     // is "engine speed dependent", so 0: it rides every call.
     EEC1: { pgn: 61444, prio: 3, sa: SA_ENGINE,  ms: 0 },
@@ -120,6 +127,9 @@
     ET1:  { pgn: 65262, prio: 6, sa: SA_ENGINE,  ms: 1000 },
     DD:   { pgn: 65276, prio: 6, sa: SA_CLUSTER, ms: 1000 },
     VEP1: { pgn: 65271, prio: 6, sa: SA_ENGINE,  ms: 1000 },
+    VP:   { pgn: 65267, prio: 6, sa: SA_NAV,     ms: 5000 },
+    // The cluster runs the odometer, as it runs the fuel gauge (DD).
+    VDHR: { pgn: 65217, prio: 6, sa: SA_CLUSTER, ms: 1000 },
   };
 
   // ── Telemetry presence ──────────────────────────────────────────────────────
@@ -127,7 +137,7 @@
   // reason: the game publishes signals_for_vehicle, so an absent key is a real absence and not a
   // zero. axle_load is already the tractor's as well as the truck's (the other three are the
   // truck's alone), and a vehicle gate would be a second place the contract's `vehicles` list is
-  // written down, and it would be the one that rots. (The decision-1 mirrors below are the one
+  // written down, and it would be the one that rots. (The one-carrier groups below are the one
   // exception, and they say why.)
   const has = jp.has;
 
@@ -235,7 +245,7 @@
     return jp.msgFrame(JF_MSGS.VDC2, d);
   }
 
-  // CCVS (65265): SPN 84 from `kmh` (a mirror), SPN 70 / 597 from the demo's switches.
+  // CCVS (65265): SPN 84 from `kmh` (CAN_MAP's signal, carried here), SPN 70 / 597 from the demo's switches.
   function jfCcvs(t, c) {
     const d = jp.blank();
     if (has(t, 'kmh')) jp.put(d, 1, 2, Number(t.kmh), 1 / 256, 0);
@@ -243,17 +253,18 @@
     return jp.msgFrame(JF_MSGS.CCVS, d);
   }
 
-  // ── DECISION 1: J1939 MIRRORS (truck and tractor only) ─────────────────────
-  // rpm / kmh / coolant / fuel / battery are UNFLAVORED, so CAN_MAP owns them (0x521 / 0x520 /
-  // 0x528) and keeps them. A truck or tractor ALSO carries them in their J1939 groups, because a
-  // J1939 view of a truck with no engine speed is the stranger result: an explicit exception to
-  // "the same signal on the wire twice under two identities" (carlito.js, the 0x52B note),
-  // declared as `mirrors` so the coverage check reports it instead of hiding it. A car, boat or
-  // plane publishes the same five and has no J1939 network, so the gate IS the vehicle here - the
-  // one place this file gates per vehicle - on carlito-registry.js's shared rule. Every other field
-  // of the five groups stays "not available": the game publishes no torque, no oil temperature.
-  const jfMirrored = (t) => !!window.carlitoJ1939Network && window.carlitoJ1939Network(t);
-  // EEC1 is ONE frame from Engine #1 carrying two owners' signals: the rpm mirror (this file's)
+  // ── ONE CARRIER: CAN_MAP's signals in their J1939 groups (truck and tractor) ─
+  // rpm / kmh / coolant / fuel / battery / gear / yaw / accLat / accLong / lat / lon / odo are
+  // UNFLAVORED, so CAN_MAP declares them, and every other vehicle carries them in its 0x52x block.
+  // A truck or tractor carries them in their J1939 groups INSTEAD: a real J1939 bus puts engine
+  // speed in EEC1, not in a proprietary group, and the same signal twice under two identities is
+  // what carlito.js's 0x52B note rules out. Declared as `carries` (JF_CARRIES below), which
+  // carlito.js reads to leave those fields "not available" in the truck's Proprietary B block.
+  // A car, boat or plane publishes the same signals and has no J1939 network, so the gate IS the
+  // vehicle here, on carlito-registry.js's shared rule. Every other field of these groups stays
+  // "not available": the game publishes no torque, no oil temperature, no trip distance.
+  const jfNetwork = (t) => !!window.carlitoJ1939Network && window.carlitoJ1939Network(t);
+  // EEC1 is ONE frame from Engine #1 carrying two owners' signals: the rpm (this file's to carry)
   // and `engine_load` (isobus.js's flavor). isobus.js sends it whenever `engine_load` is there,
   // through window.j1939Eec1Frame with the rpm inside; jfPack sends it only when it is not - one
   // EEC1 per tick, never two from the engine alternating.
@@ -278,6 +289,46 @@
     jp.put(d, 4, 2, Number(t.battery), 0.05, 0);                 // SPN 168
     return jp.msgFrame(JF_MSGS.VEP1, d);
   }
+  function jfVp(t) {
+    const d = jp.blank();
+    if (has(t, 'lat')) jp.put(d, 0, 4, Number(t.lat), 1e-7, -210);   // SPN 584
+    if (has(t, 'lon')) jp.put(d, 4, 4, Number(t.lon), 1e-7, -210);   // SPN 585
+    return jp.msgFrame(JF_MSGS.VP, d);
+  }
+  function jfVdhr(t) {
+    const d = jp.blank();
+    jp.put(d, 0, 4, Number(t.odo) * 1000, 5, 0);                 // SPN 917 (km -> m)
+    return jp.msgFrame(JF_MSGS.VDHR, d);
+  }
+
+  // When each group goes out: jfPack gates on these, and JF_CARRIES declares from the same ones,
+  // so what carlito.js leaves out of the 0x52x block is exactly what goes out here.
+  // ETC2 rides `gear_ratio` (the truck's and the tractor's); VDC rides an air-braked truck's EBS:
+  // `air_primary` is the truck's alone, and `status`, `yaw` and the accelerations come from every
+  // vehicle, so they cannot gate it.
+  const jfGate = {
+    network: jfNetwork,
+    etc2: (t) => has(t, 'gear_ratio'),
+    vdc: (t) => has(t, 'air_primary') && has(t, 'status'),
+  };
+  // signal -> [ gate, the group and SPN that carries it ]. rpm rides EEC1 whoever sends it: jfPack,
+  // or isobus.js (with engine_load) through window.j1939Eec1Frame, which puts the rpm in on the
+  // same gate.
+  const JF_CARRIES = {
+    rpm:     [jfGate.network, 'EEC1 (61444) SPN 190 Engine Speed, truck and tractor'],
+    kmh:     [jfGate.network, 'CCVS (65265) SPN 84 Wheel-Based Vehicle Speed, truck and tractor'],
+    coolant: [jfGate.network, 'ET1 (65262) SPN 110 Engine Coolant Temperature, truck and tractor'],
+    fuel:    [jfGate.network, 'DD (65276) SPN 96 Fuel Level, truck and tractor'],
+    battery: [jfGate.network, 'VEP1 (65271) SPN 168 Electrical Potential, truck and tractor'],
+    lat:     [jfGate.network, 'VP (65267) SPN 584 Latitude, every 5 s, truck and tractor'],
+    lon:     [jfGate.network, 'VP (65267) SPN 585 Longitude, every 5 s, truck and tractor'],
+    odo:     [jfGate.network, 'VDHR (65217) SPN 917 High Resolution Total Vehicle Distance, 5 m/bit, truck and tractor'],
+    gear:    [jfGate.etc2, 'ETC2 (61445) SPN 523 Current Gear, wherever gear_ratio is published (truck and tractor)'],
+    yaw:     [jfGate.vdc, 'VDC2 (61449) SPN 1808 Yaw Rate, air-braked truck only'],
+    accLat:  [jfGate.vdc, 'VDC2 (61449) SPN 1809 Lateral Acceleration, air-braked truck only'],
+    accLong: [jfGate.vdc, 'VDC2 (61449) SPN 1810 Longitudinal Acceleration, air-braked truck only'],
+  };
+  const jfCarriesFor = (t) => t ? Object.keys(JF_CARRIES).filter(s => JF_CARRIES[s][0](t)) : [];
 
   // The demo's driver demand, from j1939.js (null on carlito-bridge.html, which has no demo).
   const jfDemoDrive = () => typeof window.j1939DemoDrive === 'function' ? window.j1939DemoDrive() : null;
@@ -287,37 +338,41 @@
   // cadences are ~20 Hz (every call) and ~10 Hz (on `slow`). ERC1's 100 ms IS the slow tick.
   // AIR1's 1 s gets a wall-clock gate rather than a counter - the same shape as isobus.js's
   // 500 ms sweep - because 1 s is the standard's rate and must not drift with the frame rate.
-  let jfLast1s = 0;
+  // VP's 5 s gets one of its own.
+  let jfLast1s = 0, jfLast5s = 0;
   function jfPack(t, slow) {
     if (!t) return [];
     const out = [];
     const drive = jfDemoDrive();
-    const mirror = jfMirrored(t);
+    const net = jfGate.network(t);
 
     if (slow && has(t, 'retarder_state')) out.push(jfErc1(t));          // 100 ms
-    if (slow && has(t, 'gear_ratio')) out.push(jfEtc2(t));              // 100 ms
-    // VDC rides an air-braked truck's EBS: `air_primary` is the truck's alone, and `status`,
-    // `yaw` and the accelerations come from every vehicle, so they cannot gate it. VDC2's
-    // standard rate is 10 ms; it goes out on every call (~50 ms), the fastest the bridge carries,
-    // never a repeat clock re-sending stale values.
-    if (has(t, 'air_primary') && has(t, 'status')) {
+    if (slow && jfGate.etc2(t)) out.push(jfEtc2(t));                    // 100 ms
+    // VDC2's standard rate is 10 ms; it goes out on every call (~50 ms), the fastest the bridge
+    // carries, never a repeat clock re-sending stale values.
+    if (jfGate.vdc(t)) {
       if (slow) out.push(jfVdc1(t));                                     // 100 ms
       out.push(jfVdc2(t, drive));                                        // every call
     }
     // EEC1's rate follows engine speed, faster than the bridge carries: every call, like VDC2.
     // With `engine_load` present it is isobus.js's to send, rpm inside (jfEec1).
-    if (mirror && has(t, 'rpm') && !has(t, 'engine_load')) out.push(jfEec1(t));   // every call
-    if (mirror && slow && has(t, 'kmh')) out.push(jfCcvs(t, drive));    // 100 ms
+    if (net && has(t, 'rpm') && !has(t, 'engine_load')) out.push(jfEec1(t));   // every call
+    if (net && slow && has(t, 'kmh')) out.push(jfCcvs(t, drive));    // 100 ms
 
     if (Date.now() - jfLast1s >= 1000) {                                // 1 s
       const sec = [];
       if (has(t, 'air_primary') || has(t, 'air_secondary')) sec.push(jfAir1(t));
-      if (mirror && has(t, 'coolant')) sec.push(jfEt1(t));
-      if (mirror && has(t, 'fuel')) sec.push(jfDd(t));
-      if (mirror && has(t, 'battery')) sec.push(jfVep1(t));
+      if (net && has(t, 'coolant')) sec.push(jfEt1(t));
+      if (net && has(t, 'fuel')) sec.push(jfDd(t));
+      if (net && has(t, 'battery')) sec.push(jfVep1(t));
+      if (net && has(t, 'odo')) sec.push(jfVdhr(t));
       // Only move the clock when there WAS something to send, so a vehicle with none of these
       // does not leave the gate permanently open for the vehicle that follows it.
       if (sec.length) { jfLast1s = Date.now(); out.push(...sec); }
+    }
+    if (net && (has(t, 'lat') || has(t, 'lon')) && Date.now() - jfLast5s >= 5000) {   // 5 s
+      jfLast5s = Date.now();
+      out.push(jfVp(t));
     }
     // Each source claims its address before its first frame (j1939-pack.js).
     return jp.claimFirst(out, t);
@@ -340,14 +395,10 @@
         'being answered, not about a broadcast. j1939.js answers a PGN 59904 request for it ' +
         'from Axle - Drive #1, with SPN 928 Axle Location saying which axle the weight is',
     },
-    // Decision 1: CAN_MAP's signals, carried AGAIN in their J1939 groups for a truck or tractor.
-    mirrors: {
-      rpm:     'EEC1 (61444) SPN 190 Engine Speed, truck and tractor only',
-      kmh:     'CCVS (65265) SPN 84 Wheel-Based Vehicle Speed, truck and tractor only',
-      coolant: 'ET1 (65262) SPN 110 Engine Coolant Temperature, truck and tractor only',
-      fuel:    'DD (65276) SPN 96 Fuel Level, truck and tractor only',
-      battery: 'VEP1 (65271) SPN 168 Electrical Potential, truck and tractor only',
-    },
+    // One carrier: CAN_MAP's signals, carried by their J1939 groups INSTEAD of the 0x52x block on
+    // a truck or tractor (carriesFor: which ones, for this vehicle).
+    carries: Object.fromEntries(Object.keys(JF_CARRIES).map(s => [s, JF_CARRIES[s][1]])),
+    carriesFor: jfCarriesFor,
     pack: jfPack,
     // A bus that was not listening heard no claim: every source claims again on its next frame.
     reset: () => jp.forgetClaims(),
@@ -530,9 +581,9 @@
   for (const name of Object.keys(jfDrive)) window.carlitoUplinkClaim(name, 10, () => jfClaim(name));
   window.j1939DriveFrames = j1939DriveFrames;
   window.j1939CcvsPatch = j1939CcvsPatch;
-  // ← isobus.js, which decides when EEC1 goes out (whenever engine_load is there). The rpm mirror
-  // rides inside it only for a truck or tractor, the mirror's own gate.
-  window.j1939Eec1Frame = (t) => jfEec1(jfMirrored(t) ? t : { engine_load: t.engine_load });
+  // ← isobus.js, which decides when EEC1 goes out (whenever engine_load is there). The rpm
+  // rides inside it only for a truck or tractor, JF_CARRIES's own gate.
+  window.j1939Eec1Frame = (t) => jfEec1(jfNetwork(t) ? t : { engine_load: t.engine_load });
   // ← j1939.js's demo traffic, which builds the same five groups through these builders (one
   // encoder per wire format) and paces them by JF_MSGS's rates.
   window.j1939FlavorMsgs = JF_MSGS;
@@ -547,11 +598,11 @@
   // HERMETIC: the state the checks touch is snapshotted here and put back in a `finally`, so a
   // check that throws cannot leave a test value driving the game.
   function j1939FlavorSelfTest() {
-    const clock = jfLast1s, drive = {}, claims = jp.claimsSnapshot();
+    const clock = jfLast1s, clock5 = jfLast5s, drive = {}, claims = jp.claimsSnapshot();
     for (const k of Object.keys(jfDrive)) drive[k] = Object.assign({}, jfDrive[k]);
     try { return jfSelfTestChecks(); }
     finally {
-      jfLast1s = clock;
+      jfLast1s = clock; jfLast5s = clock5;
       jp.claimsRestore(claims);
       for (const k of Object.keys(jfDrive)) jfDrive[k] = drive[k];
     }
@@ -767,7 +818,7 @@
       eq('EBC1 SPN 1238 round trip', dec(PGN_EBC1, ebc1Tc(0x7F).data, 'Traction Control Override Switch'), 'On');
     }
 
-    // 7. Decision 1, the mirrors: five groups, from a truck or a tractor and nothing else.
+    // 7. One carrier: CAN_MAP's signals in their J1939 groups, from a truck or a tractor only.
     //    1500 rpm -> 12000 = 0x2EE0 at bytes 4-5; 45 km/h -> 11520 = 0x2D00 at bytes 2-3;
     //    88 degC -> 128 = 0x80; 70 % -> 175 = 0xAF; 24.4 V -> 488 = 0x01E8 at bytes 5-6.
     eq('EEC1 id', jfEec1({ rpm: 1500 }).id.toString(16).toUpperCase(), 'CF00400');
@@ -785,12 +836,35 @@
     eq('ET1 88 degC', hex(jfEt1({ coolant: 88 }).data), '80 FF FF FF FF FF FF FF');
     eq('DD 70 %', hex(jfDd({ fuel: 70 }).data), 'FF AF FF FF FF FF FF FF');
     eq('VEP1 24.4 V', hex(jfVep1({ battery: 24.4 }).data), 'FF FF FF FF E8 01 FF FF');
-    const MIRRORS = [0xF004, 0xFEF1, 0xFEEE, 0xFEFC, 0xFEF7];
-    const shared = { rpm: 1500, kmh: 45, coolant: 88, fuel: 70, battery: 24.4 };
-    const mirrored = (t) => { jfLast1s = 0; const p = pgns(t, true); return MIRRORS.filter(g => p.includes(g)).length; };
-    eq('a truck carries all five mirrors', mirrored({ ...shared, air_primary: 8 }), 5);
-    eq('a tractor carries all five mirrors', mirrored({ ...shared, hitch_pos_actual: 50 }), 5);
-    eq('a car carries none', mirrored(shared), 0);
+    //    VP: 48.8566 deg -> (48.8566 + 210) / 1e-7 = 2588566000 = 0x9A4A61F0; 2.3522 deg ->
+    //    2123522000 = 0x7E925FD0. VDHR: 1234.5 km = 1234500 m / 5 = 246900 = 0x0003C474.
+    eq("VP id is the navigation unit's", jfVp({ lat: 1, lon: 1 }).id.toString(16).toUpperCase(), '18FEF31C');
+    eq('VP Paris', hex(jfVp({ lat: 48.8566, lon: 2.3522 }).data), 'F0 61 4A 9A D0 5F 92 7E');
+    eq("VDHR id is the cluster's", jfVdhr({ odo: 1 }).id.toString(16).toUpperCase(), '18FEC117');
+    eq('VDHR 1234.5 km, no trip', hex(jfVdhr({ odo: 1234.5 }).data), '74 C4 03 00 FF FF FF FF');
+    const GROUPS = [0xF004, 0xFEF1, 0xFEEE, 0xFEFC, 0xFEF7, 0xFEC1, 0xFEF3];
+    const shared = { rpm: 1500, kmh: 45, coolant: 88, fuel: 70, battery: 24.4, lat: 48.8566, lon: 2.3522, odo: 1234.5 };
+    const carried = (t) => { jfLast1s = 0; jfLast5s = 0; const p = pgns(t, true); return GROUPS.filter(g => p.includes(g)).length; };
+    eq('a truck sends all seven groups', carried({ ...shared, air_primary: 8 }), 7);
+    eq('a tractor sends all seven groups', carried({ ...shared, hitch_pos_actual: 50 }), 7);
+    eq('a car sends none', carried(shared), 0);
+    jfLast5s = Date.now();
+    eq('VP waits out its 5 s', pgns({ ...shared, air_primary: 8 }, true).includes(0xFEF3), false);
+    //    What carlito.js leaves out of the 0x52x block, off the same gates.
+    const imu = ['yaw', 'accLat', 'accLong'];
+    const base = ['rpm', 'kmh', 'coolant', 'fuel', 'battery', 'lat', 'lon', 'odo', 'gear'];
+    eq('a truck: every carried signal', jfCarriesFor({ air_primary: 8, status: 0, gear_ratio: 3 }).sort(), [...base, ...imu].sort());
+    eq('a tractor: no VDC2, so no yaw or accelerations', jfCarriesFor({ hitch_pos_actual: 50, status: 0, gear_ratio: 3 }).sort(), base.sort());
+    eq('a car: none', jfCarriesFor({ status: 0, rpm: 1500 }), []);
+    //    Declared carried means SENT: every signal carriesFor names must ride a group jfPack emits
+    //    (clocks open, slow tick), or carlito.js would drop it from the block with nothing in its place.
+    const PGN_OF = { rpm: 0xF004, kmh: 0xFEF1, coolant: 0xFEEE, fuel: 0xFEFC, battery: 0xFEF7, lat: 0xFEF3,
+      lon: 0xFEF3, odo: 0xFEC1, gear: 0xF005, yaw: 0xF009, accLat: 0xF009, accLong: 0xF009 };
+    eq('every carried signal has a group here', Object.keys(PGN_OF).sort(), Object.keys(JF_CARRIES).sort());
+    const lost = (t) => { jfLast1s = 0; jfLast5s = 0; const p = pgns(t, true); return jfCarriesFor(t).filter(s => !p.includes(PGN_OF[s])); };
+    const live7 = { ...shared, gear: 3, gear_ratio: 3, status: 0, yaw: 0.1, accLat: 1, accLong: 1 };
+    eq('a truck sends every group it declares', lost({ ...live7, air_primary: 8 }), []);
+    eq('a tractor sends every group it declares', lost({ ...live7, hitch_pos_actual: 50 }), []);
     //    The merged groups: one frame carries the demand beside the game's half, and a null demand
     //    leaves its field not available. EEC2 has no game half: 40 % pedal = 0x64, SPN 92 n/a.
     eq('EEC2 pedal only', hex(jfEec2({ accel: 40 }).data), 'FF 64 FF FF FF FF FF FF');
@@ -815,6 +889,8 @@
       eq('ET1 round trip', dec(65262, jfEt1({ coolant: 88 }), 'Coolant Temp'), '88 °C');
       eq('DD round trip', dec(65276, jfDd({ fuel: 70 }), 'Fuel Level'), '70 %');
       eq('VEP1 round trip', dec(65271, jfVep1({ battery: 24.4 }), 'Battery Voltage'), '24.40 V');
+      eq('VP round trip', dec(65267, jfVp({ lat: 48.8566, lon: 2.3522 }), 'Latitude'), '48.8566000 °');
+      eq('VDHR round trip', dec(65217, jfVdhr({ odo: 1234.5 }), 'HR Total Vehicle Distance'), '1234.500 km');
       eq('EEC2 pedal round trip', dec(61443, jfEec2({ accel: 40 }), 'Accelerator Pedal Position 1'), '40 %');
       const both = jfEec1({ rpm: 1500, engine_load: 42 });
       eq('EEC1 round trip, both halves',

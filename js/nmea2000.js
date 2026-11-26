@@ -2,8 +2,8 @@
 // The direct sibling of isobus.js / j1939-flavor.js / dronecan.js: registers
 // { flavor, signals, pack(t, slow) } on window.carlitoFlavorPackers, which carlito.js reads for
 // both packing and its checkCanCoverage assertion. NMEA 2000 is J1939 at the wire level, so
-// j1939.js's existing decoder already renders every frame this file emits (switch its Mode
-// dropdown to J1939 / N2K, nmea2000 mode) - a second view would be a second, worse one, the
+// j1939.js's existing decoder already renders every frame this file emits (the NMEA 2000 tab,
+// j1939.js in nmea2000 mode) - a second view would be a second, worse one, the
 // isobus.js precedent exactly.
 //
 // ── WHERE THE LAYOUT CAME FROM ───────────────────────────────────────────────
@@ -12,7 +12,11 @@
 // j1939DecodePGN. 127245 Rudder, 127237 Heading/Track Control and 130577 Direction Data are
 // there off ttlappalainen's NMEA2000 library (N2kMessages.cpp SetN2kPGN127245 /
 // SetN2kPGN127237 / SetN2kPGN130577) - the closest thing to a public reference for a PGN
-// NMEA's own documents keep behind a paywall.
+// NMEA's own documents keep behind a paywall. 127251 Rate of Turn, 127257 Attitude, 127508 Battery
+// Status, 128275 Distance Log and 127505's Fuel type were checked against canboat's canboat.json
+// (layout, signedness, priority, transmission interval) and ttlappalainen's N2kMessages.h (signs:
+// pitch positive bow up, roll positive tilted to starboard, rate of turn the rate of change of a
+// clockwise heading).
 //
 // ── THE COMMANDS, AND WHAT IS NOT HERE ───────────────────────────────────────
 // `nav_mode` and `heading_cmd` are contract dir="in" signals this file OWNS: boat-pilot.js's
@@ -27,19 +31,16 @@
 // `sail_angle` is the base CAN map's job (contract v41, `carlito.js`'s 0x52B frame); `sheet` is
 // `dir:"in"` and rides the same uplink path the base `in` signals do.
 //
-// `battery`, `coolant`, `engine_hours`, `heading`, `pitch` and `roll` are all UNFLAVORED despite
-// their own desc text citing a PGN (127508 / 127489 / 127489 / 127250 / 127257 / 127257
-// respectively): those signals are shared with vehicle
-// families that do not speak NMEA 2000 at all (plane, drone, car, truck, tractor), so the PGN
-// citation is a naming reference, not a claim about which protocol owns the wire. They are the
-// base CAN map's job, and packing them here would fail checkCanCoverage's own logic for the
-// wrong reason - the signal would look covered twice, once honestly and once not. The one
-// deliberate exception is declared rather than hidden: a BOAT also carries `heading` / `lat` /
-// `lon` in 127250 / 129025 and `engine_hours` in 127489's Total Engine Hours (`mirrors` below -
-// decision 1's reasoning, applied to the boat: an NMEA 2000 view of a boat with no heading,
-// position or hour meter is the stranger result; the contract's engine_hours desc says the boat
-// reads 127489). All three layouts are NMEA2K_DB's, round-tripped by the self-test like every
-// other frame here.
+// ── ONE CARRIER: CAN_MAP's signals in their NMEA 2000 groups (boat) ─────────
+// `heading`, `lat`, `lon`, `yaw`, `pitch`, `roll`, `coolant`, `fuel`, `battery`, `odo` and
+// `engine_hours` are UNFLAVORED despite some desc texts citing a PGN: the signals are shared with
+// families that do not speak NMEA 2000 (plane, drone, car, truck, tractor), so CAN_MAP declares
+// them and every other vehicle carries them in its 0x52x block. A BOAT carries them in their NMEA
+// 2000 groups INSTEAD (`carries` + `carriesFor` below, NF_CARRIES): a real N2K bus puts heading in
+// 127250, not in a proprietary group, and the same signal twice under two identities is what
+// carlito.js's 0x52B note rules out. carlito.js leaves those fields "not available" in the boat's
+// block - j1939-flavor.js's arrangement for a truck or tractor. `engine_hours` is in no block at
+// all (CAN_MAP_ON_REQUEST, a J1939 request on a truck or tractor); 127489 is the boat's carrier.
 //
 // INSTANCE 0 on 127245 / 127488 / 127489: the instance is the key field a display binds a gauge
 // to (canboat: "0 .. 252", part of the primary key), so 0xFF there would name no rudder and no
@@ -117,6 +118,7 @@
   const SA_NAV    = 2;
   const SA_TANK   = 3;
   const SA_STEER_HEAD = 4;   // the demo's steering control head, which orders rudder angles
+  const SA_BATTERY = 5;      // the battery monitor (Electrical Generation, 35)
 
   // Full rudder throw, in degrees, for converting the contract's `rudder`/`rudder_actual`
   // PERCENTAGE onto PGN 127245's Position/Angle Order fields, which are real angles. 35 degrees
@@ -140,10 +142,15 @@
     FLUID:    { pgn: 127505, prio: 6, sa: SA_TANK },
     DIRDATA:  { pgn: 130577, prio: 3, sa: SA_NAV },
     HTC:      { pgn: 127237, prio: 2, sa: SA_HELM },
-    // The two mirrors, from the navigation address that already sends 129026 COG & SOG: one GNSS /
-    // compass source for the boat's whole position solution.
+    // CAN_MAP's signals (NF_CARRIES), the attitude and position ones from the navigation address
+    // that already sends 129026 COG & SOG: one GNSS / compass source for the boat's whole
+    // position solution. Priorities are canboat's defaults.
     HEADING:  { pgn: 127250, prio: 2, sa: SA_NAV },
     POSRAPID: { pgn: 129025, prio: 2, sa: SA_NAV },
+    ROT:      { pgn: 127251, prio: 2, sa: SA_NAV },
+    ATTITUDE: { pgn: 127257, prio: 3, sa: SA_NAV },
+    DISTLOG:  { pgn: 128275, prio: 6, sa: SA_NAV },
+    BATTERY:  { pgn: 127508, prio: 6, sa: SA_BATTERY },
   };
 
   // A bearing wraps into N2K's own 0..2*pi range rather than carrying a sign - Wind Angle,
@@ -228,6 +235,51 @@
     return jp.msgFrame(NF_MSGS.POSRAPID, d);
   }
 
+  // 127251 Rate of Turn: SID (byte 0) "not available", the rate at bytes 1-4, signed 32-bit,
+  // 3.125e-8 rad/s per bit. NEGATED: the contract's `yaw` is the angular velocity about the body's
+  // up axis, + swinging the bow to PORT (Carlito's boat_autopilot.gd negates it for the same
+  // reason), and a rate of turn is the rate of change of a clockwise heading, + to starboard.
+  function nfRateOfTurn(t) {
+    const d = jp.blank(8);
+    nfPut(d, 1, 4, has(t, 'yaw') ? -Number(t.yaw) : NaN, 3.125e-8, 0, true);
+    return jp.msgFrame(NF_MSGS.ROT, d);
+  }
+
+  // 127257 Attitude: SID "not available", Yaw "not available" (where the bow points is 127250's
+  // Heading), Pitch and Roll 0.0001 rad signed. The contract's signs are the standard's: pitch +
+  // bow up, roll + starboard side down.
+  function nfAttitude(t) {
+    const d = jp.blank(8);
+    nfNaSigned(d, 1, 2);
+    for (const [b, k] of [[3, 'pitch'], [5, 'roll']]) nfPut(d, b, 2, has(t, k) ? t[k] : NaN, NF_ANG, 0, true);
+    return jp.msgFrame(NF_MSGS.ATTITUDE, d);
+  }
+
+  // 127508 Battery Status: instance 0 (the boat's one battery, header), Voltage 0.01 V - SIGNED in
+  // canboat - and Current (signed), Temperature and SID "not available": the game publishes only
+  // the terminal volts.
+  function nfBattery(t) {
+    const d = jp.blank(8);
+    d[0] = 0;
+    nfPut(d, 1, 2, has(t, 'battery') ? t.battery : NaN, 0.01, 0, true);
+    nfNaSigned(d, 3, 2);
+    return jp.msgFrame(NF_MSGS.BATTERY, d);
+  }
+
+  // 128275 Distance Log (Fast Packet, 14 bytes): Date and Time "not available" (the game keeps no
+  // calendar), Log the odometer in metres, Trip Log "not available" (no trip meter). A distance log
+  // is traditionally the speed log's distance through the WATER, where the contract's `odo` is the
+  // hull's odometer; it is still the field an N2K display shows as the vessel's total distance.
+  function nfDistanceLogPayload(t) {
+    const d = jp.blank(14);
+    nfPut(d, 6, 4, has(t, 'odo') ? Number(t.odo) * 1000 : NaN, 1, 0, false);
+    return d;
+  }
+  function nfDistanceLog(t) {
+    return nfFastPacket(NF_MSGS.DISTLOG.pgn, NF_MSGS.DISTLOG.prio, NF_MSGS.DISTLOG.sa,
+      nfDistanceLogPayload(t));
+  }
+
   function nfWaterDepth(t) {
     const d = jp.blank(8);
     const depth = Number(t.depth);
@@ -245,12 +297,13 @@
   function nfEngineDynamicPayload(t) {
     const d = jp.blank(26);
     d[0] = 0;   // Instance: single engine (header)
-    // Oil Temp, Coolant Temp, Alternator, Coolant/Fuel Pressure, discrete status and Engine
-    // Load/Torque all stay "not available": `coolant` is UNFLAVORED (the base CAN map's job, see
-    // header) and this game has no other source for the rest.
+    // Oil Temp, Alternator, Coolant/Fuel Pressure, discrete status and Engine Load/Torque all stay
+    // "not available": this game has no source for them.
     if (has(t, 'oil_press')) nfPut(d, 1, 2, t.oil_press, 0.1, 0, false);
-    // Total Engine Hours, bytes 11-14: 1 s per bit, unsigned (canboat; NMEA2K_DB's 1/3600 h). The
-    // mirror - only a boat reaches this builder (nfPack's gate).
+    // Coolant Temp, bytes 5-6: 0.01 K per bit, unsigned (canboat). CAN_MAP's `coolant`, carried
+    // here for a boat (NF_CARRIES) - only a boat reaches this builder (nfPack's gate).
+    if (has(t, 'coolant')) nfPut(d, 5, 2, t.coolant, 0.01, -273.15, false);
+    // Total Engine Hours, bytes 11-14: 1 s per bit, unsigned (canboat; NMEA2K_DB's 1/3600 h).
     if (has(t, 'engine_hours')) nfPut(d, 11, 4, t.engine_hours, 1 / 3600, 0, false);
     nfPut(d, 9, 2, has(t, 'fuel_rate') ? t.fuel_rate : NaN, 0.1, 0, true);
     nfNaSigned(d, 7, 2); nfNaSigned(d, 24, 1); nfNaSigned(d, 25, 1);   // Alternator, Load, Torque
@@ -263,14 +316,15 @@
 
   // `tank_level` index 0 = fresh water, 1 = waste, 2 = live-well (the contract's own instancing).
   // Type codes are NMEA2K_DB's Fluid Level Type enum: 1 Water, 5 Black Water, 3 Live Well - Black
-  // Water rather than Gray Water for the waste tank, because the contract's `fuel` signal is
-  // already the boat's one fuel reading and this array deliberately excludes it (the header's
-  // 'battery'/'pack_voltage' rule), so index 1 is sewage, not greywater.
+  // Water rather than Gray Water for the waste tank, so index 1 is sewage, not greywater. The
+  // array excludes fuel: the contract's `fuel` is CAN_MAP's, carried for a boat as its own 127505,
+  // instance 0 of Type 0 Fuel (NF_CARRIES) - an instance is unique per fluid type.
   const NF_TANK_TYPE = [1, 5, 3];
-  function nfFluidLevel(inst, levelPct) {
+  const NF_FUEL_TYPE = 0;
+  function nfFluidLevel(inst, levelPct, type = NF_TANK_TYPE[inst]) {
     const d = jp.blank(8);
     jp.bits(d, 0, 0, 4, inst);
-    jp.bits(d, 0, 4, 4, NF_TANK_TYPE[inst]);
+    jp.bits(d, 0, 4, 4, type);
     nfPut(d, 1, 2, levelPct, 0.004, 0, true);
     // Capacity (bytes 3-6) stays "not available": no tank in this game has a modeled litre size.
     return jp.frame(jp.buildId(NF_MSGS.FLUID.pgn, NF_MSGS.FLUID.prio, SA_TANK), d);
@@ -311,24 +365,45 @@
       nfHeadingTrackControlPayload(t));
   }
 
+  // ── The carriers: which vehicle, and which group ────────────────────────────
+  // Only the boat has an NMEA 2000 network (carlito-registry.js's shared rule): every vehicle
+  // publishes heading and position, so the gate IS the vehicle. nfPack sends each group below on
+  // this gate, and NF_CARRIES declares off the same one, so what carlito.js leaves out of the 0x52x
+  // block is exactly what goes out here.
+  const nfBoat = (t) => !!window.carlitoIsFamily && window.carlitoIsFamily('boat', t);
+  const NF_CARRIES = {
+    heading: '127250 Vessel Heading, boat only',
+    lat:     '129025 Position, Rapid Update, boat only',
+    lon:     '129025 Position, Rapid Update, boat only',
+    yaw:     '127251 Rate of Turn (+ to starboard, so negated), boat only',
+    pitch:   '127257 Attitude, boat only',
+    roll:    '127257 Attitude, boat only',
+    coolant: '127489 Engine Parameters, Dynamic: Coolant Temperature, boat only',
+    engine_hours: '127489 Engine Parameters, Dynamic: Total Engine Hours, boat only',
+    fuel:    '127505 Fluid Level, instance 0 of Type Fuel, boat only',
+    battery: '127508 Battery Status, instance 0, boat only',
+    odo:     '128275 Distance Log: Log, boat only',
+  };
+  const nfCarriesFor = (t) => nfBoat(t) ? Object.keys(NF_CARRIES) : [];
+
   // ── Pack ────────────────────────────────────────────────────────────────────
   // carlito.js calls this on every telemetry message with `slow` alternating (~20 Hz / ~10 Hz).
   // The ~100 ms group rides `slow` directly, like isobus.js's own 100 ms group; everything
   // slower gets its own wall-clock gate, the same shape as isobus.js's 500 ms EAC1/FWD sweep -
-  // each only moves its clock when there was something to send.
-  let nfLast250 = 0, nfLast500 = 0, nfLast1s = 0, nfLast2500 = 0;
+  // each only moves its clock when there was something to send. The NF_CARRIES groups run at
+  // canboat's transmission intervals.
+  let nfLast250 = 0, nfLastHtc = 0, nfLast500 = 0, nfLast1s = 0, nfLast1500 = 0, nfLast2500 = 0;
   function nfPack(t, slow) {
     if (!t) return [];
     const out = [];
     const now = Date.now();
 
     if (has(t, 'rudder_actual')) nfBoatAt = now;   // a boat is on the link (the rudder order's gate)
-    // The mirrors are the boat's alone (carlito-registry.js's shared rule): every vehicle publishes
-    // heading and position, and only the boat has an NMEA 2000 network to put them on.
-    const mirror = !!window.carlitoIsFamily && window.carlitoIsFamily('boat', t);
+    const boat = nfBoat(t);
     if (slow) {                                                          // ~100 ms
-      if (mirror && has(t, 'heading')) out.push(nfHeading(t));
-      if (mirror && (has(t, 'lat') || has(t, 'lon'))) out.push(nfPosition(t));
+      if (boat && has(t, 'heading')) out.push(nfHeading(t));
+      if (boat && (has(t, 'lat') || has(t, 'lon'))) out.push(nfPosition(t));
+      if (boat && has(t, 'yaw')) out.push(nfRateOfTurn(t));
       if (has(t, 'rudder_actual')) out.push(nfRudder(t));
       if (has(t, 'trim')) out.push(nfEngineRapid(t));
       if (has(t, 'awa') || has(t, 'aws')) out.push(nfWindFrame(SA_NAV, t.awa, t.aws, 2));
@@ -342,10 +417,15 @@
       if (has(t, 'cog') || has(t, 'sog')) { nfLast250 = now; out.push(nfCogSog(t)); }
     }
 
+    // 127237 Heading/Track Control: canboat 250 ms, its own clock so COG/SOG's gate never starves it.
+    if (now - nfLastHtc >= 250) {
+      if (has(t, 'nav_mode_actual') || has(t, 'heading_target')) { nfLastHtc = now; out.push(...nfHeadingTrackControl(t)); }
+    }
+
     if (now - nfLast500 >= 500) {
-      // fuel_rate is also declared on car/truck/tractor, which carry no NMEA 2000 network (a
-      // truck or tractor's burn goes out as J1939 LFE1, isobus.js): 127489 is the boat's alone.
-      if (has(t, 'rudder_actual') && (has(t, 'oil_press') || has(t, 'fuel_rate') || has(t, 'engine_hours'))) {
+      // fuel_rate, coolant and engine_hours are also published by vehicles with no NMEA 2000
+      // network (a truck or tractor's burn goes out as J1939 LFE1, isobus.js): 127489 is the boat's alone.
+      if (boat && ['oil_press', 'fuel_rate', 'engine_hours', 'coolant'].some(k => has(t, k))) {
         nfLast500 = now; out.push(...nfEngineDynamic(t));
       }
     }
@@ -355,18 +435,22 @@
       if (has(t, 'stw')) sec.push(nfSpeedWater(t));
       if (has(t, 'depth')) sec.push(nfWaterDepth(t));
       if (has(t, 'current_set') || has(t, 'current_drift')) sec.push(...nfDirectionData(t));
-      if (has(t, 'nav_mode_actual') || has(t, 'heading_target')) sec.push(...nfHeadingTrackControl(t));
+      if (boat && (has(t, 'pitch') || has(t, 'roll'))) sec.push(nfAttitude(t));
+      if (boat && has(t, 'odo')) sec.push(...nfDistanceLog(t));
       if (sec.length) { nfLast1s = now; out.push(...sec); }
     }
 
+    if (boat && has(t, 'battery') && now - nfLast1500 >= 1500) { nfLast1500 = now; out.push(nfBattery(t)); }
+
     if (now - nfLast2500 >= 2500) {
+      const five = [];
+      if (boat && has(t, 'fuel')) five.push(nfFluidLevel(0, t.fuel, NF_FUEL_TYPE));
       if (Array.isArray(t.tank_level)) {
-        const five = [];
         for (let i = 0; i < t.tank_level.length; i++) {
           if (t.tank_level[i] !== undefined && t.tank_level[i] !== null) five.push(nfFluidLevel(i, t.tank_level[i]));
         }
-        if (five.length) { nfLast2500 = now; out.push(...five); }
       }
+      if (five.length) { nfLast2500 = now; out.push(...five); }
     }
 
     return out;
@@ -378,13 +462,10 @@
     signals: ['rudder_actual', 'trim', 'awa', 'aws', 'twd', 'tws', 'stw', 'sog', 'cog',
               'current_set', 'current_drift', 'depth', 'fuel_rate', 'oil_press', 'tank_level',
               'nav_mode_actual', 'heading_target'],
-    // CAN_MAP's signals, carried AGAIN in their NMEA 2000 groups for a boat (0x524 / 0x525 keep them).
-    mirrors: {
-      heading: '127250 Vessel Heading, boat only',
-      lat:     '129025 Position, Rapid Update, boat only',
-      lon:     '129025 Position, Rapid Update, boat only',
-      engine_hours: '127489 Engine Parameters, Dynamic: Total Engine Hours, boat only',
-    },
+    // One carrier: CAN_MAP's signals, carried by their NMEA 2000 groups INSTEAD of the 0x52x block
+    // on a boat (carriesFor: which ones, for this vehicle).
+    carries: NF_CARRIES,
+    carriesFor: nfCarriesFor,
     pack: nfPack,
   });
 
@@ -518,11 +599,14 @@
   // check that throws cannot leave a test value driving the game.
   function nmea2000SelfTest() {
     const pilot = Object.assign({}, nfPilot), order = Object.assign({}, nfRudderOrder), boat = nfBoatAt;
-    const fp = new Map(nfFpRx);
+    const fp = new Map(nfFpRx), seq = new Map(nfSeq);
+    const clocks = [nfLast250, nfLastHtc, nfLast500, nfLast1s, nfLast1500, nfLast2500];   // nfPack's, which the checks run
     try { return nfSelfTestChecks(); }
     finally {
       Object.assign(nfPilot, pilot); Object.assign(nfRudderOrder, order); nfBoatAt = boat;
       nfFpRx.clear(); for (const [k, v] of fp) nfFpRx.set(k, v);
+      nfSeq.clear(); for (const [k, v] of seq) nfSeq.set(k, v);
+      [nfLast250, nfLastHtc, nfLast500, nfLast1s, nfLast1500, nfLast2500] = clocks;
     }
   }
   function nfSelfTestChecks() {
@@ -558,16 +642,39 @@
     //    Angle Order and Position are signed: "not available" is 0x7FFF (FF 7F), never the blank.
     eq('no rudder_actual leaves Position not-available', hex(nfRudder({}).data),
       '00 FF FF 7F FF 7F FF FF');
-    //    The mirrors. 90 deg = 1.5708 rad -> 15708 = 0x3D5C; Deviation / Variation 0x7FFF; True.
+    //    The carriers. 90 deg = 1.5708 rad -> 15708 = 0x3D5C; Deviation / Variation 0x7FFF; True.
     //    48.8566 deg -> 488566000 = 0x1D1EECF0; -2.3522 deg -> -23522000 = 0xFE991530.
     eq('Vessel Heading 90 deg true', hex(nfHeading({ heading: 90 }).data), 'FF 5C 3D FF 7F FF 7F FC');
     eq('Position 48.8566 / -2.3522', hex(nfPosition({ lat: 48.8566, lon: -2.3522 }).data),
       'F0 EC 1E 1D 30 15 99 FE');
     eq('Position with no lon leaves it 0x7FFFFFFF', hex(nfPosition({ lat: 48.8566 }).data),
       'F0 EC 1E 1D FF FF FF 7F');
-    const mirrored = (t) => nfPack(t, true).map(f => jp.parseId(f.id).pgn).filter(p => p === 127250 || p === 129025);
-    eq('a boat carries both mirrors', mirrored({ rudder_actual: 0, heading: 90, lat: 1, lon: 2 }), [127250, 129025]);
-    eq('a car carries neither', mirrored({ heading: 90, lat: 1, lon: 2 }), []);
+    //    yaw 0.05 rad/s to port -> -0.05 / 3.125e-8 = -1600000 = 0xFFE79600.
+    eq('Rate of Turn, 0.05 rad/s to port is negative', hex(nfRateOfTurn({ yaw: 0.05 }).data), 'FF 00 96 E7 FF FF FF FF');
+    //    1.5 deg -> 262 = 0x0106; -3 deg -> -524 = 0xFDF4; Yaw 0x7FFF.
+    eq('Attitude pitch 1.5 / roll -3', hex(nfAttitude({ pitch: 1.5, roll: -3 }).data), 'FF FF 7F 06 01 F4 FD FF');
+    eq('Battery 24.4 V', hex(nfBattery({ battery: 24.4 }).data), '00 88 09 FF 7F FF FF FF');
+    eq("Battery id is the monitor's", nfBattery({ battery: 12 }).id.toString(16).toUpperCase(), '19F21405');
+    //    1234.5 km = 1234500 m = 0x0012D644.
+    eq('Distance Log 1234.5 km', hex(nfDistanceLogPayload({ odo: 1234.5 })), 'FF FF FF FF FF FF 44 D6 12 00 FF FF FF FF');
+    //    80 % / 0.004 = 20000 = 0x4E20, instance 0, Type 0 Fuel.
+    eq('Fuel 80 %', hex(nfFluidLevel(0, 80, NF_FUEL_TYPE).data), '00 20 4E FF FF FF FF FF');
+    //    75 degC -> 348.15 K / 0.01 = 34815 = 0x87FF.
+    eq('Engine Dynamic coolant 75 degC', nfEngineDynamicPayload({ coolant: 75 }).slice(5, 7), [0xFF, 0x87]);
+    eq('a boat: every carried signal', nfCarriesFor({ rudder_actual: 0 }).sort(), Object.keys(NF_CARRIES).sort());
+    eq('a car: none', nfCarriesFor({ heading: 90, lat: 1, lon: 2 }), []);
+    //    Declared carried means SENT: every signal nfCarriesFor names must ride a group nfPack emits
+    //    (clocks open, slow tick), or carlito.js would drop it from the block with nothing in its place.
+    const PGN_OF = { heading: 127250, lat: 129025, lon: 129025, yaw: 127251, pitch: 127257, roll: 127257,
+      coolant: 127489, engine_hours: 127489, fuel: 127505, battery: 127508, odo: 128275 };
+    eq('every carried signal has a group here', Object.keys(PGN_OF).sort(), Object.keys(NF_CARRIES).sort());
+    const shared = { heading: 90, lat: 1, lon: 2, yaw: 0.1, pitch: 1, roll: 2, coolant: 80, engine_hours: 5,
+      fuel: 50, battery: 12.6, odo: 3 };
+    const pgnsOf = (t) => { nfLastHtc = nfLast500 = nfLast1s = nfLast1500 = nfLast2500 = 0; return nfPack(t, true).map(f => jp.parseId(f.id).pgn); };
+    const lost = (t) => { const p = pgnsOf(t); return nfCarriesFor(t).filter(s => !p.includes(PGN_OF[s])); };
+    eq('a boat sends every group it declares', lost({ ...shared, rudder_actual: 0 }), []);
+    eq('...detected by any boat-only signal', lost({ ...shared, sail_angle: 10 }), []);
+    eq('a car sends none of them', [...new Set(pgnsOf(shared))].filter(p => Object.values(PGN_OF).includes(p)), []);
 
     // 5. Round-trip every frame through j1939.js's own decoder, in its NMEA 2000 database. This is the
     //    real check on every scale/offset above.
@@ -613,6 +720,16 @@
         { 'Heading': '270.0 °', 'Deviation': 'N/A', 'Variation': 'N/A', 'Reference': 'True' });
       rt('Position, Rapid Update', 129025, nfPosition({ lat: 48.8566, lon: -2.3522 }).data,
         { 'Latitude': '48.856600 °', 'Longitude': '-2.352200 °' });
+      rt('Rate of Turn', 127251, nfRateOfTurn({ yaw: -0.05 }).data, { 'Rate of Turn': '2.86 °/s' });
+      rt('Attitude', 127257, nfAttitude({ pitch: 1.5, roll: -3 }).data,
+        { 'Yaw': 'N/A', 'Pitch': '1.5 °', 'Roll': '-3.0 °' });
+      rt('Battery Status', 127508, nfBattery({ battery: 24.4 }).data,
+        { 'Instance': '0', 'Voltage': '24.40 V', 'Current': 'N/A', 'Temperature': 'N/A' });
+      rt('Distance Log', 128275, nfDistanceLogPayload({ odo: 1234.5 }),
+        { 'Total Log': '1234500 m', 'Trip Log': 'N/A' });
+      rt('Fluid Level (fuel)', 127505, nfFluidLevel(0, 80, NF_FUEL_TYPE).data,
+        { 'Instance': '0', 'Type': 'Fuel', 'Level': '80.0 %' });
+      rt('Engine Dynamic, coolant', 127489, nfEngineDynamicPayload({ coolant: 75 }), { 'Coolant Temp': '75.0 °C' });
     } else {
       failures.push('j1939.js is not loaded on this page, ' +
         'so the round-trip decode was not checked - expected on carlito-bridge.html, a failure ' +

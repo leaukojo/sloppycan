@@ -25,8 +25,9 @@ window.carlitoUplinkClaim = window.carlitoUplinkClaim || function (name, prio, f
 };
 // [ frame => void ] - a module reading its own command off the bus into its own state.
 window.carlitoUplinkDecoders = window.carlitoUplinkDecoders || [];
-// [ { flavor, signals, pack(t, slow), unpackable?, onRequest?, mirrors?, reset? } ] - a flavor's frame
-// layout; reset() forgets what it has announced (carlito.js calls it on bus open and link end/resume).
+// [ { flavor, signals, pack(t, slow), unpackable?, onRequest?, carries?, carriesFor(t)?, reset? } ] -
+// a flavor's frame layout; carriesFor(t) names the CAN_MAP signals it carries instead of the 0x52x
+// block for this vehicle; reset() forgets what it has announced (carlito.js calls it on bus open and link end/resume).
 window.carlitoFlavorPackers = window.carlitoFlavorPackers || [];
 // [ { pgn, abbr, sa, prio, signals, build(t), nack? } ] - a J1939 parameter group answered on request;
 // nack: false makes a null build() silence rather than a NACK (a control function that is not there).
@@ -96,6 +97,6 @@ window.carlitoIsFamily = window.carlitoIsFamily || (function () {
   return (family, t) => !!t && signalsFor(family).some(n => n in t);
 })();
 // The families with a J1939 network: the truck and the tractor. The one copy of that list, read by
-// j1939-flavor.js's mirrors and j1939.js's request server (a car or a boat has no J1939 ECU to answer).
+// j1939-flavor.js's carriers and j1939.js's request server (a car or a boat has no J1939 ECU to answer).
 window.carlitoJ1939Network = window.carlitoJ1939Network ||
   ((t) => window.carlitoIsFamily('truck', t) || window.carlitoIsFamily('tractor', t));

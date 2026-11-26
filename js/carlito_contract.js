@@ -4,7 +4,7 @@
 // CARLITO_CONTRACT_HASH is the SHA-256 of the contract object's text: from its opening "{" to the
 // "}" just before the hash line (descs contain ";", so not to the first one). CI re-checks it.
 window.CARLITO_CONTRACT = {
-	"version": 67,
+	"version": 68,
 	"notes": [
 		"Carlito signal contract. Defines every signal crossing the sloppyCAN<->game bridge.",
 		"Signals are unique by (name, dir). 'battery' exists in both directions on purpose: in = warning LED, out = battery voltage.",
@@ -47,6 +47,7 @@ window.CARLITO_CONTRACT = {
 		{ "name": "kmh", "dir": "out", "type": "f32", "unit": "km/h", "range": [0, 300], "vehicles": ["car", "truck", "tractor", "boat", "plane", "drone", "train"], "desc": "Absolute speed for the speedometer." },
 		{ "name": "rpm", "dir": "out", "type": "u16", "unit": "rev/min", "range": [0, 8000], "warn_side": "high", "warn": 6800, "vehicles": ["car", "truck", "tractor", "plane"], "desc": "Engine RPM. Real signal: read out of the drivetrain sim, not derived from speed. 'warn' is the tachometer redline." },
 		{ "name": "gear", "dir": "out", "type": "u8", "unit": "enum", "enum": { "0": "N", "1-24": "D1-D24", "254": "P", "255": "R" }, "vehicles": ["car", "truck", "tractor", "plane", "train"], "desc": "Currently engaged gear (same byte semantics as the 'in' gear): P only where a park pawl is fitted, N where a P request found none. On a CVT (the tractor-cvt variant) a D byte is the mechanical range engaged, D1-D4, changing synchronously as the ratio moves (the live ratio is 'gear_ratio'); R stays R." },
+		{ "name": "gear_top", "dir": "out", "type": "u8", "unit": "count", "vehicles": ["car", "truck", "tractor", "plane", "train"], "desc": "The tallest drive byte this vehicle's gearbox selects (Drivetrain.top_gear): a stepped box's ratio count, a CVT's range count (the tractor-cvt's D1-D4). Fixed per vehicle. 'gear' carries the bus's D1-D24; a byte above this one selects this gear, so a controller offering gears (sloppyCAN's Control panel) caps its selector here rather than at the bus's range. No 'range': a count is a readout, not a scale." },
 		{ "name": "throttle", "dir": "out", "type": "i8", "unit": "%", "range": [-100, 100], "vehicles": ["car", "truck", "tractor", "boat", "plane", "drone", "train"], "desc": "The arbitrated pedal (signed by direction), not the fuel the engine receives: where fitted, the governor, limiter and shift cut act after it, and the delivered fuel shows in engine_load / fuel_rate." },
 		{ "name": "yaw", "dir": "out", "type": "f32", "unit": "rad/s", "range": [-10, 10], "vehicles": ["car", "truck", "tractor", "boat", "plane", "drone", "train"], "desc": "Yaw rate." },
 		{ "name": "accLong", "dir": "out", "type": "f32", "unit": "m/s^2", "range": [-30, 30], "vehicles": ["car", "truck", "tractor", "boat", "plane", "drone", "train"], "desc": "Longitudinal acceleration." },
@@ -199,4 +200,4 @@ window.CARLITO_CONTRACT = {
 		{ "name": "coupler_force", "dir": "out", "type": "f32", "unit": "kN", "range": [-500, 500], "vehicles": ["train"], "flavor": "train", "desc": "Head coupler force, + = tension (pulling), - = buff (bunching). Read out of the consist coupler sim; showcases slack action." }
 	]
 };
-window.CARLITO_CONTRACT_HASH = "e22ecae3c5fc630f42adc3f6c29b9b0e01a982eb1a1696bc8e43047408696dff";
+window.CARLITO_CONTRACT_HASH = "0a924d23029aec12302c7a7b5881d6cdc9842ce990e1c19e2bced40ad4ce6945";

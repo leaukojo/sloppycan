@@ -26,13 +26,15 @@
   s.textContent = `
 .carlito-window {
   position:fixed; z-index:900; top:90px; left:730px; width:480px; height:540px;
+  max-width:calc(100vw - 16px); max-height:calc(100vh - 16px);   /* fits a phone; open clamps the position */
+  max-height:calc(100dvh - 16px);   /* Android: 100vh is the height with the URL bar hidden, which would bury the grip */
   background:var(--bg2); border:1px solid var(--border2); border-radius:0;
   box-shadow:0 8px 24px #0006; font-family:var(--sans); color:var(--text);
   display:none; flex-direction:column; overflow:hidden; min-width:320px; min-height:260px;
 }
 .carlito-window.open { display:flex; }
 .carlito-header {
-  display:flex; align-items:center; gap:8px; cursor:move; user-select:none; flex-shrink:0;
+  display:flex; align-items:center; gap:8px; cursor:move; user-select:none; flex-shrink:0; touch-action:none;
   padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
   font-size:var(--fs-m); font-weight:600; letter-spacing:.02em;
 }
@@ -102,9 +104,10 @@
   color:var(--text2); font-size:var(--fs-m); text-align:center; padding:20px; line-height:1.6;
 }
 .carlito-resize {
-  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; z-index:2;
+  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; z-index:2; touch-action:none;
   background:linear-gradient(135deg,transparent 50%,var(--border2) 50%,var(--border2) 60%,transparent 60%,transparent 75%,var(--border2) 75%,var(--border2) 85%,transparent 85%);
 }
+@media (pointer: coarse) { .carlito-resize { width:28px; height:28px; } }   /* a fingertip-sized grip */
 `;
   document.head.appendChild(s);
 
@@ -125,7 +128,7 @@
       <button id="carlitoReload" title="Reload the game">Reload</button>
       <button id="carlitoKbd" title="Block physical keyboard from reaching the game (JS bridge still drives)">⌨ on</button>
       <button class="carlito-link on" id="carlitoUp" title="Uplink: send RAMN controls into the game (sloppyCAN → Carlito)">Up ●</button>
-      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52E and its protocol frames (Carlito → sloppyCAN)">Down ●</button>
+      <button class="carlito-link on" id="carlitoDown" title="Downlink: forward the game's telemetry as CAN 0x520–0x52E (J1939 Proprietary B on a truck or tractor, NMEA 2000 proprietary on a boat, CANaerospace on a plane) and its protocol frames (Carlito → sloppyCAN)">Down ●</button>
       <span class="carlito-nodrive" id="carlitoNoDrive" title="The built uplink has no accel, brake or steer - the game falls back to its own keyboard (not during a challenge)">no driving controls</span>
       <button class="carlito-iocaret" id="carlitoIoCaret" title="Show/hide debug panel">▸ debug</button>
     </div>
@@ -606,7 +609,8 @@
 
   // ── Return channel: Carlito → sloppyCAN telemetry ──
   // Game postMessages {type:'carlitoOutput', values:{…}} ~every 50 ms. We render it and emit CAN
-  // frames 0x520–0x52E (big-endian) via window.canForward - ingested once for the dashboards and,
+  // frames 0x520–0x52E (big-endian; a truck or tractor's 0x520–0x52C go out as 29-bit J1939
+  // Proprietary B instead, a boat's as NMEA 2000 proprietary, see PROP_B below) via window.canForward - ingested once for the dashboards and,
   // when a bus is open, transmitted on the wire and shown as a single "FW" dump entry (gateway model;
   // plain RX when no bus). Paced in the message handler: fast IDs ~20/s, slow IDs ~10/s.
   // Big-endian fixed-point encoders. A scaled value is rounded and SATURATED one count under its
@@ -637,7 +641,9 @@
   // slip's two elements, in contract index order: 0 = front axle, 1 = rear.
   const slipPair = (t) => [inst(t && t.slip, 0), inst(t && t.slip, 1)];
 
-  // CAN layout: contract-unit telemetry → frames 0x520–0x52C (big-endian). postMessage carries
+  // CAN layout: contract-unit telemetry → frames 0x520–0x52C (big-endian; 11-bit ids, except on a
+  // truck, tractor or boat, whose J1939 / NMEA 2000 bus is 29-bit only: PROP_B below, and a plane,
+  // whose CANaerospace messages carry every signal here: canaerospace.js). postMessage carries
   // engineering units; the fixed-point scaling to bytes lives here (sloppyCAN's domain, per the
   // contract note). Each UNFLAVORED contract "out" signal is packed exactly once here;
   // checkCanCoverage() asserts that. A FLAVORED signal is not this map's job - see the flavor
@@ -653,54 +659,72 @@
     i8: [0x7F], i16: [0x7F, 0xFF], i32: [0x7F, 0xFF, 0xFF, 0xFF],
     gear: [0xFD],
   };
+  // ONE ROW PER FIELD, AS DATA: field(signal, type, scale, offset, { na, count }). The wire value is
+  // round((value + offset) * scale) in `type` (enc above; `byte` / `word` verbatim); `flag` is a
+  // u8 1 / 0 off the value's truthiness; `count` > 1 is an instanced signal (an array), one `type`
+  // per element in contract index order; `na` overrides the type's NA bytes. A row is
+  // [signal, encode(t), na, desc], and propBDecoder below reads the same desc back, so the
+  // scaling is written once for both directions.
+  function field(sig, type, scale = 1, off = 0, o = {}) {
+    const wire = type === 'flag' ? 'u8' : type, n = o.count || 1;
+    const one = (v) => enc[wire](type === 'flag' ? (v ? 1 : 0) : ((+v || 0) + off) * scale);
+    const encode = n > 1 ? (t) => Array.from({ length: n }, (_, i) => one(inst(t[sig], i))).flat() : (t) => one(t[sig]);
+    const na = NA[wire] || { byte: NA.u8, word: NA.u16 }[wire];   // verbatim types: all ones
+    return [sig, encode, o.na || Array(n).fill(na).flat(), { type, wire, scale, off, count: n }];
+  }
   const CAN_MAP = [
-    { id: 0x520, fast: true,  fields: [['speed', t => enc.i16((+t.speed || 0) * 100), NA.i16], ['kmh', t => enc.u16((+t.kmh || 0) * 10), NA.u16]] },
-    { id: 0x521, fast: true,  fields: [['rpm', t => enc.u16(+t.rpm || 0), NA.u16], ['gear', t => enc.byte(+t.gear || 0), NA.gear], ['throttle', t => enc.i8(+t.throttle || 0), NA.i8]] },
-    { id: 0x522, fast: true,  fields: [['yaw', t => enc.i16((+t.yaw || 0) * 1000), NA.i16], ['accLong', t => enc.i16((+t.accLong || 0) * 100), NA.i16], ['accLat', t => enc.i16((+t.accLat || 0) * 100), NA.i16]] },
+    { id: 0x520, fast: true,  fields: [field('speed', 'i16', 100), field('kmh', 'u16', 10)] },
+    { id: 0x521, fast: true,  fields: [field('rpm', 'u16'), field('gear', 'byte', 1, 0, { na: NA.gear }), field('throttle', 'i8')] },
+    { id: 0x522, fast: true,  fields: [field('yaw', 'i16', 1000), field('accLong', 'i16', 100), field('accLat', 'i16', 100)] },
     // slip is TWO bytes since contract v30: front, then rear, in the contract's own zero-based
     // index order - so 0x523 is five bytes rather than four. One field entry rather than two,
     // because the coverage check keys on the contract SIGNAL name and there is still one signal.
-    { id: 0x523, fast: true,  fields: [['steer', t => enc.i16(+t.steer || 0), NA.i16], ['slip', t => slipPair(t).flatMap(v => enc.u8(v * 100)), [...NA.u8, ...NA.u8]], ['ground', t => enc.u8(t.ground ? 1 : 0), NA.u8]] },
-    { id: 0x524, fast: false, fields: [['posX', t => enc.i16(+t.posX || 0), NA.i16], ['posZ', t => enc.i16(+t.posZ || 0), NA.i16], ['heading', t => enc.u16((+t.heading || 0) * 10), NA.u16]] },
-    { id: 0x525, fast: false, fields: [['lat', t => enc.i32((+t.lat || 0) * 1e7), NA.i32], ['lon', t => enc.i32((+t.lon || 0) * 1e7), NA.i32]] },
-    { id: 0x526, fast: false, fields: [['odo', t => enc.u32((+t.odo || 0) * 1000), NA.u32]] },
-    { id: 0x527, fast: false, fields: [['status', t => enc.word(+t.status || 0), NA.u16], ['impact', t => enc.u8(+t.impact || 0), NA.u8]] },
-    { id: 0x528, fast: false, fields: [['fuel', t => enc.u8(+t.fuel || 0), NA.u8], ['coolant', t => enc.u8(+t.coolant || 0), NA.u8], ['battery', t => enc.u8((+t.battery || 0) * 10), NA.u8]] },
+    { id: 0x523, fast: true,  fields: [field('steer', 'i16'), field('slip', 'u8', 100, 0, { count: 2 }), field('ground', 'flag')] },
+    { id: 0x524, fast: false, fields: [field('posX', 'i16'), field('posZ', 'i16'), field('heading', 'u16', 10)] },
+    { id: 0x525, fast: false, fields: [field('lat', 'i32', 1e7), field('lon', 'i32', 1e7)] },
+    { id: 0x526, fast: false, fields: [field('odo', 'u32', 1000)] },
+    { id: 0x527, fast: false, fields: [field('status', 'word'), field('impact', 'u8')] },
+    { id: 0x528, fast: false, fields: [field('fuel', 'u8'), field('coolant', 'u8'), field('battery', 'u8', 10)] },
     // 0x520-0x528 is a frozen layout (anything already on the wire decodes against it), so the
     // vehicle-specific telemetry continues in new IDs rather than filling their spare bytes. Same rules as
-    // above: big-endian, `enc`, an explicit fixed-point scale per field, unit in the comment.
+    // above: big-endian, `field`, an explicit fixed-point scale per field, unit in the comment.
     // ATTITUDE - boat/plane/drone pitch and roll. deg x100 (i16): roll's +/-180 deg is
     // +/-18000, comfortably inside i16. `fast` because attitude at 10 Hz visibly stair-steps.
-    { id: 0x529, fast: true,  fields: [['pitch', t => enc.i16((+t.pitch || 0) * 100), NA.i16],          // deg x100
-                                       ['roll', t => enc.i16((+t.roll || 0) * 100), NA.i16]] },         // deg x100
+    { id: 0x529, fast: true,  fields: [field('pitch', 'i16', 100),          // deg x100
+                                       field('roll', 'i16', 100)] },        // deg x100
     // RATES - the plane's gyro pair plus vertical acceleration. rad/s x1000 matches yaw in 0x522,
     // m/s^2 x100 matches accLong/accLat, so the three IMU frames share one scale vocabulary.
     // `fast` for the same reason 0x522 is: a rate sampled slowly is a different signal.
-    { id: 0x52A, fast: true,  fields: [['roll_rate', t => enc.i16((+t.roll_rate || 0) * 1000), NA.i16],   // rad/s x1000
-                                       ['pitch_rate', t => enc.i16((+t.pitch_rate || 0) * 1000), NA.i16], // rad/s x1000
-                                       ['acc_vert', t => enc.i16((+t.acc_vert || 0) * 100), NA.i16]] },   // m/s^2 x100
+    { id: 0x52A, fast: true,  fields: [field('roll_rate', 'i16', 1000),     // rad/s x1000
+                                       field('pitch_rate', 'i16', 1000),    // rad/s x1000
+                                       field('acc_vert', 'i16', 100)] },    // m/s^2 x100
     // SLOW vehicle state - altitude and vertical speed change over seconds; sail_angle (a boom
     // angle) is the same shape, a set-and-hold position with a slow-moving feedback, and stays
     // here UNFLAVORED since NMEA 2000 has no sail PGN. rudder_actual and trim are not here: both
     // are `nmea2000`-flavored (PGN 127245 Rudder / PGN 127488 Engine Rapid Update, packed by
     // nmea2000.js), and packing them here as well would be the same signal on the wire twice
-    // under two identities. THE RULE HAS ONE EXCEPTION, declared: a truck or tractor also
-    // carries rpm / kmh / coolant / fuel / battery in their J1939 groups (EEC1 / CCVS / ET1 /
-    // DD / VEP1, j1939-flavor.js's `mirrors`), because a J1939 view of a truck with no engine
-    // speed is the stranger result; and a boat carries heading /
-    // lat / lon in NMEA 2000 127250 / 129025 (nmea2000.js's `mirrors`) for the same reason. Those
-    // signals stay this map's.
-    { id: 0x52B, fast: false, fields: [['altitude', t => enc.u16((+t.altitude || 0) * 10), NA.u16],     // m x10 (0-500 m -> 0-5000)
-                                       ['vspeed', t => enc.i16((+t.vspeed || 0) * 100), NA.i16],        // m/s x100
-                                       ['sail_angle', t => enc.i8(+t.sail_angle || 0), NA.i8]] },       // deg (-90..90)
+    // under two identities. The same rule runs the other way: a CAN_MAP signal with a standard
+    // group on the vehicle's own bus rides ONLY that group there - a truck or tractor's rpm in
+    // EEC1, lat / lon in VP (j1939-flavor.js's `carries`), a boat's heading in 127250, pitch /
+    // roll in 127257 (nmea2000.js's `carries`), a drone's attitude and rates in ahrs.Solution,
+    // lat / lon / altitude in Fix2 (dronecan-core.js's `carries`), every plane signal in a
+    // CANaerospace message (canaerospace.js's `carries`) - and mapFrames sends its field here as
+    // absent.
+    // Every one of those signals stays this map's, for every other vehicle.
+    { id: 0x52B, fast: false, fields: [field('altitude', 'u16', 10),        // m x10 (0-500 m -> 0-5000)
+                                       field('vspeed', 'i16', 100),         // m/s x100
+                                       field('sail_angle', 'i8')] },        // deg (-90..90)
     // BRAKE HEAT - the hottest friction brake (contract v55). Carlito's own signal (J1939 has no
     // brake-temperature SPN), shaped like J1939's 2-byte temperatures: SPN 242's 0.03125 degC per
     // bit, -273 degC offset (20-850 degC -> 9376-35936). Slow: a lumped brake moves over seconds.
-    { id: 0x52C, fast: false, fields: [['brake_temp', t => enc.u16(((+t.brake_temp || 0) + 273) / 0.03125), NA.u16]] }, // degC
+    { id: 0x52C, fast: false, fields: [field('brake_temp', 'u16', 32, 273)] },   // degC, 1/32 per bit
 
   ];
   // WHO OWNS THE 0x52x BLOCK: 0x520-0x52C this map (unflavored signals); 0x52D-0x52E TRAIN_MAP
   // below (the `train` flavor, which has no protocol to borrow a layout from). Next free: 0x52F.
+  // 0x520-0x52C are 11-bit ids on every vehicle but a truck, tractor or boat (PROP_B below) and a
+  // plane, which sends none of them: 1312-1324 is CANaerospace's reserved NOD range (V1.7 5.10), so
+  // canaerospace.js carries all its signals on CANaerospace ids 300-1037 and 1500-1510.
   // ── Declared coverage opt-outs ──────────────────────────────────────────────
   // Unflavored "out" signals this frame map deliberately does NOT carry, each with its reason.
   //
@@ -714,9 +738,12 @@
   //
   // THE REASON STRING IS MANDATORY - an opt-out without one is exactly how a gap hides.
   //
-  // CURRENTLY EMPTY: see CAN_MAP_ON_REQUEST below for the signals that are carried only on
-  // request. The mechanism stays for the next signal with no honest frame.
-  const CAN_MAP_UNPACKABLE = {};
+  // See CAN_MAP_ON_REQUEST below for the signals that are carried only on request.
+  const CAN_MAP_UNPACKABLE = {
+    gear_top: 'a fixed fact about the vehicle, not bus traffic: no ECU broadcasts the gear count ' +
+      'of its gearbox, so no frame here would be honest. ramn.js reads it off the telemetry to cap ' +
+      'the gear selector of the Control panel',
+  };
 
   // ── Request-served signals ──────────────────────────────────────────────────
   // A THIRD state, and the reason it is not just an opt-out with a nicer reason string: these
@@ -741,7 +768,7 @@
     engine_hours: 'SPN 247 rides PGN 65253 (HOURS), whose J1939-71 transmission repetition ' +
       'rate is "On request" - there is no periodic frame to put it in, and broadcasting it at ' +
       '10 Hz would misstate its rate. j1939.js answers a PGN 59904 request for it instead, on a ' +
-      'truck or tractor; a boat carries it in NMEA 2000 127489 (nmea2000.js\'s mirror)',
+      'truck or tractor; a boat carries it in NMEA 2000 127489 (nmea2000.js\'s `carries`)',
   };
 
   // ── Flavor packers ──────────────────────────────────────────────────────────
@@ -752,8 +779,9 @@
   // registers { flavor, signals, pack(t, slow) } on window.carlitoFlavorPackers - plus an
   // optional { unpackable: { signal: reason } } for what it declares it will never pack, an
   // optional { onRequest: { signal: reason } } for what it declares is carried only when asked
-  // for, and an optional { mirrors: { signal: reason } } for another scope's signals it also
-  // carries. The list is carlito-registry.js's, and the coverage check below runs on
+  // for, and an optional { carries: { signal: reason }, carriesFor(t) } for CAN_MAP signals it
+  // carries INSTEAD of this block, on the vehicles carriesFor(t) names (injectTelemetry sends
+  // their fields here as absent). The list is carlito-registry.js's, and the coverage check below runs on
   // DOMContentLoaded, after every deferred module has registered - whatever the script order.
   // An optional reset() forgets what the packer has ANNOUNCED (an aperiodic claim, a latched
   // command): resetPackers() calls it when a bus opens and when the link ends or resumes after a
@@ -776,13 +804,13 @@
   const TRAIN_MAP = [
     // Traction: the line voltage sags with the current, so the two ride one frame. `fast` for the
     // same reason 0x522 is - slack action in the coupler is a sub-second signal.
-    { id: 0x52D, fast: true,  fields: [['catenary_volts', t => enc.u16(+t.catenary_volts || 0), NA.u16],        // V (0-30000)
-                                       ['motor_current', t => enc.u16((+t.motor_current || 0) * 10), NA.u16],   // A x10 (0-1500 -> 0-15000)
-                                       ['coupler_force', t => enc.i16((+t.coupler_force || 0) * 10), NA.i16]] }, // kN x10, + = tension
-    { id: 0x52E, fast: false, fields: [['brake_pipe', t => enc.u16((+t.brake_pipe || 0) * 100), NA.u16],       // bar x100 (0-6 -> 0-600)
-                                       ['grade', t => enc.i8(+t.grade || 0), NA.i8],                             // % (-10..10), + = climbing
-                                       ['pantograph_state', t => enc.u8(t.pantograph_state ? 1 : 0), NA.u8],     // 0/1
-                                       ['doors_state', t => enc.u8(t.doors_state ? 1 : 0), NA.u8]] },            // 0/1
+    { id: 0x52D, fast: true,  fields: [field('catenary_volts', 'u16'),      // V (0-30000)
+                                       field('motor_current', 'u16', 10),   // A x10 (0-1500 -> 0-15000)
+                                       field('coupler_force', 'i16', 10)] },  // kN x10, + = tension
+    { id: 0x52E, fast: false, fields: [field('brake_pipe', 'u16', 100),     // bar x100 (0-6 -> 0-600)
+                                       field('grade', 'i8'),                // % (-10..10), + = climbing
+                                       field('pantograph_state', 'flag'),   // 0/1
+                                       field('doors_state', 'flag')] },     // 0/1
   ];
   FLAVOR_PACKERS.push({
     flavor: 'train',
@@ -856,13 +884,14 @@
         p.unpackable, p.onRequest);
     }
 
-    // DECLARED MIRRORS - a packer's `mirrors: { signal: reason }`, another scope's out signal it
-    // also carries (the exception at the 0x52B note). Not in its `signals`, so the "packs signals
-    // that are not its out signals" warn never sees them; instead each must be an out signal its
-    // OWNER packs (CAN_MAP for an unflavored one, its flavor's packer otherwise), because a mirror
-    // of something nobody packs would be a gap filled from the wrong side. An unflavored signal
-    // this map carries on request (CAN_MAP_ON_REQUEST: the boat's engine_hours in 127489) is
-    // carried by its owner too.
+    // DECLARED CARRIERS - a packer's `carries: { signal: reason }`, CAN_MAP signals it carries
+    // INSTEAD of this map for the vehicles its `carriesFor(t)` names (the truck's and tractor's
+    // J1939 groups, the boat's NMEA 2000 ones, the drone's DroneCAN messages, the plane's CANaerospace ones). Not in its `signals`, so the "packs signals that
+    // are not its out signals" warn never sees them; instead each must be an out signal CAN_MAP
+    // packs, because CAN_MAP still packs a carried signal for every other vehicle - or one it
+    // carries on request (CAN_MAP_ON_REQUEST: engine_hours, which a boat carries in 127489). Two
+    // packers may declare the same signal for different vehicles (lat / lon: VP on a truck, 129025
+    // on a boat); two claiming it for ONE vehicle is caught where it happens, in injectTelemetry.
     const packedByOwner = (name) => {
       const sig = outSigs.find(s => s.name === name);
       if (!sig) return false;
@@ -870,16 +899,17 @@
       return CAN_MAP.some(f => f.fields.some(([n]) => n === name)) || name in CAN_MAP_ON_REQUEST;
     };
     for (const p of FLAVOR_PACKERS) {
-      const m = p.mirrors || {};
+      const m = p.carries || {};
       const names = Object.keys(m);
       if (!names.length) continue;
       const noReason = names.filter(s => typeof m[s] !== 'string' || !m[s].trim());
       const unowned = names.filter(s => !packedByOwner(s));
       const own = names.filter(s => (p.signals || []).includes(s));
-      if (noReason.length) console.warn(`Carlito: ${p.flavor} packer declares mirrors with no reason given: ` + noReason.join(', '));
-      if (unowned.length) console.warn(`Carlito: ${p.flavor} packer mirrors signals no owner packs: ` + unowned.join(', '));
-      if (own.length) console.warn(`Carlito: ${p.flavor} packer declares its own signals as mirrors: ` + own.join(', '));
-      console.info(`Carlito: ${p.flavor} packer also carries ` + names.map(s => `${s} (${m[s]})`).join(' · '));
+      if (noReason.length) console.warn(`Carlito: ${p.flavor} packer declares carries with no reason given: ` + noReason.join(', '));
+      if (unowned.length) console.warn(`Carlito: ${p.flavor} packer carries signals no owner packs: ` + unowned.join(', '));
+      if (own.length) console.warn(`Carlito: ${p.flavor} packer declares its own signals in carries: ` + own.join(', '));
+      if (typeof p.carriesFor !== 'function') console.warn(`Carlito: ${p.flavor} packer declares carries with no carriesFor(t)`);
+      console.info(`Carlito: ${p.flavor} packer carries instead of the CAN map, per vehicle, ` + names.map(s => `${s} (${m[s]})`).join(' · '));
     }
 
     // Flavors no registered packer accounts for at all - neither packs nor declares. Every other
@@ -926,16 +956,116 @@
 
   const present = (v) => v !== undefined && v !== null;
   // A { id, fast, fields } map -> its frames for this tick: CAN_MAP's rules, shared with TRAIN_MAP.
-  function mapFrames(map, t, slow) {
+  // `omit`: signals another packer carries for this vehicle (its `carriesFor`), sent as absent -
+  // their NA bytes, so the layout never moves - and a frame left with nothing in it is not sent.
+  function mapFrames(map, t, slow, omit) {
     const out = [];
+    const has = (sig) => present(t[sig]) && !(omit && omit.has(sig));
     for (const f of map) {
       if (!f.fast && !slow) continue;
-      if (!f.fields.some(([sig]) => present(t[sig]))) continue;   // nothing in it: not sent
+      if (!f.fields.some(([sig]) => has(sig))) continue;   // nothing in it: not sent
       const data = [];
-      for (const [sig, encode, na] of f.fields) data.push(...(present(t[sig]) ? encode(t) : na));
+      for (const [sig, encode, na] of f.fields) data.push(...(has(sig) ? encode(t) : na));
       out.push({ id: f.id, data });
     }
     return out;
+  }
+  // A truck or tractor sits on a J1939 network, which is 29-bit only, so CAN_MAP's block goes out as
+  // J1939 Proprietary B (PDU2 broadcast, PGN 0xFF00-0xFFFF: manufacturer-defined content, so the
+  // layout stays CAN_MAP's) instead of 11-bit ids: 0x52N -> PGN 0xFF2N, so the old id still reads
+  // off the new one. One source for the whole block: SA 37 Off Vehicle Gateway (isobus.net
+  // sourceAddress; NAME function 28, which j1939-pack.js's CLAIM_FUNCTION holds so it claims first).
+  // Padded to 8 data bytes with 0xFF (J1939 messages are 8 bytes; an all-ones byte is "not available").
+  // A boat gets the NMEA 2000 form below; every other vehicle keeps the 11-bit ids. TRAIN_MAP is
+  // untouched (a train has neither network). A drone's DroneCAN bus is 29-bit too, but the DroneCAN
+  // spec (4.1) lets protocols "based on CAN 2.0A (11-bit identifiers)" share it, so what is left of
+  // its block once dronecan-core.js `carries` its share stays 11-bit. A plane's block is empty:
+  // canaerospace.js `carries` all of it.
+  // The fields j1939-flavor.js `carries` are absent here (NA bytes): on a truck 0xFF22 / 0xFF25 /
+  // 0xFF26 / 0xFF28 go silent, 0xFF20's kmh and 0xFF21's rpm and gear read "not available".
+  // Not recorded in PRODUCED: no demo generator sends PGN 0xFF2x, so nothing needs to know.
+  const PROP_B = { pgn: 0xFF00, prio: 6, sa: 37 };
+  function propBFrames(frames, t) {
+    const jp = window.J1939Pack;
+    return jp.claimFirst(frames.map(f => jp.frame(jp.buildId(PROP_B.pgn | (f.id & 0xFF), PROP_B.prio, PROP_B.sa),
+      f.data.concat(jp.blank(8 - f.data.length)))), t);
+  }
+  // A boat sits on an NMEA 2000 network, 29-bit only as well, so its block goes out as N2K
+  // proprietary single-frame PGNs: the same range, the same 0x52N -> PGN 0xFF2N, the same SA 37 and
+  // priority. Their first two data bytes are the proprietary header (canboat): Manufacturer Code
+  // (11 bits), 2 reserved bits (ones), Industry Code (3 bits, 4 Marine). The code is 2047, the
+  // field's all-ones "not available": canboat's table has no reserved or experimental code, and a
+  // decoder picks a proprietary layout BY manufacturer code, so a real one (canboat maps 0xFF20 to
+  // Navico, 0xFF22 to Yamaha...) would read these bytes as that maker's. That leaves 6 bytes, which
+  // every 0x52x frame a boat sends fits: the 8-byte 0x525 is all lat / lon, which ride 129025.
+  // No address claim: nmea2000.js's sources claim none either.
+  // The fields nmea2000.js `carries` are absent here (NA bytes): on a boat 0xFF25 / 0xFF26 / 0xFF28 /
+  // 0xFF29 go silent, 0xFF22's yaw and 0xFF24's heading read "not available".
+  const N2K_PROP_HDR = [0xFF, 0x9F];   // 2047 | 0b11 << 11 | 4 << 13, little-endian
+  let n2kPropWarned = false;
+  function n2kPropFrames(frames) {
+    const jp = window.J1939Pack, out = [];
+    for (const f of frames) {
+      if (f.data.length > 6) {
+        if (!n2kPropWarned) { n2kPropWarned = true; console.warn(`Carlito: 0x${f.id.toString(16).toUpperCase()} is ${f.data.length} bytes, too long for an NMEA 2000 proprietary frame (6): not sent`); }
+        continue;
+      }
+      out.push(jp.frame(jp.buildId(PROP_B.pgn | (f.id & 0xFF), PROP_B.prio, PROP_B.sa),
+        N2K_PROP_HDR.concat(f.data, jp.blank(6 - f.data.length))));
+    }
+    return out;
+  }
+  const TWO_CARRIERS_WARNED = new Set();   // injectTelemetry's warn-once
+  // The block's names for j1939.js's J1939 and ISO 11783 tabs, generated from CAN_MAP's rows (the
+  // `desc` field() keeps), so the tab reads PGN 0xFF2N with the layout that wrote it and nothing is
+  // retyped. A custom decode, because the block is big-endian and J1939_DB's SPN model is
+  // little-endian. The table is keyed by PGN alone and Proprietary B content is whoever sends it,
+  // so the name says whose layout this is. Per field: "N/A" for its NA bytes, else the value in the
+  // contract's unit; `byte` reads through the contract's enum (gear's N / D3 / R), `word` as hex.
+  const PROP_B_NAME = 'Carlito telemetry (Proprietary B)';
+  const UNITLESS = new Set(['enum', 'flag', 'bitfield', 'count', 'ratio']);
+  function propBDecoder(frame) {
+    const esc = (s) => typeof escHtml === 'function' ? escHtml(s) : String(s);
+    return (data) => {
+      const rows = [];
+      let at = 0;
+      for (const [sig, , na, d] of frame.fields) {
+        const w = na.length / d.count;
+        const unit = ((window.carlitoSig && window.carlitoSig(sig, 'out')) || {}).unit || '';
+        for (let i = 0; i < d.count; i++, at += w) {
+          const name = d.count > 1 ? `${sig}[${i}]` : sig;
+          const bytes = Array.from(data.slice(at, at + w));
+          if (bytes.length < w) continue;
+          if (bytes.every((b, k) => b === na[i * w + k])) { rows.push({ name, display: 'N/A', valid: false }); continue; }
+          let raw = bytes.reduce((v, b) => v * 256 + b, 0);
+          if (d.wire[0] === 'i' && raw >= 2 ** (8 * w - 1)) raw -= 2 ** (8 * w);
+          let display;
+          if (d.type === 'word') display = '0x' + raw.toString(16).toUpperCase().padStart(2 * w, '0');
+          else if (d.type === 'byte') display = esc(window.vehiclePanelUtil ? window.vehiclePanelUtil.enumLabel(sig, raw) : raw);
+          else if (d.type === 'flag') display = String(raw);
+          else display = (raw / d.scale - d.off).toFixed(d.scale > 1 ? Math.ceil(Math.log10(d.scale)) : 0) +
+                         (unit && !UNITLESS.has(unit) ? ' ' + esc(unit) : '');
+          rows.push({ name, display, valid: true });
+        }
+      }
+      return rows;
+    };
+  }
+  // j1939-tables.js loads first wherever the tabs exist (not on carlito-bridge.html, which has none).
+  // ISOBUS_DB copied J1939_DB when it was built, so it gets the entries too: the tractor's tab.
+  // NMEA2K_DB's (the boat's tab) read past the proprietary header, and a frame under another
+  // maker's header is that maker's layout, not this one: only its code is shown.
+  const N2K_PROP_NAME = 'Carlito telemetry (NMEA 2000 proprietary)';
+  if (typeof J1939_DB !== 'undefined') {
+    for (const f of CAN_MAP) {
+      const pgn = PROP_B.pgn | (f.id & 0xFF), abbr = '0x' + f.id.toString(16).toUpperCase();
+      const decode = propBDecoder(f);
+      const entry = { name: PROP_B_NAME, abbr, decode };
+      for (const db of [J1939_DB, typeof ISOBUS_DB !== 'undefined' ? ISOBUS_DB : null]) if (db && !db[pgn]) db[pgn] = entry;
+      if (typeof NMEA2K_DB !== 'undefined' && !NMEA2K_DB[pgn]) NMEA2K_DB[pgn] = { name: N2K_PROP_NAME, abbr, fp: false,
+        decode: (data) => data[0] === N2K_PROP_HDR[0] && data[1] === N2K_PROP_HDR[1] ? decode(Array.from(data).slice(2))
+          : [{ name: 'Manufacturer Code', display: String(((data[1] << 8) | data[0]) & 0x7FF), valid: true }] };
+    }
   }
   function injectTelemetry(t, slow) {
     if (!window.ingestFrame) return;
@@ -947,7 +1077,30 @@
       if (window.canForward) window.canForward(frame);
       else window.ingestFrame(frame);
     };
-    for (const f of mapFrames(CAN_MAP, t, slow)) inj(f.id, f.data);
+    // What the flavor packers carry instead of this block, for this vehicle (a truck's rpm rides
+    // EEC1, not 0xFF21). Asked of the packers rather than restated, so the two cannot drift.
+    // Two packers carrying one signal for the same vehicle would put it on the wire twice: warn once.
+    const omit = new Map();   // signal -> the packer carrying it
+    for (const p of FLAVOR_PACKERS) {
+      if (typeof p.carriesFor !== 'function') continue;
+      try {
+        for (const s of p.carriesFor(t) || []) {
+          const other = omit.get(s);
+          if (other && other !== p.flavor && !TWO_CARRIERS_WARNED.has(s)) {
+            TWO_CARRIERS_WARNED.add(s);
+            console.warn(`Carlito: ${s} is carried by two packers for one vehicle: ${other} and ${p.flavor}`);
+          }
+          omit.set(s, p.flavor);
+        }
+      }
+      catch (e) { if (!p._carriesWarned) { p._carriesWarned = true; console.warn(`Carlito: ${p.flavor} packer carriesFor threw:`, e); } }
+    }
+    const block = mapFrames(CAN_MAP, t, slow, omit);
+    if (window.J1939Pack && window.carlitoJ1939Network && window.carlitoJ1939Network(t))
+      for (const f of propBFrames(block, t)) inj(f.id, f.data, f.isExt);
+    else if (window.J1939Pack && window.carlitoIsFamily && window.carlitoIsFamily('boat', t))
+      for (const f of n2kPropFrames(block)) inj(f.id, f.data, f.isExt);
+    else for (const f of block) inj(f.id, f.data);
     // Flavored signals ride their own protocol's frames, built by that flavor's module.
     for (const p of FLAVOR_PACKERS) {
       if (!p.pack) continue;
@@ -1265,10 +1418,12 @@
 
     // Resize (grip) - real width/height so the game canvas gets real pixels.
     // An overlay during drag stops the iframe from swallowing mouse events.
+    // Pointer events, so a finger can resize too (touch never fires mousemove mid-drag).
     const grip = win.querySelector('#carlitoResize');
     let rz = false, rsx = 0, rsy = 0, rsw = 0, rsh = 0, rsl = 0, rst = 0, shield = null;
-    grip.addEventListener('mousedown', e => {
-      e.preventDefault(); e.stopPropagation();
+    grip.addEventListener('mousedown', e => e.preventDefault());   // focus / selection, as before (see makeDraggable)
+    grip.addEventListener('pointerdown', e => {
+      e.stopPropagation();
       rz = true; rsx = e.clientX; rsy = e.clientY; rsw = win.offsetWidth; rsh = win.offsetHeight;
       const r = win.getBoundingClientRect(); rsl = r.left; rst = r.top;
       document.body.style.cursor = 'nwse-resize'; document.body.style.userSelect = 'none';
@@ -1276,7 +1431,7 @@
       shield.style.cssText = 'position:fixed;inset:0;z-index:9999;cursor:nwse-resize';
       document.body.appendChild(shield);
     });
-    window.addEventListener('mousemove', e => {
+    window.addEventListener('pointermove', e => {
       if (!rz) return;
       // Clamp both ends (min size + viewport-bounded max from the window's top-left), so it can't be
       // dragged larger than the screen. (RAMN's makeFloating already clamps both ends.)
@@ -1285,11 +1440,13 @@
       win.style.width  = Math.min(maxW, Math.max(320, rsw + (e.clientX - rsx))) + 'px';
       win.style.height = Math.min(maxH, Math.max(260, rsh + (e.clientY - rsy))) + 'px';
     });
-    window.addEventListener('mouseup', () => {
+    const resizeEnd = () => {
       if (!rz) return;
       rz = false; document.body.style.cursor = ''; document.body.style.userSelect = '';
       if (shield) { shield.remove(); shield = null; }
-    });
+    };
+    window.addEventListener('pointerup', resizeEnd);
+    window.addEventListener('pointercancel', resizeEnd);
   })();
 
   window.carlitoToggle = carlitoToggle;

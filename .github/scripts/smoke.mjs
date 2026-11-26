@@ -218,12 +218,19 @@ for (const kind of KINDS) {
 }
 
 // ── 4. The telemetry seam ────────────────────────────────────────────────────
-// A truck payload carrying every 0x520-0x52C field (sail_angle only because 0x52B carries it).
+// A truck payload carrying every 0x520-0x52C field but sail_angle, which is the boat's alone and would
+// make the payload a boat's too (nmea2000.js would carry its share; altitude fills 0x52B). A truck
+// is on a J1939 network, so that block is J1939 Proprietary B: PGN 0xFF20-0xFF2C from SA 0x25.
 // Injected twice: the slow ids ride every other message, as they do from the game. The truck's
-// own signals make the flavor packers run, and three of their groups are checked by PGN.
+// own signals make the flavor packers run, and their groups are checked by PGN. What j1939-flavor.js
+// carries instead (rpm, gear, kmh, yaw / accelerations, lat / lon, odo, fuel / coolant / battery)
+// is absent from the block: 0xFF22 / 0xFF25 / 0xFF26 / 0xFF28 are not sent, and 0xFF21 reads n/a
+// for rpm and gear.
 where = 'telemetry seam';
 await load('index.html');
-const PACKED = { 61440: 'ERC1 (j1939-flavor.js)', 65198: 'AIR1 (j1939-flavor.js)', 61444: 'EEC1 (isobus.js)' };
+const PACKED = { 61440: 'ERC1 (j1939-flavor.js)', 65198: 'AIR1 (j1939-flavor.js)', 61444: 'EEC1 (isobus.js)',
+  61445: 'ETC2 (j1939-flavor.js)', 61449: 'VDC2 (j1939-flavor.js)', 65267: 'VP (j1939-flavor.js)', 65217: 'VDHR (j1939-flavor.js)' };
+const CARRIED_ELSEWHERE = [0x522, 0x525, 0x526, 0x528];
 const seen = await page.evaluate(async () => {
   const t = {
     speed: 12.5, kmh: 45, rpm: 1400, gear: 4, throttle: 30,
@@ -234,30 +241,60 @@ const seen = await page.evaluate(async () => {
     status: 1, impact: 0,
     fuel: 70, coolant: 88, battery: 24.4,
     pitch: 2, roll: -1, roll_rate: 0.01, pitch_rate: -0.02, acc_vert: 0.1,
-    altitude: 120, vspeed: 0, sail_angle: 0, brake_temp: 80,
-    air_primary: 8, air_secondary: 7.8, retarder_state: 20, engine_load: 40,
+    altitude: 120, vspeed: 0, brake_temp: 80,
+    air_primary: 8, air_secondary: 7.8, retarder_state: 20, engine_load: 40, gear_ratio: 3.2,
   };
   if (typeof window.carlitoDebugInjectTelemetry !== 'function') return { missing: true };
   window.carlitoDebugInjectTelemetry(t);
   await new Promise(r => setTimeout(r, 60));
   window.carlitoDebugInjectTelemetry(t);
   await new Promise(r => setTimeout(r, 60));
-  const ids = [], pgns = [];
+  const ids = [], pgns = [], blockPgns = [], blockData = {};
+  let ff21 = null;
   for (const f of frames.values()) {
     if (!f.isExt && f.id >= 0x520 && f.id <= 0x52C) ids.push(f.id);
     if (f.isExt) {
       const dp = (f.id >>> 24) & 1, pf = (f.id >>> 16) & 0xFF, ps = (f.id >>> 8) & 0xFF;
-      pgns.push((dp << 16) | (pf << 8) | (pf >= 0xF0 ? ps : 0));
+      const pgn = (dp << 16) | (pf << 8) | (pf >= 0xF0 ? ps : 0);
+      pgns.push(pgn);
+      if ((f.id & 0xFF) === 0x25 && pgn >= 0xFF20 && pgn <= 0xFF2C) blockPgns.push(pgn);
+      if ((f.id & 0xFF) === 0x25 && pgn === 0xFF21) ff21 = Array.from(f.data);
+      if ((f.id & 0xFF) === 0x25) blockData[pgn] = Array.from(f.data);
     }
   }
+  // The J1939 tab's names for the block, generated from CAN_MAP (carlito.js), on the same frames.
+  const decoded = {};
+  for (const pgn of [0xFF20, 0xFF21, 0xFF23, 0xFF2C]) {
+    const e = J1939_DB[pgn];
+    decoded[pgn.toString(16).toUpperCase()] = e && e.decode && blockData[pgn]
+      ? e.abbr + ': ' + e.decode(blockData[pgn]).map(r => r.name + '=' + r.display).join(', ') : 'none';
+  }
+  decoded.iso = typeof ISOBUS_DB !== 'undefined' && ISOBUS_DB[0xFF21] === J1939_DB[0xFF21];
   const live = !!window.carlitoTelemetry();
   window.carlitoDebugInjectTelemetry(null);   // end the link, as closing the window would
-  return { ids, pgns, live, ended: window.carlitoTelemetry() === null };
+  return { ids, pgns, blockPgns, ff21, decoded, live, ended: window.carlitoTelemetry() === null };
 });
 if (seen.missing) fail(where, 'window.carlitoDebugInjectTelemetry is not defined');
 else {
-  for (let id = 0x520; id <= 0x52C; id++)
-    if (!seen.ids.includes(id)) fail(where, `0x${id.toString(16).toUpperCase()} never reached the frame table`);
+  for (let id = 0x520; id <= 0x52C; id++) {
+    const pgn = 0xFF00 | (id & 0xFF), name = `PGN 0x${pgn.toString(16).toUpperCase()} (the truck's 0x${id.toString(16).toUpperCase()})`;
+    if (CARRIED_ELSEWHERE.includes(id)) {
+      if (seen.blockPgns.includes(pgn)) fail(where, `${name} was sent, though J1939 groups carry all its signals`);
+    } else if (!seen.blockPgns.includes(pgn)) fail(where, `${name} from SA 0x25 never reached the frame table`);
+  }
+  // rpm FF FF, gear FD (both not available: EEC1 / ETC2 carry them), throttle 30 %, padding.
+  const ff21 = (seen.ff21 || []).map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+  if (ff21 !== 'FF FF FD 1E FF FF FF FF') fail(where, `the truck's PGN 0xFF21 is ${ff21 || 'missing'}, not FF FF FD 1E FF FF FF FF`);
+  const DECODED = {
+    FF20: '0x520: speed=12.50 m/s, kmh=N/A',
+    FF21: '0x521: rpm=N/A, gear=N/A, throttle=30 %',
+    FF23: '0x523: steer=-15 %, slip[0]=0.02, slip[1]=0.03, ground=1',
+    FF2C: '0x52C: brake_temp=80.00 degC',
+  };
+  for (const [k, want] of Object.entries(DECODED))
+    if (seen.decoded[k] !== want) fail(where, `the J1939 tab decodes PGN 0x${k} as "${seen.decoded[k]}", not "${want}"`);
+  if (!seen.decoded.iso) fail(where, 'the ISO 11783 dictionary has no Carlito Proprietary B entries (the tractor\'s tab)');
+  if (seen.ids.length) fail(where, `a truck sent 11-bit telemetry ids: ${seen.ids.map(i => '0x' + i.toString(16).toUpperCase()).join(' ')}`);
   for (const [pgn, name] of Object.entries(PACKED))
     if (!seen.pgns.includes(+pgn)) fail(where, `no ${name} frame (PGN ${pgn}) - did its packer stop?`);
   if (!seen.live) fail(where, 'carlitoTelemetry() is null straight after an injection');
@@ -266,7 +303,7 @@ else {
 
 // ── 4b. Carlito traffic sync ─────────────────────────────────────────────────
 // Demo traffic follows the vehicle; the game's groups get no synthetic twin (one producer per
-// group); a vehicle sends no 0x52x frame with nothing in it; the J1939 mirrors carry the game's
+// group); a vehicle sends no 0x52x frame with nothing in it; the J1939 groups carry the game's
 // numbers. The payload is re-injected every 50 ms: carlitoTelemetry() goes stale after 600 ms.
 where = 'carlito traffic sync';
 await load('index.html');
@@ -306,13 +343,20 @@ const sync = await page.evaluate(async (P) => {
   };
   const demoPgns = (frames) => frames.filter(f => f.isExt && !f.game).map(parse);
   const sent = (frames, id) => frames.some(f => !f.isExt && f.id === id);
+  // The truck / tractor form of the same 0x52N block: J1939 Proprietary B, PGN 0xFF00 | N, from SA 0x25.
+  const sentB = (frames, id) => frames.some(f => f.isExt && f.game && parse(f).sa === 0x25 && parse(f).pgn === (0xFF00 | (id & 0xFF)));
   try {
     startDemo();
     await live(P.truck, 300);
     out.follow.truck = demoGetBaseTraffic();
     let fr = await record(2200);
     oneProducer('truck / J1939', fr);
-    for (const id of [0x529, 0x52A, 0x52B]) if (sent(fr, id)) out.problems.push(`a truck sent 0x${id.toString(16).toUpperCase()}`);
+    for (const id of [0x529, 0x52A, 0x52B]) if (sentB(fr, id)) out.problems.push(`a truck sent PGN 0x${(0xFF00 | (id & 0xFF)).toString(16).toUpperCase()} (its 0x${id.toString(16).toUpperCase()})`);
+    // The blocks it does have go out as 29-bit frames only: the 11-bit form is every other vehicle's.
+    if (!sentB(fr, 0x521)) out.problems.push('a truck sent no PGN 0xFF21 (its 0x521)');
+    // ...but not the ones its J1939 groups carry in full (fuel / coolant / battery, lat / lon, odo).
+    for (const id of [0x525, 0x526, 0x528]) if (sentB(fr, id)) out.problems.push(`a truck sent PGN 0x${(0xFF00 | (id & 0xFF)).toString(16).toUpperCase()}, which its J1939 groups carry`);
+    if (fr.some(f => !f.isExt && f.id >= 0x520 && f.id <= 0x52C)) out.problems.push('a truck sent an 11-bit 0x520-0x52C frame');
     const eec1 = fr.find(f => f.isExt && f.game && parse(f).pgn === 0xF004 && parse(f).sa === 0);
     if (eec1) out.rpm = j1939DecodeSPN(J1939_DB[0xF004].spns.find(s => s.spn === 190), eec1.data).display;
     if (eec1) out.load = j1939DecodeSPN(J1939_DB[0xF004].spns.find(s => s.spn === 513), eec1.data).display;
@@ -329,6 +373,8 @@ const sync = await page.evaluate(async (P) => {
     out.follow.tractor = demoGetBaseTraffic();
     fr = await record(3200);          // past one 3 s demo address-claim tick
     oneProducer('tractor / ISO 11783', fr);
+    if (!sentB(fr, 0x521)) out.problems.push('a tractor sent no PGN 0xFF21 (its 0x521)');
+    if (fr.some(f => !f.isExt && f.id >= 0x520 && f.id <= 0x52C)) out.problems.push('a tractor sent an 11-bit 0x520-0x52C frame');
     for (const p of demoPgns(fr)) {
       if (p.pgn === 0xFEE8) out.problems.push('a tractor on the link, and the demo still sends VDS');
       if (p.pgn === 0xEE00 && p.sa === 0x80) out.problems.push('the demo sprayer claimed 0x80 over the game\'s implement');
@@ -338,19 +384,60 @@ const sync = await page.evaluate(async (P) => {
 
     await live(P.boat, 300);
     out.follow.boat = demoGetBaseTraffic();
-    fr = await record(2200);
+    fr = await record(2800);          // past one 2.5 s Fluid Level period
     oneProducer('boat / NMEA 2000', fr);
     for (const p of demoPgns(fr)) if ([127250, 129025].includes(p.pgn)) out.problems.push(`a boat on the link, and the demo still sends PGN ${p.pgn}`);
+    // The boat's block is NMEA 2000 proprietary: PGN 0xFF2N from SA 0x25 under the header FF 9F
+    // (manufacturer 2047, industry 4 Marine), never 11-bit...
+    if (fr.some(f => !f.isExt && f.id >= 0x520 && f.id <= 0x52C)) out.problems.push('a boat sent an 11-bit 0x520-0x52C frame');
+    for (const id of [0x520, 0x521, 0x522, 0x523, 0x524, 0x527, 0x52B]) if (!sentB(fr, id)) out.problems.push(`a boat sent no PGN 0x${(0xFF00 | (id & 0xFF)).toString(16).toUpperCase()} (its 0x${id.toString(16).toUpperCase()})`);
+    // ...but not the ones its NMEA 2000 groups carry in full (lat / lon, odo, fuel / coolant / battery, pitch / roll).
+    for (const id of [0x525, 0x526, 0x528, 0x529]) if (sentB(fr, id)) out.problems.push(`a boat sent PGN 0x${(0xFF00 | (id & 0xFF)).toString(16).toUpperCase()}, which its NMEA 2000 groups carry`);
+    const blockB = fr.filter(f => f.isExt && f.game && parse(f).sa === 0x25 && parse(f).pgn >= 0xFF20 && parse(f).pgn <= 0xFF2C);
+    if (blockB.some(f => f.data[0] !== 0xFF || f.data[1] !== 0x9F)) out.problems.push('a boat\'s 0xFF2x frame lacks the proprietary header FF 9F');
+    // The NMEA 2000 tab's names for the block: what the boat's groups carry reads not available.
+    out.boatDecoded = {};
+    for (const pgn of [0xFF22, 0xFF24]) {
+      const f = blockB.find(x => parse(x).pgn === pgn), e = NMEA2K_DB[pgn];
+      out.boatDecoded[pgn.toString(16).toUpperCase()] = f && e && e.decode
+        ? e.abbr + ': ' + e.decode(f.data).map(r => r.name + '=' + r.display).join(', ') : 'none';
+    }
+    const game = (pgn) => fr.filter(f => f.isExt && f.game && parse(f).pgn === pgn);
+    for (const pgn of [127251, 127257, 127508, 128275]) if (!game(pgn).length) out.problems.push(`a boat sent no PGN ${pgn}`);
+    if (!game(127505).some(f => (f.data[0] >> 4) === 0)) out.problems.push('a boat sent no 127505 of Type Fuel');
 
     await live(P.drone, 300);
     out.follow.drone = demoGetBaseTraffic();
     fr = await record(1500);
     if (fr.some(f => f.isExt && !f.game)) out.problems.push('the demo quad kept flying beside the game\'s drone');
     if (sent(fr, 0x52C)) out.problems.push('a drone sent 0x52C');
+    // One carrier: ahrs.Solution / Fix2 / BatteryInfo carry the drone's attitude, rates, position,
+    // altitude and battery, so those 0x52x frames go silent; the rest of its block stays 11-bit
+    // (DroneCAN shares its bus with CAN 2.0A), with heading and altitude not available.
+    for (const id of [0x522, 0x525, 0x528, 0x529, 0x52A]) if (sent(fr, id)) out.problems.push(`a drone sent 0x${id.toString(16).toUpperCase()}, which its DroneCAN messages carry`);
+    for (const id of [0x520, 0x524, 0x527, 0x52B]) if (!sent(fr, id)) out.problems.push(`a drone sent no 11-bit 0x${id.toString(16).toUpperCase()}`);
+    const last = (id) => { const f = fr.filter(x => !x.isExt && x.id === id).pop(); return f ? f.data : []; };
+    if (last(0x524)[4] !== 0xFF || last(0x524)[5] !== 0xFF) out.problems.push('a drone\'s 0x524 heading is not "not available"');
+    if (last(0x52B)[0] !== 0xFF || last(0x52B)[1] !== 0xFF) out.problems.push('a drone\'s 0x52B altitude is not "not available"');
+    // ahrs.Solution goes out on every call, Fix2 on the slow tick: count transfers (start-of-transfer bit).
+    const transfers = (dtid) => fr.filter(f => f.isExt && f.game && dcParseMsgId(f.id).dataTypeId === dtid && (f.data[f.data.length - 1] & 0x80)).length;
+    if (!(transfers(1000) > transfers(1063) * 1.5)) out.problems.push(`a drone's ahrs.Solution is not at the fast rate (${transfers(1000)} transfers against Fix2's ${transfers(1063)})`);
+    // Publish drone telemetry off: nothing carries them on DroneCAN, so the block takes them back.
+    const txWas = dcCfg.txEnabled;
+    dcCfg.txEnabled = false;
+    try { fr = await record(500); } finally { dcCfg.txEnabled = txWas; }
+    if (!sent(fr, 0x529)) out.problems.push('with DroneCAN publishing off, a drone sent no 0x529');
 
     await live(P.car, 300);
     out.follow.car = demoGetBaseTraffic();
-    out.ramnBack = sent(await record(500), 0x024);
+    fr = await record(500);
+    out.ramnBack = sent(fr, 0x024);
+    if (!sent(fr, 0x520)) out.problems.push('a car sent no 11-bit 0x520');
+    // A car has no J1939 network: the signals a truck sends in J1939 groups stay in its block.
+    for (const id of [0x522, 0x525, 0x526, 0x528]) if (!sent(fr, id)) out.problems.push(`a car sent no 11-bit 0x${id.toString(16).toUpperCase()}`);
+    const c521 = fr.find(f => !f.isExt && f.id === 0x521);
+    if (c521 && ((c521.data[0] << 8) | c521.data[1]) !== 1700) out.problems.push(`a car's 0x521 carries rpm ${(c521.data[0] << 8) | c521.data[1]}, not 1700`);
+    if (fr.some(f => f.isExt && f.game && parse(f).pgn >= 0xFF20 && parse(f).pgn <= 0xFF2C)) out.problems.push('a car sent a Proprietary B 0xFF2x frame');
   } finally {
     clearInterval(pump);
     window.carlitoDebugInjectTelemetry(null);
@@ -363,30 +450,39 @@ for (const [k, v] of Object.entries(WANT))
   if (sync.follow[k] !== v) fail(where, `demo traffic with ${k}: ${sync.follow[k]}, not ${v}`);
 for (const p of sync.problems) fail(where, p);
 if (!sync.ramnBack) fail(where, 'no RAMN frames after the car took the traffic back to RAMN');
-if (parseFloat(sync.rpm) !== 1500) fail(where, `the EEC1 mirror reads ${sync.rpm}, not 1500 rpm`);
+const BOAT_DECODED = {
+  FF22: '0x522: yaw=N/A, accLong=0.40 m/s^2, accLat=-0.20 m/s^2',
+  FF24: '0x524: posX=120 m, posZ=-340 m, heading=N/A',
+};
+for (const [k, want] of Object.entries(BOAT_DECODED))
+  if (sync.boatDecoded[k] !== want) fail(where, `the NMEA 2000 tab decodes the boat's PGN 0x${k} as "${sync.boatDecoded[k]}", not "${want}"`);
+if (parseFloat(sync.rpm) !== 1500) fail(where, `EEC1 reads ${sync.rpm}, not the truck's 1500 rpm`);
 if (parseFloat(sync.load) !== 40) fail(where, `EEC1's SPN 513 reads ${sync.load}, not the truck's 40 % engine_load`);
 console.log('carlito traffic sync: ' + JSON.stringify(sync.follow) + ', EEC1 ' + sync.rpm);
 
-// Outside demo, the J1939 tab with a truck on the link selects the J1939 mode - once per vehicle
-// per link, so a mode the user picks afterwards stands on the next show.
-where = 'J1939 tab follows the link (no demo)';
+// Outside demo, the J1939 / NMEA 2000 / ISOBUS tabs pick their mode and mark their own tab -
+// whatever machine is on the link - and a bare switchViewTab('j1939') keeps the mode it has.
+where = 'J1939-family tabs select their mode (no demo)';
 await load('index.html');
 const tabMode = await page.evaluate((truck) => {
-  window.j1939SetProto('nmea2000');
   window.carlitoDebugInjectTelemetry(truck);
-  switchViewTab('j1939');
-  const first = window.j1939GetProto();
+  const out = {};
+  for (const m of ['nmea2000', 'iso11783', 'j1939']) {
+    switchViewTab('j1939', m);
+    out[m] = [window.j1939GetProto(), document.querySelector('.view-tabs .view-tab.active')?.id];
+  }
   switchViewTab('ids');
-  window.j1939SetProto('nmea2000');
-  window.carlitoDebugInjectTelemetry(truck);
   switchViewTab('j1939');
-  const again = window.j1939GetProto();
+  out.bare = window.j1939GetProto();
   switchViewTab('ids');
   window.carlitoDebugInjectTelemetry(null);
-  return { first, again };
+  return out;
 }, PAYLOADS.truck);
-if (tabMode.first !== 'j1939') fail(where, `first show: mode is ${tabMode.first}, not j1939`);
-if (tabMode.again !== 'nmea2000') fail(where, `second show: mode is ${tabMode.again}, not the chosen nmea2000`);
+for (const m of ['nmea2000', 'iso11783', 'j1939']) {
+  const [mode, tab] = tabMode[m];
+  if (mode !== m || tab !== 'vtab-' + m) fail(where, `${m} tab: mode ${mode}, active tab ${tab}`);
+}
+if (tabMode.bare !== 'j1939') fail(where, `a bare show changed the mode to ${tabMode.bare}`);
 
 // ── 4c. Contract coverage ────────────────────────────────────────────────────
 // One frame assertion per packer the 2026-10-31 audit's bundle 06 added (CleANopen TPDO1, ISO 11992
@@ -434,12 +530,21 @@ const cov = await page.evaluate(async (P) => {
     expect('train 0x52E (grade absent -> 7F)', fr, 0x52E, false, '01E57F0100');
 
     fr = await run(P.plane);
+    const f32 = (d) => new DataView(new Uint8Array(d.slice(4, 8)).buffer).getFloat32(0, false);
     const nod = find(fr, 0x5DC);
     if (!nod.length) bad('plane: no CANaerospace NOD on 1500');
     else {
-      const d = nod[0].data, v = new DataView(new Uint8Array(d.slice(4, 8)).buffer).getFloat32(0, false);
-      if (d[0] !== 1 || d[1] !== 2 || d[2] !== 0 || Math.abs(v - 0.4) > 1e-6) bad(`CANaerospace NOD ${hex(d)}, not node 1 / FLOAT / 0.4`);
+      const d = nod[0].data;
+      if (d[0] !== 14 || d[1] !== 2 || d[2] !== 0 || Math.abs(f32(d) - 0.4) > 1e-6) bad(`CANaerospace NOD ${hex(d)}, not node 14 / FLOAT / 0.4`);
     }
+    // One carrier: canaerospace.js carries every plane signal, so its 0x52x block is empty (1312-1326
+    // is CANaerospace's reserved NOD range), and a boat's pitch / roll stay off CANaerospace.
+    for (let id = 0x520; id <= 0x52E; id++) if (find(fr, id).length) bad(`a plane sent 11-bit 0x${id.toString(16).toUpperCase()}, which its CANaerospace messages carry`);
+    for (const id of [300, 305, 311, 320, 500, 1036, 1501, 1508]) if (!find(fr, id).length) bad(`a plane sent no CANaerospace NOD ${id}`);
+    const hdg = find(fr, 321);
+    if (!hdg.length || Math.abs(f32(hdg[0].data) + 90) > 1e-4) bad(`a plane's heading 270 is not -90 on CANaerospace 321 (${hdg.length ? hex(hdg[0].data) : 'none'})`);
+    fr = await run(P.boat);
+    if (find(fr, 311).length || find(fr, 0x5DC).length) bad('a boat sent CANaerospace messages');
 
     // The implement's claim: answered on request with one attached, silence without, and re-sent
     // when a bus opens.

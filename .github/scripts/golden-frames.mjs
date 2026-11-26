@@ -60,7 +60,7 @@ export const PAYLOADS = {
   },
   plane: {
     ...COMMON, pitch: 3, roll: -8, altitude: 250, vspeed: 2.5, roll_rate: 0.05, pitch_rate: 0.02,
-    acc_vert: 0.2, flaps_actual: 40,
+    acc_vert: 0.2, flaps_actual: 40, rpm: 2400, gear: 1, ground: false, fuel: 60, coolant: 85,
   },
   // Out of range, negative, huge, non-numeric, and fields missing (no rpm, no coolant, no
   // air_secondary, no awa/aws) - the clamps and the "absent writes nothing" paths.
@@ -153,10 +153,12 @@ async function capturePayload(browser, url, t) {
       }
       // carlito.js's own 0x52x block (CAN_MAP + TRAIN_MAP), which is private to it, through the
       // real telemetry path: two messages, because the slow ids ride every other one. Last, so
-      // the packer state the captures above recorded is untouched.
+      // the packer state the captures above recorded is untouched. A truck or tractor's CAN_MAP
+      // block is J1939 Proprietary B instead (PGN 0xFF2x, SA 0x25, with SA 0x25's own address claim),
+      // so those frames are kept too: the 11-bit filter alone would let the block drop out unseen.
       out.canMap = [];
       const fwd = window.canForward;
-      window.canForward = (f) => { if (!f.isExt && f.id >= 0x520 && f.id <= 0x52F) out.canMap.push(window.__gSer(f)); };
+      window.canForward = (f) => { if ((!f.isExt && f.id >= 0x520 && f.id <= 0x52F) || (f.isExt && (f.id & 0xFF) === 0x25)) out.canMap.push(window.__gSer(f)); };
       try {
         for (let i = 0; i < 2; i++) { window.__gClock += 50; window.carlitoDebugInjectTelemetry(t); }
         window.carlitoDebugInjectTelemetry(null);

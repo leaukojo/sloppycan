@@ -25,7 +25,7 @@ const J1939_SA = {
   0x0F:'Retarder - Engine', 0x10:'Retarder - Driveline', 0x11:'Cruise Control',
   0x17:'Instrument Cluster #1', 0x18:'Trip Recorder', 0x1C:'Vehicle Navigation',
   0x21:'Body Controller',
-  0x22:'Auxiliary Valve Control', 0x23:'Hitch Control', 0x26:'Virtual Terminal (in cab)',
+  0x22:'Auxiliary Valve Control', 0x23:'Hitch Control', 0x25:'Off Vehicle Gateway', 0x26:'Virtual Terminal (in cab)',
   0x27:'Management Computer #1', 0x29:'Retarder, Exhaust, Engine #1',
   0x33:'Tire Pressure Controller', 0x37:'Lighting - Operator Controls',
   0x38:'Rear Axle Steering Controller #1',
@@ -133,6 +133,8 @@ const J1939_INDUSTRY = ['Global','On-Highway','Agriculture/Forestry','Constructi
 //   bits – (bit-level) number of bits
 //   map  – (bit-level) {raw → label}
 //   onesValid – (bit-level) all-ones is a real state (TSC1's modes), not "not available"
+// NOT HERE: PGN 0xFF20-0xFF2C, the Carlito telemetry block as Proprietary B. carlito.js adds those
+// entries (here and to ISOBUS_DB) generated from its CAN_MAP, so the layout is written once.
 const J1939_DB = {
   // EEC2's SPN 92 is a percent LOAD (byte 3, 1 %/bit, no offset). The carlito contract's
   // `engine_load` is NOT it - it is SPN 513, a percent torque, in EEC1 below, where isobus.js
@@ -345,6 +347,11 @@ const J1939_DB = {
     { spn:917, name:'HR Total Vehicle Distance', b:0, n:4, f:0.005, o:0, u:'km', dp:3 },
     { spn:918, name:'HR Trip Distance',          b:4, n:4, f:0.005, o:0, u:'km', dp:3 },
   ]},
+  // 5 s. 10^-7 deg/bit, -210 deg offset, + north / east (J1939-71 SPN 584 / 585).
+  0xFEF3:{ name:'Vehicle Position', abbr:'VP', spns:[
+    { spn:584, name:'Latitude',  b:0, n:4, f:1e-7, o:-210, u:'°', dp:7 },
+    { spn:585, name:'Longitude', b:4, n:4, f:1e-7, o:-210, u:'°', dp:7 },
+  ]},
   // On request. Day and seconds are quarter-units per J1939-71; year is offset from 1985.
   0xFEE6:{ name:'Time/Date', abbr:'TD', spns:[
     { spn:959,  name:'Seconds', b:0, n:1, f:0.25, o:0,    u:'s',   dp:2 },
@@ -550,7 +557,7 @@ function j1939DecodeName(data) {
 // ISO Address Claim). What differs: a marine PGN dictionary, the Fast Packet
 // multi-frame transport, and bit-packed fields that straddle byte boundaries -
 // so it needs its own bit-offset field model (n2kDecodeField) rather than the
-// whole-byte SPN model. The protocol-mode dropdown in the J1939 tab swaps which
+// whole-byte SPN model. The NMEA 2000 tab (j1939.js in nmea2000 mode) swaps which
 // dictionary + transport is active; J1939 behaviour is untouched in 'j1939' mode.
 const RAD2DEG = 180 / Math.PI;
 const N2K_ANG = 0.0001 * RAD2DEG; // 0.0001 rad/bit → degrees
@@ -586,6 +593,8 @@ const N2K_DATA_MODE  = { 0:'Autonomous', 1:'Differential Enhanced', 2:'Estimated
 //   { name, bo (bit offset, = byteIndex*8 for byte-aligned), bl (bit length),
 //     signed, scale, offset, unit, dp, map, str, date, time }
 // fp:true marks a Fast-Packet (multi-frame) PGN. SID/reserved bytes are omitted.
+// NOT HERE: PGN 0xFF20-0xFF2C, a boat's Carlito telemetry block as NMEA 2000 proprietary frames;
+// carlito.js adds those entries generated from its CAN_MAP, like J1939_DB's.
 const NMEA2K_DB = {
   // ── System / ISO ──
   59904:{ name:'ISO Request', abbr:'59904', fp:false, fields:[

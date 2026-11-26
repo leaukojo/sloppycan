@@ -1307,23 +1307,24 @@ function dcAvgPower10s(w, now) {
   return s / dcPwrWin.length;
 }
 
-// Attitude quaternion (x, y, z, w) from the contract's pitch/roll in DEGREES.
+// Attitude quaternion (x, y, z, w) from the contract's heading / pitch / roll in DEGREES.
 //
 // THE SIGNS ALREADY AGREE, and that is worth stating rather than assuming: DSDL is body-frame
-// NED (x forward, y right, z down), where a positive rotation about x puts the RIGHT SIDE DOWN
-// and a positive rotation about y puts the NOSE UP - which is exactly what the contract says
-// its 'roll' and 'pitch' mean. So the conversion is degrees -> radians and the standard ZYX
-// (yaw-pitch-roll) quaternion, with NO sign flip on either angle.
-//
-// Yaw is zero because THE GAME PUBLISHES NO HEADING: its 'yaw' signal is a RATE (rad/s), which
-// belongs in angular_velocity and is already there. So this quaternion is a levelling solution,
-// not a heading reference, and a consumer reading a heading out of it would be reading the
-// absence of one. (The angular_velocity triple below is where the one real sign flip lives.)
-function dcQuatFromPitchRoll(pitchDeg, rollDeg) {
-  const p = (Number(pitchDeg) || 0) * Math.PI / 360;   // half angle, degrees -> radians
+// NED (x forward, y right, z down), where a positive rotation about x puts the RIGHT SIDE DOWN,
+// a positive rotation about y puts the NOSE UP and a positive rotation about z turns the nose
+// RIGHT - which is exactly what the contract says its 'roll' and 'pitch' mean, and what its
+// 'heading' is: the compass heading of the body's forward axis, 0 = north, + = clockwise (the
+// game's heading_from_forward). So the conversion is degrees -> radians and the standard ZYX
+// (yaw-pitch-roll) quaternion, with NO sign flip on any angle. The game's 'yaw' signal is a
+// different thing, a RATE (rad/s), which belongs in angular_velocity and is already there - the
+// angular_velocity triple below is where the one real sign flip lives.
+function dcQuatFromEuler(headingDeg, pitchDeg, rollDeg) {
+  const h = (Number(headingDeg) || 0) * Math.PI / 360;   // half angle, degrees -> radians
+  const p = (Number(pitchDeg) || 0) * Math.PI / 360;
   const r = (Number(rollDeg) || 0) * Math.PI / 360;
-  const cp = Math.cos(p), sp = Math.sin(p), cr = Math.cos(r), sr = Math.sin(r);
-  return [sr * cp, cr * sp, -sr * sp, cr * cp];
+  const ch = Math.cos(h), sh = Math.sin(h), cp = Math.cos(p), sp = Math.sin(p), cr = Math.cos(r), sr = Math.sin(r);
+  return [sr * cp * ch - cr * sp * sh, cr * sp * ch + sr * cp * sh,
+          cr * cp * sh - sr * sp * ch, cr * cp * ch + sr * sp * sh];
 }
 
 // Gimbal orientation, body frame, from the contract's two Euler angles in DEGREES. YAW FIRST
@@ -1407,8 +1408,47 @@ const dcNodeParams = DC_ROSTER.map(() => ({ statusPeriodMs: DC_NS_PERIOD_MS }));
 const dcRebootAt = [];                         // per roster index: when a restart took it off the bus
 const dcNsLastAt = [];                         // per roster index: last NodeStatus published
 
+// The drone's telemetry is the one with an ESC array. The one gate for building frames, the link-up
+// edge and `carriesFor`, so what the packer declares it carries is what it sends.
+const dcIsDroneTelemetry = (t) => !!t && Array.isArray(t.esc_rpm);
+
+// ── AHRS node: uavcan.equipment.ahrs.Solution ─────────────────────────────────
+// Its own function because it is the one message sent on EVERY call, not only the slow tick: it is
+// the drone's only carrier of attitude, rates and accelerations (the packer's `carries`), which the
+// 0x52x block sent at the fast rate, and attitude at 10 Hz visibly stair-steps.
+function dcAhrsFrames(t, online) {
+  if (!((online >> DC_I_AHRS) & 1)) return [];
+  const so = DC_MSGS[1000];
+  const q = dcQuatFromEuler(t.heading, t.pitch, t.roll);
+  return dcTransfer(so, DC_ROSTER[DC_I_AHRS].id, dcEncode(so, {
+    timestamp_usec: 0,
+    orientation_x: q[0], orientation_y: q[1], orientation_z: q[2], orientation_w: q[3],
+    void4_a: 0, orientation_covariance_len: 0,
+    // THE ONE SIGN FLIP IN THE WHOLE CONVERSION, and the reason each axis is written out
+    // rather than passed as a triple. DSDL body frame is NED, so the angular rates are about
+    // x = forward, y = right, z = DOWN:
+    //   roll_rate  is + right side down about the forward axis -> NED x, as published;
+    //   pitch_rate is + nose up about the right axis           -> NED y, as published;
+    //   yaw        is read off the game's UP axis, so + is nose LEFT (Godot's +Y is up and
+    //              the right-hand rule turns the nose to port). NED's z points DOWN, where
+    //              + is nose right. Hence the negation - and a missing one here would produce
+    //              an attitude solution that looks entirely plausible and yaws the wrong way.
+    angular_velocity_x: Number(t.roll_rate),
+    angular_velocity_y: Number(t.pitch_rate),
+    angular_velocity_z: -Number(t.yaw),
+    void4_b: 0, angular_velocity_covariance_len: 0,
+    // Same frame, same reasoning: accLong is + forward -> x, accLat is + right -> y, and
+    // acc_vert is + UP along the body up axis while NED z is DOWN, so it negates too.
+    // These are the game's KINEMATIC accelerations and carry no gravity term (acc_vert's desc
+    // says so): a hovering craft reads 0 here, where a real accelerometer would read +9.8 up.
+    linear_acceleration_x: Number(t.accLong),
+    linear_acceleration_y: Number(t.accLat),
+    linear_acceleration_z: -Number(t.acc_vert),
+  }));
+}
+
 function dcBuildFrames(t) {
-  if (!t || !Array.isArray(t.esc_rpm)) return [];   // not the drone - nothing to say
+  if (!dcIsDroneTelemetry(t)) return [];   // not the drone - nothing to say
   if (!dcT0) dcT0 = Date.now();
   const fault = (Number(t.esc_fault) || 0) & 0xFF;
   const online = dcOnlineMask(t);
@@ -1507,9 +1547,10 @@ function dcBuildFrames(t) {
     // position here would be this side inventing the gate the game refused to build.
     height_ellipsoid_mm: altMm,
     height_msl_mm: altMm,
-    // Fixed-size float32[3] and therefore always on the wire, but the contract's GNSS block
-    // has no velocity signal - deriving one from speed and a heading would be a second model
-    // of the same motion. NaN is DSDL's "not known".
+    // Fixed-size float32[3] and therefore always on the wire, but the contract has no
+    // horizontal velocity - deriving one from speed and a heading would be a second model of
+    // the same motion - and vspeed alone would be half a vector beside two NaNs, so vspeed stays
+    // in the 0x52x block (0x52B) rather than here. NaN is DSDL's "not known".
     ned_velocity_n: DC_F32_NAN,
     ned_velocity_e: DC_F32_NAN,
     ned_velocity_d: DC_F32_NAN,
@@ -1552,34 +1593,8 @@ function dcBuildFrames(t) {
     range: aglValid ? agl : NaN,
   });
 
-  // ── AHRS node: uavcan.equipment.ahrs.Solution ───────────────────────────────
-  const so = DC_MSGS[1000];
-  const q = dcQuatFromPitchRoll(t.pitch, t.roll);
-  emit(DC_I_AHRS, so, {
-    timestamp_usec: 0,
-    orientation_x: q[0], orientation_y: q[1], orientation_z: q[2], orientation_w: q[3],
-    void4_a: 0, orientation_covariance_len: 0,
-    // THE ONE SIGN FLIP IN THE WHOLE CONVERSION, and the reason each axis is written out
-    // rather than passed as a triple. DSDL body frame is NED, so the angular rates are about
-    // x = forward, y = right, z = DOWN:
-    //   roll_rate  is + right side down about the forward axis -> NED x, as published;
-    //   pitch_rate is + nose up about the right axis           -> NED y, as published;
-    //   yaw        is read off the game's UP axis, so + is nose LEFT (Godot's +Y is up and
-    //              the right-hand rule turns the nose to port). NED's z points DOWN, where
-    //              + is nose right. Hence the negation - and a missing one here would produce
-    //              an attitude solution that looks entirely plausible and yaws the wrong way.
-    angular_velocity_x: Number(t.roll_rate),
-    angular_velocity_y: Number(t.pitch_rate),
-    angular_velocity_z: -Number(t.yaw),
-    void4_b: 0, angular_velocity_covariance_len: 0,
-    // Same frame, same reasoning: accLong is + forward -> x, accLat is + right -> y, and
-    // acc_vert is + UP along the body up axis while NED z is DOWN, so it negates too.
-    // These are the game's KINEMATIC accelerations and carry no gravity term (acc_vert's desc
-    // says so): a hovering craft reads 0 here, where a real accelerometer would read +9.8 up.
-    linear_acceleration_x: Number(t.accLong),
-    linear_acceleration_y: Number(t.accLat),
-    linear_acceleration_z: -Number(t.acc_vert),
-  });
+  // ── AHRS node: uavcan.equipment.ahrs.Solution (dcAhrsFrames) ────────────────
+  out.push(...dcAhrsFrames(t, online));
 
   // ── FC node: uavcan.equipment.safety.ArmingStatus ───────────────────────────
   // ArmingStatus IS two-state (DISARMED / FULLY_ARMED), and the game's `armed` bool carries
@@ -1731,7 +1746,7 @@ let dcBusCmd = { led: undefined, hook: undefined, gimbal: undefined };   // gimb
 // The link-up edge (decision 2): not a drone clears it; the first drone after none latches every
 // command's CURRENT state once - minus any that only repeats what another node commanded.
 function dcNoteLink(t) {
-  if (!t || !Array.isArray(t.esc_rpm)) { dcLinkUp = false; return; }
+  if (!dcIsDroneTelemetry(t)) { dcLinkUp = false; return; }
   if (dcLinkUp) return;
   dcLinkUp = true;
   const p = { beep: dcCtl.beep };
@@ -1805,30 +1820,60 @@ function dcFlushCommands() {
   return out;
 }
 
-// Emitted on the slow (~10 Hz) telemetry tick only. The budget, per tick, with every node online:
+// Emitted on the slow (~10 Hz) telemetry tick only - all but ahrs.Solution, which goes out on every
+// call (~20 Hz, dcAhrsFrames). The budget, per slow tick, with every node online:
 //   4 x esc.Status  3 frames each   12
 //   Fix2            8                8   (50-byte payload - the widest transfer here)
-//   ahrs.Solution   5                5
+//   ahrs.Solution   5                5   (and 5 more on each fast tick: ~100 frames/s)
 //   BatteryInfo     4                4
 //   range           3                3
 //   ArmingStatus    1                1
 //   8 x NodeStatus  1 frame each     8 on one tick in ten (~0.8/tick averaged)
-//                                   33 frames a tick + the 1 Hz sweep, ~340 frames/s
+//                                   33 frames a tick + the 1 Hz sweep + the fast AHRS, ~390 frames/s
 // Every one of those is gated on its node's presence bit, so a failed node reduces the budget -
 // which is the point. The two indication commands are aperiodic and cost nothing at rest.
+// Against that, the 0x52x block a drone no longer sends (`carries`): 0x522 / 0x529 / 0x52A at
+// ~20 Hz, 0x525 / 0x528 at ~10 Hz - 80 frames/s, more than the 50 the per-call AHRS adds.
 // This is the number to look at first if SLCAN starts
 // dropping. Real airframes rate-split these (BatteryInfo at 0.2-1 Hz per its own DSDL note,
-// AHRS far faster than 10 Hz); everything rides one tick here because the game has exactly
-// one slow tick to hang them on, and a second cadence would be a timer inventing a rate the
-// telemetry does not have.
+// AHRS far faster than 10 Hz); everything but the AHRS rides the slow tick, and the AHRS the
+// telemetry's own every-call rate, because those are the two cadences the game has - a third
+// would be a timer inventing a rate the telemetry does not have.
 function dcPackCarlito(t, slow) {
   if (window.carlitoIsFamily && window.carlitoIsFamily('drone', t)) dcDroneLinkAt = Date.now();   // (dcPresent)
-  if (!dcCfg.txEnabled || !slow) return [];
-  dcNoteLink(t);
-  const frames = dcBuildFrames(t);
+  if (!dcCfg.txEnabled) return [];
+  let frames;
+  if (slow) { dcNoteLink(t); frames = dcBuildFrames(t); }
+  else frames = dcIsDroneTelemetry(t) ? dcAhrsFrames(t, dcOnlineMask(t)) : [];
   if (frames.length) { dcTxCount += frames.length; dcLastTx = Date.now(); dcTab.markDirty(); }
   return frames;
 }
+
+// ── ONE CARRIER: CAN_MAP's signals in their DroneCAN messages (drone) ──────────
+// A real DroneCAN airframe puts attitude in ahrs.Solution and position in Fix2, not in a
+// proprietary frame, so on a drone these ride ONLY those messages and carlito.js sends their 0x52x
+// fields as absent. What has no DroneCAN message (speed / kmh, vspeed, throttle, steer, posX /
+// posZ, odo, status, impact) stays in the 0x52x block, which stays 11-bit: the DroneCAN spec (4.1)
+// lets CAN 2.0A protocols share its bus.
+// Gated like dcPackCarlito: Publish drone telemetry off hands them back to the block. NOT gated on
+// node_online: a failed AHRS / GNSS / POWER node silences its signals rather than moving them to
+// 0x52x, the same "silence is the reading" as the ESC loop.
+const DC_CARRIES = {
+  pitch:      'ahrs.Solution (1000) orientation, AHRS node',
+  roll:       'ahrs.Solution (1000) orientation, AHRS node',
+  heading:    'ahrs.Solution (1000) orientation (the quaternion\'s yaw: NED, + clockwise from north), AHRS node',
+  yaw:        'ahrs.Solution (1000) angular_velocity z, negated (NED z is down), AHRS node',
+  roll_rate:  'ahrs.Solution (1000) angular_velocity x, AHRS node',
+  pitch_rate: 'ahrs.Solution (1000) angular_velocity y, AHRS node',
+  accLong:    'ahrs.Solution (1000) linear_acceleration x, AHRS node',
+  accLat:     'ahrs.Solution (1000) linear_acceleration y, AHRS node',
+  acc_vert:   'ahrs.Solution (1000) linear_acceleration z, negated (NED z is down), AHRS node',
+  lat:        'gnss.Fix2 (1063) latitude_deg_1e8, GNSS node',
+  lon:        'gnss.Fix2 (1063) longitude_deg_1e8, GNSS node',
+  altitude:   'gnss.Fix2 (1063) height_msl_mm, GNSS node',
+  battery:    'power.BatteryInfo (1092) voltage, POWER node',
+};
+const dcCarriesFor = (t) => dcCfg.txEnabled && dcIsDroneTelemetry(t) ? Object.keys(DC_CARRIES) : [];
 
 window.carlitoFlavorPackers = window.carlitoFlavorPackers || [];
 window.carlitoFlavorPackers.push({
@@ -1839,9 +1884,10 @@ window.carlitoFlavorPackers.push({
   // of the ArmingStatus comment above: DroneCAN has no field for either, so this module
   // accounts for them the way a real FC does - by publishing the two-state message from
   // `armed` and reporting the refusal separately, here as the tab's pre-arm readout.
-  // pitch / roll / yaw / roll_rate / pitch_rate / accLong / accLat / acc_vert are absent on
-  // purpose: they go out in ahrs.Solution, but they are UNFLAVORED shared signals that every
-  // vehicle publishes, so they belong to CAN_MAP's side of the coverage check, not this one.
+  // pitch / roll / heading / yaw / the rates and accelerations, lat / lon / altitude and battery
+  // are absent on purpose: they are UNFLAVORED shared signals that every vehicle publishes, so
+  // CAN_MAP packs them - and on a drone they ride ahrs.Solution / Fix2 / BatteryInfo INSTEAD
+  // (`carries` below), so each is on the wire once.
   // node_health rides the per-node NodeStatus.health, and node_online is what decides WHICH nodes
   // publish at all - so it is carried by the absence of frames rather than by a field, which is
   // how a real listener learns it. mode_actual and failsafe are read into the tab's mode triple:
@@ -1861,6 +1907,8 @@ window.carlitoFlavorPackers.push({
     baro_alt: 'a SOLVED altitude, and air_data carries no altitude field because a barometer does not measure one - it measures a pressure. static_press IS that pressure and is packed, so a listener solves its own altitude out of it under its own QNH, which is exactly the disagreement this signal group exists to teach',
     home_dist: 'derived flight-controller state - the horizontal distance to the position the craft armed at. DroneCAN has no message carrying it, so it is a readout in the tab and may honestly stay one forever',
   },
+  carries: DC_CARRIES,
+  carriesFor: dcCarriesFor,
   pack: dcPackCarlito,
   reset: () => { dcLinkUp = false; },   // the next drone tick is a link-up edge (decision 2)
 });

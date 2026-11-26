@@ -1151,7 +1151,7 @@ function dronecanSelfTest() {
     reboot: arr(dcRebootAt), periods: dcNodeParams.map(p => p.statusPeriodMs), pending: dcCmdPending, linkUp: dcLinkUp,
     busCmd: Object.assign({}, dcBusCmd),
     alloc: map(dcAllocTable), ctl: Object.assign({}, dcCtl), upAsm: map(dcUpRx.asm),
-    upErr: Object.assign({}, dcUpRx.err), nsHeard: dcNsHeardAt, fcNode: dcCfg.fcNode,
+    upErr: Object.assign({}, dcUpRx.err), nsHeard: dcNsHeardAt, fcNode: dcCfg.fcNode, tx: dcCfg.txEnabled,
   };
   const put = (a, v) => { a.length = 0; a.push(...v); };
   const putMap = (m, v) => { m.clear(); for (const [k, x] of v) m.set(k, x); };
@@ -1171,7 +1171,7 @@ function dronecanSelfTest() {
     put(dcRebootAt, s.reboot); dcNodeParams.forEach((p, i) => { p.statusPeriodMs = s.periods[i]; });
     dcCmdPending = s.pending; dcLinkUp = s.linkUp; dcBusCmd = s.busCmd; putMap(dcAllocTable, s.alloc); Object.assign(dcCtl, s.ctl);
     putMap(dcUpRx.asm, s.upAsm); Object.assign(dcUpRx.err, s.upErr); dcNsHeardAt = s.nsHeard;
-    dcCfg.fcNode = s.fcNode;
+    dcCfg.fcNode = s.fcNode; dcCfg.txEnabled = s.tx;
     // The bus-command checks pushed test values into the tab if it is on screen. Redraw it from the
     // RESTORED state - after dcCfg too - or the next widget touch reads the test's values back out
     // of the inputs (the FC node id among them) and saves them.
@@ -1339,10 +1339,11 @@ function dcSelfTestChecks() {
     so.orientation_z * so.orientation_z + so.orientation_w * so.orientation_w)) / 1000, 1);
 
   // The quaternion helper against the same pitch/roll, to three decimals.
-  eq('quat from pitch 6 / roll -12',
-    dcQuatFromPitchRoll(6, -12).map(x => Math.round(x * 1000) / 1000),
-    [-0.104, 0.052, 0.005, 0.993]);
-  eq('quat level is identity', dcQuatFromPitchRoll(0, 0), [0, 0, 0, 1]);
+  const q3 = (q) => q.map(x => Math.round(x * 1000) / 1000);
+  eq('quat from pitch 6 / roll -12', q3(dcQuatFromEuler(0, 6, -12)), [-0.104, 0.052, 0.005, 0.993]);
+  eq('quat level is identity', dcQuatFromEuler(0, 0, 0), [0, 0, 0, 1]);
+  // Heading east is a + rotation about NED's DOWN axis (nose right): z positive, no flip.
+  eq('quat heading 90 is + about NED z', q3(dcQuatFromEuler(90, 0, 0)), [0, 0, 0.707, 0.707]);
 
   const am = roundTrip('ArmingStatus', DC_MSGS[1100], { status: 255 }, dcCfg.fcNode, [0xFF], [2]);
   if (am) eq('ArmingStatus armed', am.status, 255);
@@ -1456,7 +1457,7 @@ function dcSelfTestChecks() {
     pack_current: 61.5, soc: 77, pack_temp: 30,
     lat: 48.8566, lon: 2.3522, altitude: 123.456, sats: 11, fix_type: 3, hdop: 0.9,
     agl: -1,
-    pitch: 6, roll: -12, roll_rate: 0.1, pitch_rate: -0.2, yaw: 0.3,
+    pitch: 6, roll: -12, heading: 250, roll_rate: 0.1, pitch_rate: -0.2, yaw: 0.3,
     accLong: 1.5, accLat: -0.5, acc_vert: 0.3,
     arming_state: 1, prearm_fail: 0x01,
   });
@@ -1468,6 +1469,27 @@ function dcSelfTestChecks() {
       .map(x => Math.round(x * 1000) / 1000), [0.1, -0.2, -0.3]);
     eq('Solution accel -> NED', [bSol.linear_acceleration_x, bSol.linear_acceleration_y, bSol.linear_acceleration_z]
       .map(x => Math.round(x * 100) / 100), [1.5, -0.5, -0.3]);
+    // The quaternion's ZYX yaw reads back as the compass heading (f16 on the wire: within a degree).
+    const { orientation_x: x, orientation_y: y, orientation_z: z, orientation_w: w } = bSol;
+    const hdg = (Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)) * 180 / Math.PI + 360) % 360;
+    eq('Solution yaw is the heading', Math.abs(hdg - 250) < 1, true);
+  }
+  // One carrier: on a drone the packer carries the attitude, position and battery INSTEAD of the
+  // 0x52x block - while it is publishing. Off, the block takes them back; a car is not its business.
+  const dcp = (window.carlitoFlavorPackers || []).find(p => p.flavor === 'dronecan');
+  eq('the dronecan packer is registered', !!dcp, true);
+  if (dcp) {
+    // Put back straight away, not only in dronecanSelfTest's finally: the checks below (the
+    // services, the allocator) read dcCfg.txEnabled too, and must see the user's setting.
+    const txWas = dcCfg.txEnabled, drone = { esc_rpm: [0, 0, 0, 0] };
+    try {
+      dcCfg.txEnabled = true;
+      eq('carriesFor a drone', dcp.carriesFor(drone).sort().join(),
+        'accLat,accLong,acc_vert,altitude,battery,heading,lat,lon,pitch,pitch_rate,roll,roll_rate,yaw');
+      eq('carriesFor a car', dcp.carriesFor({ rpm: 900 }), []);
+      dcCfg.txEnabled = false;
+      eq('carriesFor with Publish off', dcp.carriesFor(drone), []);
+    } finally { dcCfg.txEnabled = txWas; }
   }
   if (bRange) {
     // agl = -1 must become "no reading", and the range field must NOT become 0 - a landing

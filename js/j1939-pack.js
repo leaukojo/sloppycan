@@ -109,6 +109,8 @@
     0x0B: 9,     // Brakes - System Controller - Brakes - System Controller
     0x10: 13,    // Retarder - Driveline       - Retarder - Driveline
     0x17: 19,    // Instrument Cluster #1      - Instrument Cluster
+    0x1C: 23,    // Vehicle Navigation         - Vehicle Navigation (j1939-flavor.js's VP)
+    0x25: 28,    // Off Vehicle Gateway        - Off Vehicle Gateway (carlito.js's Proprietary B telemetry block)
     0xF0: 134,   // Tractor ECU                - Tractor ECU (industry group 2)
   };
   const CLAIM_PGN = 60928, CLAIM_PRIO = 6;
