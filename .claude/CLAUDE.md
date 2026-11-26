@@ -66,12 +66,16 @@ Other: `script-link.js` (live CAN I/O with scripts via `scripting/sloppycan_rela
   handler resolves names on its element first: never name a global after an element method
   (`togglePopover`, `close`, `remove`…), and test popovers by clicking, not by calling the function. Tables
   keyed by bus ids are capped (`FRAMES_MAX`, `J1939_PGN_MAX`, DroneCAN's reassembly caps).
+- **Drags use pointer events** (`pointerdown/move/up` + `pointercancel`) and `touch-action:none` on
+  the handle: a finger drag never fires `mousemove`, so mouse-only drags are dead on Android.
 - **Flavored contract signals are packed by their flavor module, not `CAN_MAP`.** A module pushes
-  `{ flavor, signals, pack(t, slow) }` (+ optional `unpackable`, `onRequest`, `mirrors`,
-  `reset()`) onto `window.carlitoFlavorPackers`; `carlito.js`'s `checkCanCoverage()` holds
+  `{ flavor, signals, pack(t, slow) }` (+ optional `unpackable`, `onRequest`,
+  `carries` + `carriesFor(t)`, `reset()`) onto `window.carlitoFlavorPackers`; `carlito.js`'s `checkCanCoverage()` holds
   `CAN_MAP` to the unflavored out signals and each packer to its flavor, and the smoke test fails
-  on an unpacked flavor. `mirrors` (decision 1: truck / tractor J1939 copies of rpm / kmh / …) is
-  the one sanctioned "same signal twice".
+  on an unpacked flavor. One carrier per signal: `carries` takes a CAN_MAP signal off the 0x52x
+  block for the vehicles `carriesFor(t)` names (truck / tractor: rpm in EEC1, lat / lon in VP …;
+  boat: heading in 127250, pitch / roll in 127257 …; drone: attitude in ahrs.Solution, lat / lon in Fix2 …;
+  plane: all of it in CANaerospace NODs).
 - **Inbound:** a module owning a contract "in" signal registers `{ name: () => value }` on
   `window.carlitoUplinkSources` (one signal, one source) and **decodes that command off the bus**
   via `window.carlitoUplinkDecoders`, into its own state. A decoder **skips frames from the

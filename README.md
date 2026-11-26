@@ -16,7 +16,7 @@ sloppyCAN can be connected to [Carlito](https://github.com/leaukojo/carlito), a 
 
 You can use candlelight and slcan CAN adapters. If you own a [RAMN](https://github.com/ToyotaInfoTech/RAMN), you can connect it without installing anything and get started immediately. If you don't have any hardware, you can use the demo mode.
 
-sloppyCAN's goal is to help people learn the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939 / NMEA 2000 / ISOBUS, CANopen and CHAdeMO.
+sloppyCAN's goal is to help people learn the CAN protocol. It features simulations of UDS, OBD-II, KWP2000, XCP, J1939 / NMEA 2000 / ISOBUS, CANopen, DroneCAN and CHAdeMO.
 It includes many interactive explainer pages (example: [ISO-TP explainer](https://leaukojo.github.io/sloppycan/explainers/isotp-explainer.html)).
 
 

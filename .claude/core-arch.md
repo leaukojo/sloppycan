@@ -28,7 +28,7 @@ OBD-II sub-mode · Supported-PIDs probe · Quick Watch · Theme toggle · CSV Ex
 persistence · Startup · Onboarding spotlight arrow.
 
 Landmarks: `ingestFrame` / `ingestFrameBody`; `rerenderTable`, `renderDump`, the rAF loop;
-`renderTxRows`, `txSendOne`, `txSendOnce`; `inspectFrame` (CRC-15, bit stuffing); `startDemo`,
+`renderTxRows`, `txSendOne`, `txSendOnce`; `inspectFrame` (CRC-15, bit stuffing; a peek panel beside the ID List / Dump in `#peekRow`, closed by `inspectClose`); `startDemo`,
 `demoTick` (CRC-32/ISO-HDLC).
 
 `diag-parse.js` is three sections: OBD-II / J1979 (`OBD_MODE`, `OBD_PID01/09`, `obdDecode`),
@@ -47,25 +47,23 @@ UDS / ISO 14229-1 (`UDS_*`, `udsDecode*`), KWP2000 / ISO 14230 (`KWP_*`, `kwpDec
 
 Demo splits traffic into **base** (continuous) vs **diagnostic** (request/answer). Exactly
 one base traffic runs at a time, tracked by `demoBaseTraffic` (`'ramn'` default | `'j1939'` |
-`'nmea2000'` | `'iso11783'` | `'chademo'` | `'canopen'`).
+`'nmea2000'` | `'iso11783'` | `'chademo'` | `'canopen'` | `'dronecan'`).
 
 - `demoStartBaseTimers()` / `demoStopBaseTimers()` start/clear the active generator's timers
   (RAMN = `DEMO_CONFIG` ticks; j1939 family = `demoInjectN2k` 100 ms timer pulling
   `window.j1939DemoFrames()`; chademo = `window.chademoDemoLoopStart/Stop`; canopen =
-  `window.canopenDemoStart/Stop` continuous node). `startDemo` + both `busPauseClick`
+  `window.canopenDemoStart/Stop` continuous node; dronecan = `window.dronecanDemoStart/Stop`). `startDemo` + both `busPauseClick`
   open/pause/resume branches go through these.
 - `startDemo` picks the initial base via `demoInitialBaseTraffic()` (reads the active view tab
-  - pressing Demo on the J1939/CHAdeMO/CANopen tab starts that traffic with **no** prompt).
+  - pressing Demo on the J1939/NMEA 2000/ISOBUS/CHAdeMO/CANopen/DroneCAN tab starts that traffic with **no** prompt).
 - `demoSetBaseTraffic(kind)` swaps generators (and calls `window.j1939SetProto` for a j1939 mode).
 - `window.demoMaybeSwitch(kind, label)` is the prompt: no-op outside demo / if already active;
   else two `confirm()`s (switch? then clear buffer?) → `clearFrames()` + `demoSetBaseTraffic`.
-  Called from `switchViewTab` (j1939 + chademo + canopen branches) and `j1939ProtoClick` (toggle).
+  Called from `switchViewTab` (chademo + canopen + dronecan branches) and `j1939ProtoClick` (the j1939 branch).
 - `demoOnTelemetry` (a `vehiclePanelSubscribe` subscriber) makes the traffic follow the Carlito
   vehicle with no prompt, on a change only: truck → j1939, tractor → iso11783, boat → nmea2000,
   drone → dronecan, anything else → ramn (no reload; the table is vehicle-panel.js's
-  `vehiclePanelProtoTable`). Without Carlito, returning to RAMN still needs a reload. Outside demo,
-  the J1939 tab, shown with a truck / tractor / boat on the link, selects that vehicle's mode once
-  per vehicle per link (`j1939TabFollowKind`), so a mode picked afterwards stands.
+  `vehiclePanelProtoTable`). Without Carlito, returning to RAMN still needs a reload.
 - `window.demoIsActive = () => demoMode` lets modules gate the switch (used by `j1939ProtoClick`).
 - Plain-J1939 demo frames come from `j1939BaseDemoFrames()` in `j1939.js`.
 
@@ -120,19 +118,19 @@ parse (`raw(unparsed): …`) or on the BEL error.
   to 3/8 hex, clamps to `0x7FF`/`0x1FFFFFFF`, toggles `.invalid` when empty. Already wired into the TX
   row (`txSyncField`), ISO-TP IDs (`isotpIdInput`), fuzz (`fuzzCfgChange`), XCP (`xcpCfgChange`).
   CANopen COB-IDs use `coClampCob` (allows empty = "auto"). `slcanEncode` zero-pads to fixed width.
-- **Connection-failure UX:** inline `#connectError` under the Connect button via
-  `showConnectError`/`clearConnectError` (cleared at connect start + on disconnect), **plus** the
-  bottom-right toast. The message also hints the adapter may be open in another app/tab.
+- **Connection-failure UX:** `connectSerial`'s catch logs the error, shows a toast, and
+  `flashSettingsHint()` reopens the Connect popover with the Adapter field flashed. The message
+  also hints the adapter may be open in another app/tab.
 - **TX Scheduler layout:** `#txPanel` → header → `#txContent` (toggled by `toggleTxPanel`, persisted
   as `txPanelOpen`) wrapping `#txModuleSection` (read-only module-driven rows, above) + `#txBody`
   (editable rows). `renderTxModuleRows` (called from `renderTxRows`, `obdWatchUpdateIndicator`,
   `obdWatchToggle`, and fuzz's `fuzzUpdateIndicator`) mirrors Quick Watch + Fuzzer sends, tinted with
   `--red`. `toggleTxModule` collapses just the module section. `txAutoExpand` (`window.txAutoExpand`)
   expands the panel when transmission starts (TX enable, `obdWatchStart`, fuzz start).
-- **Module message logs** (XCP/CANopen/CHAdeMO/J1939 tables) render **chronological** (oldest→newest,
+- **Module message logs** (XCP/CANopen/CHAdeMO/DroneCAN/J1939 tables) render **chronological** (oldest→newest,
   no `.reverse()`), auto-scroll to bottom only when already near it, and have sticky `<thead>` (`th`
   carries the opaque bg + `position:sticky;top:0`; their scroll container needs `padding-top:0`). The
-  XCP/CANopen/CHAdeMO "session-panel-over-frame-log" tabs share one render-loop + log-ring + table
+  XCP/CANopen/CHAdeMO/DroneCAN "session-panel-over-frame-log" tabs share one render-loop + log-ring + table
   builder: `window.makeStackedLogTab(cfg)` (defined in `sloppycan.js` by the other `window.*` exports;
   per-module wiring in `.claude/modules.md`). J1939 predates it and keeps its own loop.
 - **UDS/KWP/OBD palettes** (`buildSvcPalette`): a param may carry `visibleWhen(els)` to show/hide its

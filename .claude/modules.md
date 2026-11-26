@@ -25,7 +25,7 @@ Explainer pages live in `explainers/`.
 | `xcp.js` | `ingestFrame` / `clearFrames` / `disconnectSerial` → `xcpIngestFrame` / `xcpClear` / `xcpStop`; `switchViewTab` + `xcpOnShow`; `xcp` key; `window.xcpDemoActive`. Explainer `xcp-explainer.html` |
 | `canopen.js` | Same four hooks as XCP (`canopen*`); `canopen` key; `window.canopenDemoActive`; demo engine → `canopenDemoStart/Stop` (a base traffic, not started on tab show). Explainer `canopen-explainer.html` |
 | `dronecan-core.js` + `dronecan.js` | `ingestFrame` / `clearFrames` / `disconnectSerial` → `dronecanIngestFrame` / `dronecanClear` / `dronecanStop`; `switchViewTab` + `dronecanOnShow` + `demoMaybeSwitch` + `vehiclePanelRequestForProto('dronecan')`; demo engine → `dronecanDemoStart/Stop`, `demoInitialBaseTraffic`; `dronecan` key (`txEnabled` / `fcNode` / `led`; per-node params and the allocation table are bus state, not saved). `index.html`: `#vtab-dronecan`, `#dronecanWrap`, core then tab script after `carlito-registry.js`. `carlito-bridge.html` loads only the core, which is why the core never touches `makeStackedLogTab` / `canRelTs` / `escHtml` and carries `dcNullTab` for `dronecan.js` to replace. Explainer `dronecan-explainer.html` |
-| `j1939.js` | `ingestFrame` → `j1939IngestFrame`; `switchViewTab`; `j1939ProtoClick` → `demoMaybeSwitch` / `vehiclePanelRequestForProto(mode)` (guarded on `j1939ProtoMode === mode`); `j1939Proto` key. Modes, request path below |
+| `j1939.js` | `ingestFrame` → `j1939IngestFrame`; `clearFrames` → `j1939Clear`; `switchViewTab(name, proto)` → `j1939ProtoClick(proto)` → `demoMaybeSwitch` / `vehiclePanelRequestForProto(mode)` (only when the mode changed and took); `j1939Proto` key. Modes, request path below |
 
 ## Shared "stacked log tab" factory (`window.makeStackedLogTab`, in `sloppycan.js`)
 
@@ -75,14 +75,14 @@ discarded and a mode's last valid IDs return with it.
 
 ---
 
-## J1939 tab modes (`j1939.js`)
+## J1939 / NMEA 2000 / ISOBUS tabs (`j1939.js`)
 
-`.seg` buttons (`#j1939ProtoJ1939` / `#j1939ProtoNmea2000` / `#j1939ProtoIso11783`)
-→ `j1939ProtoClick(mode)` → `j1939SetProto`, which swaps the dictionary (`j1939ActiveDb()`:
-`J1939_DB` / `NMEA2K_DB` / `ISOBUS_DB`, all in `j1939-tables.js`), clears live state and persists.
-In demo the click routes through `demoMaybeSwitch` (switches the base traffic, prompted). Outside
-demo, the tab shown with a truck / tractor / boat on the link selects that mode once per vehicle
-per link (`j1939TabFollowKind`).
+Three view tabs (`#vtab-j1939` / `#vtab-nmea2000` / `#vtab-iso11783`) on one panel (`#j1939Wrap`):
+`switchViewTab('j1939', mode)` → `j1939ProtoClick(mode)` → `j1939SetProto` (only on a change),
+which swaps the dictionary (`j1939ActiveDb()`: `J1939_DB` / `NMEA2K_DB` / `ISOBUS_DB`, all in
+`j1939-tables.js`), clears live state, persists and marks the mode's tab. In demo the click routes
+through `demoMaybeSwitch` (switches the base traffic, prompted; declined leaves the old mode's tab
+marked).
 
 **NMEA 2000:** bit-offset field model (`{name, bo, bl, signed, scale, offset, unit, …}`, fields
 straddle bytes), `n2kDecodeField` returns `j1939DecodeSPN`'s shape. **Fast Packet**
@@ -98,7 +98,7 @@ Controller (57344) and VT (0xE600 / 0xE700) decode via a per-entry `decode(data)
 **Demo:** `window.j1939DemoFrames()` per mode (`j1939BaseDemoFrames` / N2K / `isoDemoFrames`, which
 includes a 1792-byte ETP transfer), injected by `demoInjectN2k` on the demo engine's 100 ms timer.
 The base J1939 groups are built by `j1939-flavor.js`'s builders (`window.j1939FlavorFrames`, the
-game's mirrors' encoders) and paced by `JF_MSGS`' J1939-71 rates (`window.j1939FlavorMsgs`).
+game's own encoders) and paced by `JF_MSGS`' J1939-71 rates (`window.j1939FlavorMsgs`).
 While game telemetry is forwarded, `j1939DemoDropGameOwned` drops every group
 `window.carlitoProducing()` reports plus its twins (`J1939_GAME_TWINS`), so each (PGN, SA) has one
 producer.
@@ -160,7 +160,7 @@ the CANopen tab.
 
 `j1939-flavor.js` is a separate file from `j1939.js` because the bridge page loads it and not
 `j1939.js`. `isobus.js` / `j1939-flavor.js` share EEC1's encoder (`window.j1939Eec1Frame`):
-`engine_load` (SPN 513) and the rpm mirror (SPN 190) in one frame, sent by `isobus.js` whenever
+`engine_load` (SPN 513) and the rpm (SPN 190) in one frame, sent by `isobus.js` whenever
 `engine_load` is there. `j1939.js`'s demo merges its wheel and switches into VDC2 / CCVS through
 `window.j1939DemoDrive`; its pedal rides the demo's own EEC2.
 
@@ -172,13 +172,31 @@ the CANopen tab.
   `ramnChallengeEdge` on the game's `challenge` edges (silences demo ECUs B and C; D, which builds
   0x1BB from the 0x150 / 0x1A7 it hears, stays on; `j1939.js` stops the panel's drive while B or C
   is silent, via `ramnDriveSilenced`). `carlitoBusReady` is called on bus open (also
-  by `carlito-bridge.js`). The game side is `carlito/src/bridge/` (see `carlito/CLAUDE.md`); the
+  by `carlito-bridge.js`). The unflavored telemetry block (`CAN_MAP`, 0x520-0x52C) goes out 11-bit,
+  except on a truck or tractor (`carlitoJ1939Network`): there it is J1939 Proprietary B, PGN
+  0xFF20-0xFF2C from SA 0x25, through `J1939Pack.claimFirst` (so `CLAIM_FUNCTION` needs 0x25); and
+  on a boat, where it is NMEA 2000 proprietary single-frame (same PGNs and SA, no claim, data
+  prefixed by the header `FF 9F`: manufacturer code 2047, industry 4 Marine).
+  The fields a packer's `carriesFor(t)` names (`j1939-flavor.js`: rpm in EEC1, gear in ETC2, yaw /
+  accelerations in VDC2, lat / lon in VP, odo in VDHR, …; `nmea2000.js`: heading 127250, lat / lon
+  129025, yaw 127251, pitch / roll 127257, coolant 127489, fuel 127505, battery 127508, odo 128275;
+  `dronecan-core.js`: pitch / roll / heading / rates / accelerations in ahrs.Solution, lat / lon /
+  altitude in Fix2, battery in BatteryInfo; `canaerospace.js`: every plane signal, in CANaerospace
+  NODs 300-1037 and user-range 1501-1510) go out absent (NA) there, so each signal has one carrier
+  on the vehicle's bus. A drone's remaining block stays 11-bit: DroneCAN allows CAN 2.0A on its bus.
+  A plane's is empty, so it sends no 0x52x (1312-1324 is CANaerospace's reserved NOD range). `carlito.js` also
+  adds `J1939_DB` / `ISOBUS_DB` / `NMEA2K_DB` entries for PGN 0xFF20-0xFF2C, generated from
+  `CAN_MAP`'s declarative rows (`field()`, big-endian custom `decode`), so the tabs name the block.
+  Commands come in through `window.carlitoUplinkIngestFrame`, fed by
+  `ingestFrameBody`, the TX mirror (`txSendOne` / `fuzzTxFrame`) and the bridge. The game side is `carlito/src/bridge/` (see `carlito/CLAUDE.md`); the
   game deploys from its own repo.
 - **`ramn.js`:** `ingestFrame` → `ramnIngestFrame`; `clearFrames` → `ramnClear`;
   `disconnectSerial` → `ramnStop`; `demoTick` → `ramnCtrlPayload(id)`, returns early while
   `!ramnTrafficOn()` or `ramnIdSilenced(id)`; `demoIsoTpRespond` → `ramnUdsAnswer` (the RAMN ECUs'
   UDS routine 0x0200, also answered off the bus by `ramnIngestFrame`); `startDemo` → `ramnDemoStarted`; `demoSetBaseTraffic` → `ramnClear` on
-  leaving RAMN. `index.html`: `#ramnBtn` (`ramnToggle()`, opens the dashboard + the Control panel;
+  leaving RAMN, then `ramnSyncTrafficUI`. `txSendOne` / `fuzzTxFrame` mirror each sent frame into
+  `ramnIngestFrame` and `carlitoUplinkIngestFrame`, so a frame sent by hand drives the game as a
+  wire frame does. `index.html`: `#ramnBtn` (`ramnToggle()`, opens the dashboard + the Control panel;
   off demo the driving widgets hide, `ramn-live`). All DOM + CSS injected. Exposes
   `ramnVehicleSlots()` + `ramnSetTitles()` for `vehicle-panel.js`.
 - **`vehicle-panel.js`:** script after `carlito_contract.js`, before every panel; every panel
