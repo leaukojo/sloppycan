@@ -224,15 +224,17 @@
 <div class="view-tabs" role="tablist" aria-label="View" onkeydown="onViewTabKey(event)">
   <button class="view-tab active" role="tab" aria-selected="true" tabindex="0" aria-controls="tableWrap" id="vtab-ids" onclick="switchViewTab('ids')">ID List</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="dumpWrap" id="vtab-dump" onclick="switchViewTab('dump')">Traffic Dump</button>
-  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="inspectWrap" id="vtab-inspect" onclick="switchViewTab('inspect')">Frame Inspector</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="isotpWrap" id="vtab-isotp" onclick="switchViewTab('isotp')">ISO-TP</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="xcpWrap" id="vtab-xcp" onclick="switchViewTab('xcp')">XCP</button>
+  <!-- J1939 / NMEA 2000 / ISOBUS: three tabs on one panel (#j1939Wrap) in three modes (j1939.js) -->
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="j1939Wrap" id="vtab-j1939" onclick="switchViewTab('j1939','j1939')">J1939</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="j1939Wrap" id="vtab-iso11783" onclick="switchViewTab('j1939','iso11783')" title="ISO 11783">ISOBUS</button>
+  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="j1939Wrap" id="vtab-nmea2000" onclick="switchViewTab('j1939','nmea2000')">NMEA 2000</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="graphWrap" id="vtab-graph" onclick="switchViewTab('graph')">Graph</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="fuzzWrap" id="vtab-fuzz" onclick="switchViewTab('fuzz')">Fuzzing</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="termWrap" id="vtab-term" onclick="switchViewTab('term')" style="display:none" title="Raw SLCAN command console.">Serial Terminal</button>
   <span class="view-tab-sep" aria-hidden="true"></span>
   <span class="view-tab-beta" title="These tabs are in beta - decoders are still being refined and may change.">beta&nbsp;▸</span>
-  <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="j1939Wrap" id="vtab-j1939" onclick="switchViewTab('j1939')">J1939 / N2K</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="chademoWrap" id="vtab-chademo" onclick="switchViewTab('chademo')">CHAdeMO</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="canopenWrap" id="vtab-canopen" onclick="switchViewTab('canopen')">CANopen</button>
   <button class="view-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="dronecanWrap" id="vtab-dronecan" onclick="switchViewTab('dronecan')">DroneCAN</button>
@@ -392,6 +394,9 @@
   </div>
 </div>
 
+<!-- ID List + Traffic Dump beside the Frame Inspector "peek" panel: clicking a row opens it on the right -->
+<div id="peekRow" class="peek-row">
+<div class="peek-main">
 <div class="table-wrap" id="tableWrap" role="tabpanel" aria-labelledby="vtab-ids">
   <div class="welcome" id="emptyState">
     <div class="welcome-title">sloppyCAN</div>
@@ -411,7 +416,10 @@
         <span>Drive Carlito</span>
       </button>
     </div>
-    <a class="welcome-explainers" href="explainers/index.html">Explainers ↗</a>
+    <div class="welcome-links">
+      <a class="welcome-explainers" href="explainers/index.html">Explainers ↗</a>
+      <a class="welcome-explainers" href="https://leaukojo.github.io/carlito/guide/" target="_blank" rel="noopener">Carlito mechanics ↗</a>
+    </div>
   </div>
   <div class="empty link-only" id="idsNoFrames" style="display:none">No frames yet.</div>
   <div class="empty filter-empty" id="idsFilterEmpty" style="display:none" title="Frames are arriving, but the filters above match none of them.">Filters hide every frame. <button class="btn" onclick="clearAllFilters()">Clear filters</button></div>
@@ -458,6 +466,16 @@
   </div>
   <div class="empty" id="dumpNoFrames">No frames yet.</div>
   <div class="empty filter-empty" id="dumpFilterEmpty" style="display:none" title="Frames are arriving, but the filters above match none of them.">Filters hide every frame. <button class="btn" onclick="clearAllFilters()">Clear filters</button></div>
+</div>
+</div>
+
+<aside id="inspectWrap" class="peek-panel" aria-label="Frame Inspector" hidden>
+  <div class="peek-head">
+    <span class="log-title">Frame Inspector</span>
+    <button type="button" class="inspect-close" onclick="inspectClose()" title="Close (Esc)" aria-label="Close the Frame Inspector">×</button>
+  </div>
+  <div id="inspectContent"></div>
+</aside>
 </div>
 
 <!-- ISO-TP / UDS tab -->
@@ -597,12 +615,6 @@
 
 <div id="j1939Wrap" class="tab-wrap" role="tabpanel" aria-labelledby="vtab-j1939" style="display:none">
   <div role="tablist" aria-label="J1939 view" class="subtab-bar">
-    <div class="seg" title="Protocol dictionary + transport">
-      <button id="j1939ProtoJ1939"    class="active" onclick="j1939ProtoClick('j1939')">J1939</button>
-      <button id="j1939ProtoNmea2000"           onclick="j1939ProtoClick('nmea2000')">NMEA2000</button>
-      <button id="j1939ProtoIso11783"           onclick="j1939ProtoClick('iso11783')">ISO 11783</button>
-    </div>
-    <div class="sep sep-20"></div>
     <button class="j1939-stab active" role="tab" aria-selected="true"  id="j1939stab-pgn"  onclick="j1939SubTab('pgn')">PGN Monitor</button>
     <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-log"  onclick="j1939SubTab('log')">Frame Log</button>
     <button class="j1939-stab"        role="tab" aria-selected="false" id="j1939stab-dm"   onclick="j1939SubTab('dm')">Faults (DM1/DM2)</button>
@@ -611,7 +623,8 @@
          periodically, which means the frame does not exist until somebody asks for it - so there is
          no way to see one without a button like this. The PGN box's datalist holds the groups this
          side answers; picking one fills only the PGN, and the address stays as typed. -->
-    <div class="j1939-req ml-auto">
+    <div class="sep sep-20 j1939-req-sep"></div>
+    <div class="j1939-req">
       <label class="field">PGN <input type="text" id="j1939ReqPgn" list="j1939ReqPgnList" placeholder="65261" title="The parameter group to ask for. Decimal, or 0x-prefixed hex; empty asks for 65261. The list holds the request-only groups this side answers out of the game's telemetry.">
       <datalist id="j1939ReqPgnList">
         <option value="65261">CCSS - speed_limit (SPN 74)</option>
@@ -628,7 +641,7 @@
       <button type="button" class="btn" onclick="j1939SendRequest()" title="Put a real PGN 59904 request on the bus from the diagnostic tool address 0xF9. The answer arrives as an ordinary broadcast and lands in the PGN Monitor.">Request</button>
       <span id="j1939ReqStatus" class="j1939-req-status"></span>
     </div>
-    <span id="j1939Badge" class="j1939-badge"></span>
+    <span id="j1939Badge" class="j1939-badge ml-auto"></span>
     <a id="j1939Learn" href="explainers/j1939-explainer.html" target="_blank" rel="noopener" class="learn">Learn how J1939 works ↗</a>
   </div>
   <div id="j1939-pgn"  class="scroll-pane"></div>
@@ -797,7 +810,7 @@
       <option value="be" selected>BE</option>
       <option value="le">LE</option>
     </select>
-    <label id="graphPickSignedLbl" class="graph-signed-lbl" style="display:none"><input type="checkbox" id="graphPickSigned"> signed</label>
+    <label id="graphPickSignedLbl" class="graph-signed-lbl"><input type="checkbox" id="graphPickSigned"> signed</label>
     <button class="btn" id="graphAddBtn">Add</button>
     <button class="btn" id="graphClearBtn" title="Remove all graphed signals">Clear all</button>
     <span id="graphAddWarn" class="graph-add-warn" style="display:none"></span>
@@ -928,12 +941,6 @@
       class="bare-input term-input"
       onkeydown="termKeydown(event)">
     <button class="btn input-send-btn" onclick="termSend()">Send</button>
-  </div>
-</div>
-
-<div id="inspectWrap" class="inspect-wrap" role="tabpanel" aria-labelledby="vtab-inspect" style="display:none">
-  <div id="inspectContent">
-    <div id="inspectEmpty" class="empty" title="Click a frame in the ID List or Traffic Dump.">No frame selected.</div>
   </div>
 </div>
 

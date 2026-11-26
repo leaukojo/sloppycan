@@ -25,7 +25,10 @@
 //   sloppycan.js  demoIsoTpRespond(): ramnUdsAnswer(txId, payload) first  (the ISO-TP tab's asks)
 //   carlito.js    message handler: ramnChallengeEdge(challenge) on the envelope's challenge edges
 //   sloppycan.js  startDemo(): if (window.ramnDemoStarted) ramnDemoStarted();  (records demo → shows the driving widgets)
-//// Live-only: no persistence of window position/state.
+//   sloppycan.js  demoSetBaseTraffic(): ramnClear() on leaving RAMN, then ramnSyncTrafficUI()
+//   sloppycan.js  txSendOne() / fuzzTxFrame(): ramnIngestFrame(mirror)  (a sent frame drives the decoder too)
+//
+// Live-only: no persistence of window position/state.
 
 // ── Inject CSS ────────────────────────────────────────────────────────────────
 (function () {
@@ -39,7 +42,7 @@
 }
 .ramn-window.open { display:flex; }
 .ramn-header {
-  display:flex; align-items:center; gap:8px; cursor:move; user-select:none;
+  display:flex; align-items:center; gap:8px; cursor:move; user-select:none; touch-action:none;
   padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
   font-size:var(--fs-m); font-weight:600; letter-spacing:.02em;
 }
@@ -101,9 +104,10 @@
 @keyframes ramnBlink { 0%,50%{opacity:1} 50.01%,100%{opacity:.18} }
 
 .ramn-resize {
-  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
+  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; touch-action:none;
   background:linear-gradient(135deg,transparent 50%,var(--border2) 50%,var(--border2) 60%,transparent 60%,transparent 75%,var(--border2) 75%,var(--border2) 85%,transparent 85%);
 }
+@media (pointer: coarse) { .ramn-resize { width:28px; height:28px; } }   /* a fingertip-sized grip */
 
 /* ── Control Panel ─────────────────────────────────────────────────────────── */
 .ramn-sec { margin-bottom:11px; }
@@ -135,6 +139,7 @@
 .ramn-joypad button {
   padding:9px 0; font-size:var(--fs-l); background:var(--bg); color:var(--text2);
   border:1px solid var(--border); border-radius:0; cursor:pointer; user-select:none;
+  touch-action:none; -webkit-touch-callout:none;   /* a held press stays a press on touch */
 }
 .ramn-joypad button.sp { visibility:hidden; }
 .ramn-joypad button.held { background:var(--blue-dim); color:var(--blue); border-color:transparent; }
@@ -167,6 +172,10 @@
 // `closeSel` is the header button a drag must NOT start on; another module reusing this
 // (vehicle-panel.js) names its own class rather than being made to borrow `.ramn-close`.
 //
+// Pointer events, not mouse events: a finger drag never fires mousemove, so on touch the windows
+// could not be moved. Touch needs `touch-action:none` on the header and grip too (CSS above), or
+// the browser treats the gesture as a scroll and sends pointercancel, which ends the drag like an up.
+//
 // Drag and resize each attach their window-level move/up listeners only while the
 // gesture is active and remove them on release, so no global listeners persist
 // between interactions (the windows are toggled, never destroyed - there is no
@@ -176,11 +185,17 @@
 // resizes in real pixels so the game canvas gets real pixels, not a uniform scale). `shield`
 // covers the page for the length of the drag: a window holding an IFRAME needs it, because a
 // mouseup released over the frame goes to the frame's document and the drag would never end.
+//
+// The one permanent listener is a window `resize` per draggable window: it re-clamps an open one
+// into view, so rotating a phone doesn't strand it off-screen.
 function makeDraggable({ win, header, closeSel, shield = false }) {
+  window.addEventListener('resize', () => { if (win.offsetWidth) clampIntoView(win); });
   let sx = 0, sy = 0, sl = 0, st0 = 0;
-  header.addEventListener('mousedown', e => {
+  // Focus / selection stay suppressed on mousedown as before: cancelling pointerdown instead
+  // would skip mousedown, and the desktop behaviour is what this must not change.
+  header.addEventListener('mousedown', e => { if (!e.target.closest(closeSel)) e.preventDefault(); });
+  header.addEventListener('pointerdown', e => {
     if (e.target.closest(closeSel)) return;
-    e.preventDefault();
     sx = e.clientX; sy = e.clientY;
     const r = win.getBoundingClientRect(); sl = r.left; st0 = r.top;
     win.style.right = 'auto';
@@ -198,39 +213,62 @@ function makeDraggable({ win, header, closeSel, shield = false }) {
       win.style.left = nl + 'px'; win.style.top = nt + 'px';
     };
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       document.body.style.userSelect = '';
       if (cover) cover.remove();
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   });
 }
+
+// Move an open window back inside the viewport (8 px margin) if it overflows the right or bottom
+// edge. The default positions are desktop pixels, so on a phone a window can open off-screen.
+function clampIntoView(win) {
+  const r = win.getBoundingClientRect();
+  if (r.right > window.innerWidth) {
+    win.style.right = 'auto';
+    win.style.left = Math.max(0, window.innerWidth - r.width - 8) + 'px';
+  }
+  if (r.bottom > window.innerHeight) win.style.top = Math.max(0, window.innerHeight - r.height - 8) + 'px';
+}
+window.clampIntoView = clampIntoView;
 
 function makeFloating({ win, header, grip, outer, body, baseW, minW = 220, maxW = 640,
                         closeSel = '.ramn-close' }) {
   makeDraggable({ win, header, closeSel });
 
   function applyScale(w) {
+    w = Math.min(w, Math.max(minW, window.innerWidth - 16));   // never wider than the screen
     const scale = w / baseW;
     win.style.width = w + 'px';
     body.style.transform = `scale(${scale})`;
     outer.style.height = (body.offsetHeight * scale) + 'px';
   }
   let rsx = 0, rsw = 0;
-  grip.addEventListener('mousedown', e => {
-    e.preventDefault(); e.stopPropagation();
+  grip.addEventListener('mousedown', e => e.preventDefault());   // as makeDraggable: desktop unchanged
+  grip.addEventListener('pointerdown', e => {
+    e.stopPropagation();
     rsx = e.clientX; rsw = win.offsetWidth;
     document.body.style.cursor = 'nwse-resize'; document.body.style.userSelect = 'none';
     const onMove = ev => applyScale(Math.max(minW, Math.min(maxW, rsw + (ev.clientX - rsx))));
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       document.body.style.cursor = ''; document.body.style.userSelect = '';
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  });
+  // A rotation can leave an open window wider than the new screen: shrink it (applyScale caps the
+  // width), then clamp it into view again.
+  window.addEventListener('resize', () => {
+    if (win.offsetWidth && win.offsetWidth > window.innerWidth - 16) { applyScale(win.offsetWidth); clampIntoView(win); }
   });
   applyScale(baseW);
   return applyScale;
@@ -789,7 +827,7 @@ function ramnIsOpen() { return win.classList.contains('open'); }
 function setDashOpen(open) {
   win.classList.toggle('open', open);
   if (el.btn) el.btn.classList.toggle('active', open);
-  if (open) { fitWindow(win, dashScale); dirty = true; requestAnimationFrame(renderDashboard); }
+  if (open) { fitWindow(win, dashScale); clampIntoView(win); dirty = true; requestAnimationFrame(renderDashboard); }
 }
 
 // makeFloating fixes the scale wrapper's height in pixels, so a body that grew or shrank needs
@@ -810,7 +848,7 @@ function refitWindows() {
 function setCtrlOpen(open) {
   ctrlWin.querySelector('.ramn-body').classList.toggle('ramn-live', !demoEnabled);
   ctrlWin.classList.toggle('open', open);
-  if (open) { syncCtrlUI(); fitWindow(ctrlWin, ctrlScale); }
+  if (open) { syncCtrlUI(); fitWindow(ctrlWin, ctrlScale); clampIntoView(ctrlWin); }
 }
 
 // Paired toolbar toggle: opens BOTH the dashboard + the Control panel; if both are already open,
@@ -843,11 +881,17 @@ function ramnDemoStarted() {
 
 // The tallest drive byte is carlito-registry.js's window.carlitoGearTop() - the contract's, so the
 // panel and the decode follow the bus. Real RAMN sends up to its firmware's MAX_GEAR_VALUE.
+// The panel's selector stops lower with a vehicle on the Carlito link: at that vehicle's own
+// `gear_top` (6 on a car, 16 on the Kenney tractor; the game would read a higher byte as its top).
+function ctrlGearTop(t = window.carlitoTelemetry ? window.carlitoTelemetry() : null) {
+  const top = t ? Math.round(Number(t.gear_top)) : 0;
+  return top > 0 ? Math.min(top, window.carlitoGearTop()) : window.carlitoGearTop();
+}
 
 // ── Control UI sync (reflects ramnCtrl into the panel widgets) ─────────────────
 let cel = {};
 function syncCtrlUI() {
-  cel.gearTop.textContent = window.carlitoGearTop();
+  cel.gearTop.textContent = ctrlGearTop();
   cel.brake.value = ramnCtrl.brake; cel.brakeV.textContent = Math.round(ramnCtrl.brake) + '%';
   cel.accel.value = ramnCtrl.accel; cel.accelV.textContent = Math.round(ramnCtrl.accel) + '%';
   cel.steer.value = ramnCtrl.steer;
@@ -989,19 +1033,32 @@ function ramnSetTraffic(on) {
 
   // Gear is driven by the shift joystick (like real RAMN): ↑ up, ↓ down.
   // P sits below R, as on a lever; it is a Carlito extension (byte 0xFE), never sent by real RAMN.
-  // P, R, then D1 up to the contract's top gear (`window.carlitoGearTop`).
+  // P, R, then D1 up to the linked vehicle's top gear (`ctrlGearTop`).
   function gearSeq() {
     const seq = ['P', 'R'];
-    for (let g = 1; g <= window.carlitoGearTop(); g++) seq.push(g);
+    for (let g = 1; g <= ctrlGearTop(); g++) seq.push(g);
     return seq;
   }
+  // A selection past the top comes down to it on the vehicle's first telemetry: 16 picked on the
+  // tractor, then a car loaded, sends the car 6, not 16. The label follows a changed top too.
+  let gearTopShown = null;
+  document.addEventListener('DOMContentLoaded', () => {   // vehicle-panel.js loads after this file
+    if (!window.vehiclePanelSubscribe) return;              // carlito-bridge.html: no panels
+    window.vehiclePanelSubscribe((t) => {
+      const top = ctrlGearTop(t);   // the payload in hand, not a re-read of carlito.js's latest
+      const over = typeof ramnCtrl.gear === 'number' && ramnCtrl.gear > top;
+      if (over) ramnCtrl.gear = top;
+      if (over || top !== gearTopShown) { gearTopShown = top; syncCtrlUI(); }
+    });
+  });
   function gearShift(delta) {
     const seq = gearSeq();
     let i = seq.indexOf(ramnCtrl.gear); if (i < 0) i = seq.indexOf(1);
     ramnCtrl.gear = seq[Math.max(0, Math.min(seq.length - 1, i + delta))];
   }
   // Joystick pad - momentary (sets 0x077 byte1). Side effects on press:
-  // ↑/↓ shift gear, ←/→ toggle turn signal, ● horn (held). Reverts to released (1) on mouse-up.
+  // ↑/↓ shift gear, ←/→ toggle turn signal, ● horn (held). Reverts to released (1) on pointer-up.
+  // Pointer events so a finger can hold it: touch fires mousedown only after the tap has ended.
   function joyPress(e) {
     const b = e.target.closest('button[data-joy]'); if (!b) return;
     const v = +b.dataset.joy;
@@ -1017,16 +1074,19 @@ function ramnSetTraffic(on) {
     ramnCtrl.joy = 1; ramnCtrl.horn = 0;
     cel.joypad.querySelectorAll('button').forEach(b => b.classList.remove('held'));
   }
-  cel.joypad.addEventListener('mousedown', joyPress);
+  cel.joypad.addEventListener('pointerdown', joyPress);
+  cel.joypad.addEventListener('contextmenu', e => e.preventDefault());   // Android long press = held horn, not a menu
 
   cel.hand.addEventListener('click', () => { ramnCtrl.handbrake = ramnCtrl.handbrake ? 0 : 1; syncCtrlUI(); });
   cel.tcsOff.addEventListener('click', () => { ramnSw.tcs_off = !ramnSw.tcs_off; ramnSw.touched = true; syncCtrlUI(); });
   cel.escOff.addEventListener('click', () => { ramnSw.esc_off = !ramnSw.esc_off; ramnSw.touched = true; syncCtrlUI(); });
 
-  // Global mouse-up releases momentary joystick state (joy byte + horn).
-  window.addEventListener('mouseup', () => {
+  // Global pointer-up (or a cancelled touch) releases momentary joystick state (joy byte + horn).
+  const joyUp = () => {
     if (ramnCtrl.joy !== 1 || ramnCtrl.horn) { joyRelease(); syncCtrlUI(); }
-  });
+  };
+  window.addEventListener('pointerup', joyUp);
+  window.addEventListener('pointercancel', joyUp);
   // Also release on window blur (right-click context menu, alt-tab) - otherwise a missed mouse-up
   // leaves the horn/joy byte stuck on.
   window.addEventListener('blur', () => {

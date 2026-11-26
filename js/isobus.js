@@ -33,7 +33,7 @@
 //   carlito-bridge.html  same script tag. That page loads neither sloppycan.js nor j1939.js,
 //                        so every cross-module read here is typeof-guarded.
 //   j1939.js             decode-table corrections, so the frames render named and scaled
-//   j1939-flavor.js      window.j1939Eec1Frame, EEC1's encoder (shared with the rpm mirror)
+//   j1939-flavor.js      window.j1939Eec1Frame, EEC1's encoder (shared with the rpm, j1939-flavor.js's to carry)
 //   tractor.js / truck.js  their controls are views over window.isobusCtl / isobusSetCtl
 //
 // Telemetry TX rides carlito.js's canForward gateway, which is what puts these on the wire and
@@ -123,7 +123,7 @@
   // ── Builders ────────────────────────────────────────────────────────────────
   // `engine_load` is SPN 513 Actual Engine - Percent Torque (the contract: "SPN 513-like ... NOT
   // SPN 92"), EEC1 byte 3, 1 %/bit, -125 % offset (J1939-71 p.56). EEC1 is ONE frame shared with
-  // j1939-flavor.js's rpm mirror (SPN 190), so the encoder is its window.j1939Eec1Frame, which
+  // j1939-flavor.js's rpm (SPN 190), so the encoder is its window.j1939Eec1Frame, which
   // puts both in - one EEC1 from the engine, never two alternating - and this file decides when
   // it goes out. Null when j1939-flavor.js is not loaded: no EEC1, rather than a throw that drops
   // every frame.
@@ -189,8 +189,8 @@
 
   // Both speed messages share a shape: a 16-bit speed, a 32-bit free-running distance and a
   // 2-bit direction in byte 8. The DISTANCE stays "not available" in both, and that is a
-  // decision rather than a gap: the game's odometer is the UNFLAVORED `odo` signal, packed
-  // once by CAN_MAP in 0x526. Repeating it here would put the same number on the wire twice
+  // decision rather than a gap: the game's odometer is the UNFLAVORED `odo` signal, which a
+  // tractor carries in VDHR (j1939-flavor.js), a boat in 128275 (nmea2000.js) and any other vehicle in CAN_MAP's 0x526. Repeating it here would put the same number on the wire twice
   // under two identities, and claiming `odo` would fail the coverage check for good reason.
   function ibSpeedBody(t, kmh) {
     const d = jp.blank();

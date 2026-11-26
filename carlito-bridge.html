@@ -7,7 +7,7 @@
 <!--
   Standalone Carlito↔RAMN bridge. Connects to a CAN adapter (gs_usb or SLCAN), decodes
   the RAMN control frames straight into the embedded Carlito game, and forwards Carlito's
-  telemetry (CAN 0x520–0x52C) back onto the wire. No dashboards, no controls - meant to sit
+  telemetry (CAN 0x520–0x52C, or PGN 0xFF20–0xFF2C for a truck or tractor (J1939 Proprietary B) or a boat (NMEA 2000 proprietary); CANaerospace ids for a plane) back onto the wire. No dashboards, no controls - meant to sit
   alongside your own CAN tooling. NOT part of sloppyCAN: it only reuses the shared transport
   (can-link.js) + the RAMN decoder (ramn.js) + the Carlito link (carlito.js).
 -->
@@ -104,7 +104,7 @@ body.zen .carlito-window .carlito-io { display: none !important; }
   <script src="js/nmea2000.js" defer></script><!-- carlito nmea2000-flavor packer (boat rig) -->
   <script src="js/cleanopen.js" defer></script><!-- the garbage truck's body: command (CANopen RPDO decoder) and state (TPDO1 packer) -->
   <script src="js/iso11992.js" defer></script><!-- carlito iso11992-flavor packer (the trailer's EBS21 / EBS22) -->
-  <script src="js/canaerospace.js" defer></script><!-- carlito canaerospace-flavor packer (flaps_actual) -->
+  <script src="js/canaerospace.js" defer></script><!-- carlito canaerospace-flavor packer (flaps_actual + the plane's whole telemetry) -->
   <script src="js/carlito.js" defer></script>
 </body>
 </html>

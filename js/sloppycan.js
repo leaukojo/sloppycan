@@ -1747,6 +1747,7 @@ function rerenderTable() {
       row.dataset.key = key;
       row.style.cursor = 'pointer';
       row.title = 'Click to inspect';
+      if (lastInspectedFrame && frameKey(lastInspectedFrame) === key) row.classList.add('peek-sel');   // a rebuilt row keeps the mark
       // cell[0]: pin button
       const c0 = row.insertCell(0);
       c0.style.cssText = 'width:28px;padding:2px 4px;text-align:center';
@@ -1852,7 +1853,8 @@ function setSort(key) {
 }
 
 // ── View tabs (ID List / Traffic Dump) ───────────────────────────────────────
-function switchViewTab(name) {
+// `proto` names the J1939 panel's mode: J1939, NMEA 2000 and ISOBUS are three tabs on one panel.
+function switchViewTab(name, proto) {
   const wasTerminal = terminalMode;
   const goingTerminal = name === 'term';
 
@@ -1874,9 +1876,11 @@ function switchViewTab(name) {
   document.getElementById('vtab-ids').classList.toggle('active', name === 'ids');
   document.getElementById('vtab-dump').classList.toggle('active', name === 'dump');
   document.getElementById('vtab-term').classList.toggle('active', name === 'term');
-  document.getElementById('vtab-inspect').classList.toggle('active', name === 'inspect');
   document.getElementById('vtab-isotp').classList.toggle('active', name === 'isotp');
-  document.getElementById('vtab-j1939').classList.toggle('active', name === 'j1939');
+  // The mode as it stands; a mode the click changes re-marks its tab in j1939SetProto.
+  const j1939Mode = window.j1939GetProto ? window.j1939GetProto() : 'j1939';
+  for (const m of ['j1939', 'nmea2000', 'iso11783'])
+    document.getElementById('vtab-' + m).classList.toggle('active', name === 'j1939' && m === j1939Mode);
   document.getElementById('vtab-chademo').classList.toggle('active', name === 'chademo');
   document.getElementById('vtab-xcp').classList.toggle('active', name === 'xcp');
   document.getElementById('vtab-canopen').classList.toggle('active', name === 'canopen');
@@ -1893,13 +1897,13 @@ function switchViewTab(name) {
 
   const isIdsOrDump = name === 'ids' || name === 'dump';
   document.getElementById('sharedToolbar').style.display          = isIdsOrDump       ? 'flex'  : 'none';
+  document.getElementById('peekRow').style.display                = isIdsOrDump       ? 'flex'  : 'none';   // the lists + the inspector peek
   document.getElementById('dumpOnlyControls').style.display        = name === 'dump'  ? 'flex'  : 'none';
   document.getElementById('filterOnlyHighlightedLabel').style.display = name === 'dump' ? 'none' : '';
   document.getElementById('tableWrap').style.display       = name === 'ids'   ? ''      : 'none';
   document.getElementById('dumpHeader').style.display      = name === 'dump'  ? 'block' : 'none';
   document.getElementById('dumpWrap').style.display     = name === 'dump'    ? '' : 'none';
   document.getElementById('termWrap').style.display     = name === 'term'    ? 'flex' : 'none';
-  document.getElementById('inspectWrap').style.display  = name === 'inspect' ? '' : 'none';
   document.getElementById('isotpWrap').style.display    = name === 'isotp'   ? 'flex' : 'none';
   document.getElementById('j1939Wrap').style.display    = name === 'j1939'   ? 'flex' : 'none';
   document.getElementById('chademoWrap').style.display  = name === 'chademo' ? 'flex' : 'none';
@@ -1910,21 +1914,9 @@ function switchViewTab(name) {
   document.getElementById('fuzzWrap').style.display     = name === 'fuzz'    ? 'flex' : 'none';
 
   // In demo mode, opening a tab with its own base traffic offers to switch to it (the traffic
-  // already follows the Carlito vehicle, demoOnTelemetry). Outside demo, the J1939 tab shown with
-  // a truck, tractor or boat on the link selects that machine's mode - ONCE per vehicle per link
-  // (j1939TabFollowKind), so a mode the user picks afterwards stands.
-  const linkProto = (name === 'j1939' && !demoMode)
-    ? demoVehicleTraffic(window.carlitoTelemetry ? window.carlitoTelemetry() : null) : null;
-  if (linkProto && DEMO_J1939_KINDS.includes(linkProto.kind) && window.j1939SetProto) {
-    if (linkProto.kind !== j1939TabFollowKind) {
-      j1939TabFollowKind = linkProto.kind;
-      if (window.j1939GetProto() !== linkProto.kind) { window.j1939SetProto(linkProto.kind); scheduleSave(); }
-    }
-  } else if (name === 'j1939' && window.demoMaybeSwitch && window.j1939GetProto) {
-    const m = window.j1939GetProto();
-    const lbl = m === 'nmea2000' ? 'NMEA 2000' : m === 'iso11783' ? 'ISO 11783' : 'J1939';
-    window.demoMaybeSwitch(m, lbl);
-  }
+  // already follows the Carlito vehicle, demoOnTelemetry). The J1939 / NMEA 2000 / ISOBUS tabs
+  // select their mode through j1939ProtoClick, which makes that same offer in demo.
+  if (name === 'j1939' && window.j1939ProtoClick) window.j1939ProtoClick(proto || window.j1939GetProto());
   if (name === 'chademo' && window.demoMaybeSwitch) window.demoMaybeSwitch('chademo', 'CHAdeMO');
   if (name === 'canopen' && window.demoMaybeSwitch) window.demoMaybeSwitch('canopen', 'CANopen');
   if (name === 'dronecan' && window.demoMaybeSwitch) window.demoMaybeSwitch('dronecan', 'DroneCAN');
@@ -1935,8 +1927,8 @@ function switchViewTab(name) {
   if (name === 'xcp'   && window.xcpOnShow)   window.xcpOnShow();
   if (name === 'canopen' && window.canopenOnShow) window.canopenOnShow();
   if (name === 'dronecan' && window.dronecanOnShow) window.dronecanOnShow();
-  // Showing this tab IS selecting a protocol, because it holds exactly one; the J1939 tab holds
-  // three and asks on its mode buttons instead. One table for both, in vehicle-panel.js.
+  // Showing this tab IS selecting a protocol, because it holds exactly one; the J1939 panel holds
+  // three and asks only when a tab CHANGES its mode (j1939ProtoClick). One table, in vehicle-panel.js.
   if (name === 'dronecan' && window.vehiclePanelRequestForProto) window.vehiclePanelRequestForProto('dronecan');
   if (name === 'ids')   rerenderTable();   // the render loop skips it while hidden, and is stopped after a disconnect
   if (name === 'term')  { document.getElementById('termInput').focus(); updateTermTrafficWarn(); }
@@ -2295,9 +2287,13 @@ function simulateBitStuffing(fields) {
   return { stuffed, stuffCount: stuffed.filter(s => s.stuffed).length };
 }
 
+// The inspector is a "peek" panel beside the ID List / Traffic Dump (#peekRow): a row click opens
+// it and it stays open across the two; × / Esc / Clear close it. A snapshot of the clicked frame,
+// not live (re-rendering would drop the note field's focus).
 function inspectFrame(f) {
-  switchViewTab('inspect');
   lastInspectedFrame = f;
+  document.getElementById('inspectWrap').hidden = false;
+  inspectMarkRow(frameKey(f));
 
   const isExt = f.isExt;
   const isRtr = f.isRtr;
@@ -2425,7 +2421,7 @@ function inspectFrame(f) {
     </div>
     <div class="stuff-wrap">
       ${legendHtml}
-      <div style="font-family:var(--mono);font-size:var(--fs-m);letter-spacing:0.1em;overflow-x:auto;white-space:nowrap">${stuffBitsHtml}</div>
+      <div style="font-family:var(--mono);font-size:var(--fs-m);letter-spacing:0.1em;word-break:break-all">${stuffBitsHtml}</div>
     </div>
 
     <div class="inspect-title">Field Details</div>
@@ -2548,10 +2544,30 @@ function updateNotchBtn() {
   document.getElementById('notchArrowBtn').disabled = !enabled;
 }
 
+// Marks the inspected ID's ID List row (rows are keyed and updated in place, so the class sticks).
+// Dump rows are virtual and rebuilt on scroll, so they carry no mark.
+function inspectMarkRow(key) {
+  document.querySelectorAll('#frameBody tr.peek-sel').forEach(r => r.classList.remove('peek-sel'));
+  if (key) document.querySelector(`#frameBody tr[data-key="${CSS.escape(key)}"]`)?.classList.add('peek-sel');
+}
+function inspectClose() {
+  document.getElementById('inspectWrap').hidden = true;
+  lastInspectedFrame = null;
+  inspectMarkRow(null);
+}
+// Esc closes the peek, unless another window claimed the press (the shared _scEscHandled flag) or
+// the key belongs to a field (the inspector's own note input included). On `window`, so the floating
+// windows' document listeners, which sit on top of it, get the press first.
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e._scEscHandled || document.getElementById('inspectWrap').hidden) return;
+  if (e.target.closest && e.target.closest('input, textarea, select')) return;
+  e._scEscHandled = true;
+  inspectClose();
+});
+
 function clearInspector() {
-  // Same markup as #inspectEmpty in index.html.
-  document.getElementById('inspectContent').innerHTML =
-    '<div id="inspectEmpty" class="empty" title="Click a frame in the ID List or Traffic Dump.">No frame selected.</div>';
+  document.getElementById('inspectContent').innerHTML = '';
+  inspectClose();
 }
 
 function clearFrames() {
@@ -2758,8 +2774,10 @@ function updateFilterOutBtn() {
   handle.addEventListener('mouseenter', () => handle.style.background = 'var(--border2)');
   handle.addEventListener('mouseleave', () => { if (!dragging) handle.style.background = 'transparent'; });
 
-  handle.addEventListener('mousedown', e => {
-    e.preventDefault();
+  // Pointer events (+ touch-action:none in the CSS), so a finger can drag it too.
+  // preventDefault stays on mousedown: cancelling pointerdown would skip it (desktop unchanged).
+  handle.addEventListener('mousedown', e => e.preventDefault());
+  handle.addEventListener('pointerdown', e => {
     dragging = true;
     startY = e.clientY;
     startH = panel.offsetHeight;
@@ -2767,7 +2785,7 @@ function updateFilterOutBtn() {
     document.body.style.userSelect = 'none';
   });
 
-  window.addEventListener('mousemove', e => {
+  window.addEventListener('pointermove', e => {
     if (!dragging) return;
     // Dragging up = larger panel (delta is negative when moving up)
     const delta = startY - e.clientY;
@@ -2775,13 +2793,15 @@ function updateFilterOutBtn() {
     panel.style.height = newH + 'px';
   });
 
-  window.addEventListener('mouseup', () => {
+  const dragEnd = () => {
     if (!dragging) return;
     dragging = false;
     handle.style.background = 'transparent';
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-  });
+  };
+  window.addEventListener('pointerup', dragEnd);
+  window.addEventListener('pointercancel', dragEnd);
 })();
 
 // ── Demo Mode ────────────────────────────────────────────────────────────────
@@ -2900,11 +2920,11 @@ function demoStartBaseTimers() {
 }
 
 // Pick the base traffic to start demo with, based on the tab the user is viewing -
-// pressing Demo while on the J1939/N2K, CHAdeMO, CANopen, or DroneCAN tab starts that
-// traffic directly (no prompt). Defaults to RAMN.
+// pressing Demo while on the J1939, NMEA 2000, ISOBUS, CHAdeMO, CANopen, or DroneCAN tab starts
+// that traffic directly (no prompt). Defaults to RAMN.
 function demoInitialBaseTraffic() {
   const active = document.querySelector('.view-tabs .view-tab.active')?.id || '';
-  if (active === 'vtab-j1939')   return window.j1939GetProto ? window.j1939GetProto() : 'j1939';
+  if (['vtab-j1939', 'vtab-nmea2000', 'vtab-iso11783'].includes(active)) return window.j1939GetProto ? window.j1939GetProto() : 'j1939';
   if (active === 'vtab-chademo') return 'chademo';
   if (active === 'vtab-canopen') return 'canopen';
   if (active === 'vtab-dronecan') return 'dronecan';
@@ -2969,11 +2989,10 @@ function demoFollow(v) {
 }
 // Acts only on a CHANGE of the vehicle's traffic, so a tab the user switched to afterwards keeps
 // its traffic. `null` (the link gone) leaves the traffic alone, and makes the next link's first
-// payload count as a change - for this and for the J1939 tab's once-per-link mode selection
-// (switchViewTab), so it resets both trackers whether or not the demo is running.
-let demoFollowKind = null, j1939TabFollowKind = null;
+// payload count as a change.
+let demoFollowKind = null;
 function demoOnTelemetry(t) {
-  if (!t) { demoFollowKind = null; j1939TabFollowKind = null; return; }
+  if (!t) { demoFollowKind = null; return; }
   if (!demoMode) return;
   const v = demoVehicleTraffic(t);
   if (v.kind === demoFollowKind) return;
@@ -5256,7 +5275,7 @@ if (_wsList.length) {
 }
 
 window.graphScheduleSave = scheduleSave; // let graph.js persist signal add/remove
-window.j1939ScheduleSave = scheduleSave; // let j1939.js persist the protocol-mode dropdown
+window.j1939ScheduleSave = scheduleSave; // let j1939.js persist the J1939 / NMEA 2000 / ISOBUS tab's mode
 window.ingestFrame = ingestFrame; // let chademo.js demo loop replay frames into the pipeline
 // Forward a Carlito telemetry frame ({id,isExt,isRtr,dlc,data[]}). Ingested once (RX pipeline +
 // dashboards); only when the bus can actually transmit (open, connected, NOT listen-only) is it also

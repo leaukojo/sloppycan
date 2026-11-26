@@ -20,7 +20,7 @@
 
   // ── Which machine is on the link ────────────────────────────────────────────
   // The rule is carlito-registry.js's carlitoIsFamily (a family-only "out" signal present IS the
-  // vehicle), shared with the demo traffic, j1939-flavor.js's mirrors and dronecan.js.
+  // vehicle), shared with the demo traffic, j1939-flavor.js's carriers and dronecan.js.
   const isFamily = (family, t) => window.carlitoIsFamily(family, t);
 
   // ── The telemetry fan-out ───────────────────────────────────────────────────
@@ -151,8 +151,9 @@
   }
 
   // One table, one rule: a protocol view asks for its machine when the user SELECTS that protocol.
-  // The DroneCAN tab holds one protocol, so showing it is the selection; the J1939 tab holds three,
-  // so its MODE BUTTON is - a tab opened to read frames must not offer to restart a drive.
+  // The DroneCAN tab holds one protocol, so showing it is the selection; the J1939 / NMEA 2000 /
+  // ISOBUS tabs share one panel, so a tab that CHANGES its mode is - a tab opened again to read
+  // frames must not offer to restart a drive.
   // The J1939 traffics carry the RAMN Control Panel as J1939 driver-demand groups
   // (j1939-flavor.js); NMEA 2000 carries its steer as a rudder order, with the RAMN drive frames
   // beside it (it has no throttle command); DroneCAN carries none, and the drone flies from
@@ -257,7 +258,7 @@
 }
 .vp-window.open { display:flex; }
 .vp-header {
-  display:flex; align-items:center; gap:8px; cursor:move; user-select:none;
+  display:flex; align-items:center; gap:8px; cursor:move; user-select:none; touch-action:none;
   padding:8px 10px; background:var(--bg3); border-bottom:1px solid var(--border);
   font-size:var(--fs-m); font-weight:600; letter-spacing:.02em;
 }
@@ -271,9 +272,10 @@
 .vp-scaleouter { overflow:hidden; }
 .vp-body { transform-origin:top left; padding:12px 14px 16px; box-sizing:border-box; }
 .vp-resize {
-  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize;
+  position:absolute; right:0; bottom:0; width:16px; height:16px; cursor:nwse-resize; touch-action:none;
   background:linear-gradient(135deg,transparent 50%,var(--border2) 50%,var(--border2) 60%,transparent 60%,transparent 75%,var(--border2) 75%,var(--border2) 85%,transparent 85%);
 }
+@media (pointer: coarse) { .vp-resize { width:28px; height:28px; } }   /* a fingertip-sized grip */
 
 .vp-hidden { display:none !important; }
 .vp-section { border-top:1px solid var(--border); padding-top:9px; }
@@ -383,14 +385,18 @@
         'The windows still open, but cannot be dragged or resized.');
     }
     let fitH = -1;
-    const rescale = () => { scale(win.offsetWidth || baseW); fitH = body.offsetHeight; };
+    const fit = () => { scale(win.offsetWidth || baseW); fitH = body.offsetHeight; };
+    // Every open goes through rescale (drone.js's pair too), so it's also where an off-screen
+    // default position is pulled into view. Not refit: that runs mid-session, and would snap back a
+    // window the user parked half off the edge.
+    const rescale = () => { fit(); if (window.clampIntoView) window.clampIntoView(win); };
     return {
       win,
       closeBtn: win.querySelector('.vp-close'),
       q: (id) => win.querySelector('#' + id),
       isOpen: () => win.classList.contains('open'),
       rescale,
-      refit: () => { if (body.offsetHeight !== fitH) rescale(); },
+      refit: () => { if (body.offsetHeight !== fitH) fit(); },
     };
   }
 

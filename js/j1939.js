@@ -9,11 +9,17 @@
 //   sloppycan.js  clearFrames(), at end:
 //     if (window.j1939Clear) j1939Clear();                            // ← line B
 //
-//   index.html  view-tabs div:
-//     <button class="view-tab" id="vtab-j1939" onclick="switchViewTab('j1939')">J1939</button>
+//   index.html  view-tabs div: three tabs on the one #j1939Wrap, one per mode:
+//     <button class="view-tab" id="vtab-nmea2000" onclick="switchViewTab('j1939','nmea2000')">NMEA 2000</button>
 //
-//   index.html  switchViewTab():
-//     + j1939 cases (tab toggle + wrap show/hide)
+//   sloppycan.js  switchViewTab(name, proto):
+//     + j1939 cases (the three tabs' toggle + wrap show/hide, j1939ProtoClick(proto))
+//
+//   sloppycan.js  persistence: collectSettings / applySettings 'j1939Proto' key
+//     (window.j1939GetProto / j1939Apply / _j1939ProtoPending); startup: window.j1939ScheduleSave
+//
+//   sloppycan.js  demo base-traffic engine: window.j1939DemoFrames() on the 100 ms timer,
+//     window.j1939SetProto from demoSetBaseTraffic
 //
 // ── Inject CSS ────────────────────────────────────────────────────────────────
 (function () {
@@ -49,9 +55,10 @@
 .j1939-fault-badge.dm2 { background:var(--amber-dim); color:var(--amber); }
 .j1939-log-row { display:flex; gap:12px; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--border); font-size:var(--fs-s); }
 .j1939-log-row:last-child { border-bottom:none; }
-/* The request client at the right of the sub-tab bar. The bar wraps rather than clipping on a
-   narrow window; the learn link follows the request group, so its own auto margin is dropped. */
+/* The request client follows the sub-tabs, set apart by a divider (it is a form, not a view); the
+   badge's auto margin keeps the badge + learn link at the right. The bar wraps rather than clipping. */
 #j1939Wrap > .subtab-bar { flex-wrap:wrap; }
+.j1939-req-sep { margin:0 12px 0 8px; }
 .j1939-req { display:flex; align-items:center; gap:8px; padding:4px 0; min-width:0; }
 #j1939ReqPgn { width:64px; padding:0 6px; }
 #j1939ReqDa { width:56px; padding:0 6px; }
@@ -193,7 +200,7 @@ let j1939Log     = [];        // last J1939_LOG_MAX decoded frames
 let j1939LogSeq  = 0;         // per-entry key for the Frame Log's keyed rows
 let j1939TpSessions = new Map(); // session key → TP session state
 let j1939SubActive = 'pgn';   // active sub-tab
-let j1939ProtoMode = 'j1939'; // 'j1939' | 'nmea2000' - set by the tab's mode dropdown
+let j1939ProtoMode = 'j1939'; // 'j1939' | 'nmea2000' | 'iso11783' - picked by the J1939 / NMEA 2000 / ISOBUS view tabs
 let j1939Dirty   = false;     // render needed
 let j1939WasHidden = true;    // true while the J1939 tab is not visible
 let j1939LastRender = 0;      // throttle clock for the full-table rebuild
@@ -465,11 +472,18 @@ function j1939IngestFrame(frame) {
 function j1939SetProto(mode) {
   mode = (mode === 'nmea2000' || mode === 'iso11783') ? mode : 'j1939';
   j1939ProtoMode = mode;
-  // Reflect into the proto toggle (button group on the left of the sub-tab bar).
-  const btnIds = { j1939: 'j1939ProtoJ1939', nmea2000: 'j1939ProtoNmea2000', iso11783: 'j1939ProtoIso11783' };
-  for (const [m, id] of Object.entries(btnIds)) {
-    const b = document.getElementById(id);
-    if (b) b.classList.toggle('active', m === mode);
+  // Mark the mode's view tab while the panel is showing (switchViewTab marks it on a tab switch;
+  // this covers a mode changed under an open panel: a declined-then-taken demo switch, the demo
+  // following Carlito). Same roving tabindex as switchViewTab.
+  if (document.getElementById('j1939Wrap')?.style.display !== 'none') {
+    for (const m of ['j1939', 'nmea2000', 'iso11783']) {
+      const t = document.getElementById('vtab-' + m);
+      if (!t) continue;
+      const on = m === mode;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    }
   }
   // One learn link for the three modes, pointed at the mode's own explainer.
   const lk = document.getElementById('j1939Learn');
@@ -829,21 +843,25 @@ window.j1939SetProto = j1939SetProto;
 window.j1939GetProto = () => j1939ProtoMode;
 window.j1939Apply    = (m) => j1939SetProto(m || window._j1939ProtoPending || 'j1939');
 
-// Toggle-button handler. In demo mode, switching protocol also switches the demo
-// base traffic (prompted); otherwise it just swaps the decode dictionary + persists.
+// View-tab handler (switchViewTab, on every show of a J1939 / NMEA 2000 / ISOBUS tab). In demo
+// mode it offers to switch the demo base traffic to the mode (prompted; a no-op when it already
+// is); otherwise it swaps the decode dictionary + persists. Re-showing the current mode's tab
+// changes nothing: no table wipe, and no vehicle request.
 function j1939ProtoClick(mode) {
+  const changing = j1939ProtoMode !== mode;
   if (window.demoIsActive && window.demoIsActive()) {
     // In demo: demoMaybeSwitch prompts then applies (it calls j1939SetProto itself).
     const lbl = mode === 'nmea2000' ? 'NMEA 2000' : mode === 'iso11783' ? 'ISO 11783' : 'J1939';
     window.demoMaybeSwitch(mode, lbl);
-  } else {
+  } else if (changing) {
     j1939SetProto(mode);
     if (window.j1939ScheduleSave) window.j1939ScheduleSave();
   }
   // Each mode is a different machine's bus; the mode → vehicle mapping is in vehicle-panel.js.
-  // ONLY IF THE MODE ACTUALLY TOOK: in demo, demoMaybeSwitch is two confirms of its own and can
-  // be declined, and a third dialog about a mode the user is not in would be wrong.
-  if (j1939ProtoMode === mode && window.vehiclePanelRequestForProto) window.vehiclePanelRequestForProto(mode);
+  // ONLY IF THE MODE ACTUALLY CHANGED: in demo, demoMaybeSwitch is two confirms of its own and can
+  // be declined, and a third dialog about a mode the user is not in would be wrong; a tab opened
+  // again just to read frames must not offer to restart a drive.
+  if (changing && j1939ProtoMode === mode && window.vehiclePanelRequestForProto) window.vehiclePanelRequestForProto(mode);
 }
 window.j1939ProtoClick = j1939ProtoClick;
 
@@ -1168,7 +1186,7 @@ function j1939DemoDropGameOwned(frames) {
 // Cluster #1 (0x17). Empty unless J1939 mode.
 //
 // ONE ENCODER PER GROUP: the five groups come out of j1939-flavor.js's builders, the ones the
-// game's mirrors use (window.j1939FlavorFrames), with that file's addresses and priorities. The
+// game's own groups use (window.j1939FlavorFrames), with that file's addresses and priorities. The
 // fields only the demo animates (torques, fuel and oil temperature, cruise, charging voltage) are
 // written over them through J1939_DB's own descriptors, so no scale is typed here.
 //
@@ -1224,7 +1242,7 @@ function j1939BaseDemoFrames() {
     spn(f, 0xFEF7, 167, 13.8);                           // charging system potential
     frames.push(full(f));
   }
-  // Dash Display from Instrument Cluster #1 - the sender j1939-flavor.js's DD mirror uses, so the
+  // Dash Display from Instrument Cluster #1 - the sender j1939-flavor.js's DD uses, so the
   // one-producer rule sees the two as one group.
   if (G && j1939DemoDue('DD', now, tol)) frames.push(full(G.DD({ fuel: osc(20, 90, 200) })));
   // ISO Address Claim (0xEE00) every 30th tick - engine ECU NAME.

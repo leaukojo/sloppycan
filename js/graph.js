@@ -4,7 +4,7 @@
 //
 // INTEGRATION POINTS - the only changes required in the main files:
 //
-//   sloppycan.js  ingestFrame(), after the J1939 hook:
+//   sloppycan.js  ingestFrame(), after the DroneCAN hook:
 //     if (window.graphIngestFrame) graphIngestFrame(frame);            // ← line A
 //
 //   sloppycan.js  switchViewTab():
@@ -32,7 +32,7 @@
   font-size:var(--fs-s); color:var(--text2); cursor:pointer;
 }
 .graph-stage { flex:1; min-height:0; position:relative; }
-#graphCanvas { width:100%; height:100%; display:block; }
+#graphCanvas { width:100%; height:100%; display:block; touch-action:none; }
 .graph-empty { position:absolute; inset:0; }  /* takes the pointer, so its title hint shows */
 .graph-legend {
   flex-shrink:0; display:flex; flex-wrap:wrap; gap:6px 16px; padding:7px 12px;
@@ -72,6 +72,7 @@ let graphSignals  = [];
 let graphPaused   = false;   // freeze the view (set true automatically on pan/zoom)
 let graphFrozenEnd = 0;      // right-edge time captured when paused
 let graphLiveEnd  = 0;       // last wall-clock time the bus was live (freeze edge when bus drops)
+let graphLastRx   = -Infinity; // last time a graphed signal got a sample (keeps the edge live with no bus)
 let graphWindowMs = 30000;   // visible span (10s / 30s / 60s)
 let graphPan      = 0;       // ms offset of the view (≤ 0 = into the past)
 let graphZoom     = 1;       // time-axis zoom factor (effective window = graphWindowMs / zoom)
@@ -190,6 +191,7 @@ function graphIngestFrame(frame) {
     if (val === null) continue;
     graphPush(sig, now, val);
     sig.curVal = val;
+    graphLastRx = now;
   }
   // NB: deliberately do NOT mark graphDirty here. Redraws are paced by the ~30fps live
   // tick in loop() instead, so a busy bus can't force a (potentially expensive) trace
@@ -199,7 +201,7 @@ function graphIngestFrame(frame) {
 // ── Add / remove signals ──────────────────────────────────────────────────────
 function addGraphSignal(def) {
   const width = graphCoerceWidth(def.width);
-  const endian = def.endian === 'be' ? 'be' : 'le';
+  const endian = (width > 1 && def.endian === 'be') ? 'be' : 'le';   // byte order is moot for 8-bit; else the dup check misses
   const signed = !!def.signed;
   const dup = graphSignals.find(s => s.frameKey === def.frameKey && s.byteIndex === (def.byteIndex | 0)
     && s.width === width && s.endian === endian && s.signed === signed);
@@ -317,7 +319,8 @@ function graphCurrentDlc(key) {
     const idSel = document.getElementById('graphPickId');
     key = idSel ? idSel.value : '';
   }
-  if (key && typeof frames !== 'undefined' && frames.has(key)) return frames.get(key).dlc || 8;
+  // Bytes actually carried, not the DLC field: an RTR (or zero-length) frame has none to graph.
+  if (key && typeof frames !== 'undefined' && frames.has(key)) return frames.get(key).data.length;
   return 8;
 }
 
@@ -338,6 +341,9 @@ function graphSyncPickerLimits() {
   for (const o of widthSel.options) o.disabled = (byte + (+o.value) > dlc);
   byteSel.value = String(byte);
   widthSel.value = String(width);
+  // Here, not on the width change event: the clamp above can narrow the width too.
+  const endianSel = document.getElementById('graphPickEndian');
+  if (endianSel) endianSel.style.display = width > 1 ? '' : 'none';
 }
 
 function graphShowAddWarn(msg) {
@@ -352,8 +358,7 @@ function graphAddFromPicker() {
   if (!key) return;
   const byteIndex = parseInt(document.getElementById('graphPickByte').value, 10) || 0;
   const width = graphCoerceWidth(parseInt(document.getElementById('graphPickWidth').value, 10) || 1);
-  let dlc = 8;
-  if (typeof frames !== 'undefined' && frames.has(key)) dlc = frames.get(key).dlc || 8;
+  const dlc = graphCurrentDlc(key);
   if (byteIndex + width > dlc) {            // backstop: width-aware picker normally prevents this
     graphShowAddWarn(`D${byteIndex} + ${width * 8}-bit exceeds ${dlc}-byte frame`);
     return;
@@ -435,8 +440,11 @@ function graphRender() {
   drawGraph();
 }
 
-// The live edge only advances while the bus is actually delivering frames.
+// The live edge only advances while the bus is actually delivering frames - or while frames are
+// still arriving with no bus open (Carlito telemetry injected with no adapter), else that data
+// would land off the right of a frozen view.
 function graphBusLive() {
+  if (graphNow() - graphLastRx < 1000) return true;
   return !!(window.fuzzBusReady && window.fuzzBusReady() && !(window.fuzzBusPaused && window.fuzzBusPaused()));
 }
 
@@ -568,11 +576,13 @@ function drawGraph() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.strokeStyle = COL.grid;
   const firstT = Math.ceil(tLo / step) * step;
+  // Enough decimals to tell adjacent gridlines apart (a 50 ms step at full zoom needs two).
+  const dec = Math.max(1, Math.ceil(-Math.log10(step / 1000) - 1e-9));
   for (let t = firstT; t <= tHi; t += step) {
     const xx = Math.round(x(t)) + 0.5;
     ctx.beginPath(); ctx.moveTo(xx, plotT); ctx.lineTo(xx, plotB); ctx.stroke();
     const secs = (t - tEnd) / 1000;
-    const lbl = (secs >= 0 ? '' : '') + (Math.abs(secs) < 0.0005 ? '0s' : secs.toFixed(secs % 1 ? 1 : 0) + 's');
+    const lbl = Math.abs(secs) < 0.0005 ? '0s' : secs.toFixed(secs % 1 ? dec : 0) + 's';
     ctx.fillText(lbl, xx, plotB + 4);
   }
 
@@ -871,12 +881,7 @@ window.graphApply           = graphApply;
   const pickByte = document.getElementById('graphPickByte');
   if (pickId) pickId.addEventListener('change', () => { graphPopulateBytePicker(pickId.value); graphUpdatePickNote(pickId.value); });
   if (pickByte) pickByte.addEventListener('change', graphSyncPickerLimits);
-  if (pickWidth) pickWidth.addEventListener('change', () => {
-    graphSyncPickerLimits();
-    const wide = pickWidth.value === '2' || pickWidth.value === '4';
-    document.getElementById('graphPickEndian').style.display = wide ? '' : 'none';
-    document.getElementById('graphPickSignedLbl').style.display = wide ? '' : 'none';
-  });
+  if (pickWidth) pickWidth.addEventListener('change', graphSyncPickerLimits);
   const addBtn = document.getElementById('graphAddBtn');
   if (addBtn) addBtn.addEventListener('click', graphAddFromPicker);
 
@@ -897,8 +902,30 @@ window.graphApply           = graphApply;
 
   const c = document.getElementById('graphCanvas');
   if (c) {
-    // Pan on window, so a drag keeps going when the cursor leaves the canvas.
-    window.addEventListener('mousemove', e => {
+    // Pointer events (+ touch-action:none on the canvas), so a finger pans too. Pan on window, so
+    // a drag keeps going when the cursor leaves the canvas. Two fingers pinch-zoom instead (touch
+    // has no wheel): graphTouches holds each down finger's x, graphPinch the gesture's start.
+    const graphTouches = new Map();
+    let graphPinch = null;   // { d, zoom } - finger spread and zoom when the pinch began
+    const pinchSpread = () => { const [a, b] = [...graphTouches.values()]; return Math.max(20, Math.abs(a - b)); };
+    // Zoom to `zoom`, keeping the time under clientX where it is on screen (wheel and pinch).
+    const zoomAt = (clientX, zoom) => {
+      const r = c.getBoundingClientRect();
+      const px = clientX - r.left;
+      const frac = Math.max(0, Math.min(1, (px - graphPlot.L) / (graphPlot.R - graphPlot.L)));
+      const tCursor = graphPlot.tLo + frac * (graphPlot.tHi - graphPlot.tLo);
+      graphZoom = Math.max(1, Math.min(50, zoom));
+      const winNew = graphWindowMs / graphZoom;
+      graphPan = tCursor + winNew * (1 - frac) - graphFrozenEnd;
+      graphDirty = true;
+    };
+    window.addEventListener('pointermove', e => {
+      if (graphPinch && graphTouches.has(e.pointerId)) {
+        graphTouches.set(e.pointerId, e.clientX);
+        const [a, b] = [...graphTouches.values()];
+        if (graphPlot) zoomAt((a + b) / 2, graphPinch.zoom * pinchSpread() / graphPinch.d);
+        return;
+      }
       if (!graphDragging || !graphPlot) return;
       const dx = e.clientX - graphDragX;
       graphDragX = e.clientX;
@@ -906,32 +933,35 @@ window.graphApply           = graphApply;
       graphPan -= dx * msPerPx;          // drag right → view moves into the past
       graphDirty = true;
     });
-    c.addEventListener('mousemove', e => {
+    c.addEventListener('pointermove', e => {
       const r = c.getBoundingClientRect();
       graphHoverX = e.clientX - r.left;
       graphHoverY = e.clientY - r.top;
       graphDirty = true;
     });
-    c.addEventListener('mouseleave', () => { graphHoverX = null; graphHoverY = null; graphDirty = true; });
-    c.addEventListener('mousedown', e => {
+    c.addEventListener('pointerleave', () => { graphHoverX = null; graphHoverY = null; graphDirty = true; });
+    c.addEventListener('pointerdown', e => {
       graphDragging = true; graphDragX = e.clientX;
       graphSetPaused(true);
       if (pauseBtn) pauseBtn.textContent = 'Resume';
+      if (e.pointerType !== 'touch') return;
+      graphTouches.set(e.pointerId, e.clientX);
+      if (graphTouches.size === 2) { graphDragging = false; graphPinch = { d: pinchSpread(), zoom: graphZoom }; }
     });
-    window.addEventListener('mouseup', () => { graphDragging = false; });
+    const pointerEnd = e => {
+      graphDragging = false;
+      if (!graphTouches.delete(e.pointerId)) return;
+      if (graphTouches.size < 2) graphPinch = null;
+      else if (graphPinch) graphPinch = { d: pinchSpread(), zoom: graphZoom };   // a different pair now: re-base, no jump
+    };
+    window.addEventListener('pointerup', pointerEnd);
+    window.addEventListener('pointercancel', pointerEnd);
     c.addEventListener('wheel', e => {
       if (!graphPlot) return;
       e.preventDefault();
       graphSetPaused(true);
       if (pauseBtn) pauseBtn.textContent = 'Resume';
-      const r = c.getBoundingClientRect();
-      const px = e.clientX - r.left;
-      const frac = Math.max(0, Math.min(1, (px - graphPlot.L) / (graphPlot.R - graphPlot.L)));
-      const tCursor = graphPlot.tLo + frac * (graphPlot.tHi - graphPlot.tLo);
-      graphZoom = Math.max(1, Math.min(50, graphZoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
-      const winNew = graphWindowMs / graphZoom;
-      graphPan = tCursor + winNew * (1 - frac) - graphFrozenEnd;
-      graphDirty = true;
+      zoomAt(e.clientX, graphZoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
     }, { passive: false });
   }
 
@@ -954,10 +984,11 @@ window.graphApply           = graphApply;
       if (!sig) return;
       const v = n.textContent.trim();
       const newName = (v && v !== sig.label) ? v : '';
+      // Rebuild even when the name is unchanged: clearing an unnamed signal's text must show its label again.
+      graphLegendSig = '';
+      graphDirty = true;
       if (newName !== sig.name) {
         sig.name = newName;
-        graphLegendSig = '';                 // force a legend rebuild with the new name
-        graphDirty = true;
         if (window.graphScheduleSave) window.graphScheduleSave();
       }
     });

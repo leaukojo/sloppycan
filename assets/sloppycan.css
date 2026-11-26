@@ -800,6 +800,7 @@ body.no-link .link-only:not(.show-err) { display: none !important; }
   position: relative; width: 100%; padding: 10px 0;
   background: var(--bg2); border-top: 1px solid var(--border2);
 }
+.welcome-links { display: flex; gap: 24px; }
 .welcome-explainers { font-size: var(--fs-xl); color: var(--blue); text-decoration: none; }
 .welcome-explainers:hover { color: var(--text); }
 /* Narrow screens: stack the tiles. */
@@ -1045,22 +1046,25 @@ label.filter-attention { box-shadow: 0 0 0 1px var(--amber); border-radius: 0; b
   border-radius: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  /* Fill the wrap when there's room, but keep natural width when cramped so
-     .bitfield-wrap's overflow-x scrolls instead of squashing the bits (#12). */
-  min-width: 100%;
-  width: max-content;
+  /* The inspector is a side panel: whole fields wrap onto new lines (data bytes, CRC on its own)
+     rather than squashing the bits (#12). The 1px gap over a border-coloured ground draws the
+     lines between fields and between wrapped rows. A single field wider than the panel still
+     scrolls in .bitfield-wrap (min-content). */
+  flex-wrap: wrap;
+  gap: 1px;
+  background: var(--border);
+  width: 100%;
+  min-width: min-content;
 }
 
 .bf-field {
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
+  background: var(--bg);
   flex-shrink: 0;
   flex: 1;
-  /* No min-width:0 - fields keep their content width so the row scrolls rather than squashes (#12). */
+  /* No min-width:0 - fields keep their content width, so they wrap rather than squash (#12). */
 }
-
-.bf-field:last-child { border-right: none; }
 
 .bf-label {
   font-family: var(--sans);
@@ -1121,7 +1125,7 @@ label.filter-attention { box-shadow: 0 0 0 1px var(--amber); border-radius: 0; b
 }
 
 .inspect-table th:first-child,
-.inspect-table td:first-child { width: 160px; }
+.inspect-table td:first-child { width: 120px; }
 
 .inspect-table th {
   text-align: left;
@@ -1140,6 +1144,7 @@ label.filter-attention { box-shadow: 0 0 0 1px var(--amber); border-radius: 0; b
   font-size: var(--fs-m);
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  white-space: normal; overflow-wrap: anywhere;   /* long values (29-bit ID, CRC) wrap in the side panel */
 }
 
 .inspect-table tr:last-child td { border-bottom: none; }
@@ -1753,15 +1758,32 @@ input.term-input { opacity: 0.4; transition: opacity 0.2s; }
 .w140 { width: 140px; }
 .w200 { width: 200px; }
 
-/* Frame Inspector */
-.inspect-wrap { flex: 1; overflow: auto; padding: 24px; min-height: 0; }
+/* Frame Inspector: a "peek" panel on the right of the ID List / Traffic Dump (#peekRow). */
+.peek-row { display: flex; flex: 1; min-height: 0; position: relative; }
+.peek-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.peek-panel {
+  width: clamp(340px, 38%, 560px); flex-shrink: 0;
+  display: flex; flex-direction: column; min-height: 0;
+  border-left: 1px solid var(--border); background: var(--bg);
+}
+.peek-panel[hidden] { display: none; }
+.peek-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px 6px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.peek-head .inspect-close { font-size: var(--fs-l); line-height: 1; padding: 2px 8px; }
+#inspectContent { flex: 1; overflow: auto; padding: 18px 24px 24px; min-height: 0; }
+#frameBody tr.peek-sel { background: var(--bg3); box-shadow: inset 3px 0 0 var(--amber); }  /* the inspected ID; hover alone is bg3 */
+/* Phones: no room for a split, so the panel covers the list. */
+@media (max-width: 640px) { .peek-panel { position: absolute; inset: 0; z-index: 2; width: auto; border-left: none; } }   /* above the sticky th (z-index 1) */
 
 /* Resize handle between the main view and the TX panel */
 .resize-handle {
-  height: 5px; cursor: ns-resize; background: transparent;
+  height: 5px; cursor: ns-resize; background: transparent; touch-action: none;
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
   flex-shrink: 0; position: relative; z-index: 10;
 }
+@media (pointer: coarse) { .resize-handle { height: 12px; } }   /* a fingertip-sized handle */
 
 /* TX scheduler panel + collapse chevrons */
 .tx-panel { background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
